@@ -46,7 +46,8 @@ Objetivo: eliminar a aparência genérica de "Code - OSS" e dar identidade próp
 - [x] **Windows**: `resources/win32/code.ico` (6 tamanhos), `code_150x150.png` e `code_70x70.png` atualizados.
 - [x] **Server / Web**: `resources/server/favicon.ico`, `code-192.png`, `code-512.png` e `manifest.json` atualizados.
 - [x] **Assets mestres**: `logo.png` e `splash.png` salvos em `resources/tarot/` e `extensions/tarot-core/media/`.
-- [ ] **Pendências opcionais**: `inno-big-*.bmp` / `inno-small-*.bmp` (instalador Windows) e marca d'água (`letterpress`) do editor vazio.
+- [x] **Workbench SVGs & Watermark**: `src/vs/workbench/browser/media/code-icon.svg` (titlebar/banners/welcome), `src/vs/sessions/browser/media/vscode-icon.svg` e `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` (marca d'água do editor vazio) substituídos pelo emblema vetorial do Tarot IDE.
+- [ ] **Pendências opcionais**: `inno-big-*.bmp` / `inno-small-*.bmp` (instalador Windows).
 
 ### 2.2 Tema Padrão e Experiência de Boas-Vindas
 - [x] Tema oficial **Tarot Arcana Dark** integrado e enriquecido em `extensions/tarot-core/themes/tarot-dark-color-theme.json` (UI completa + Terminal ANSI + TextMate + Semantic Highlighting).
@@ -157,6 +158,7 @@ git merge --no-ff sync/vscode-1.149.0
 | `pnpm-workspace.yaml` & `build/npm/dirs.ts` | Baixa | Manter a linha `extensions/tarot-core` em ordem alfabética junto aos novos membros adicionados pelo upstream. |
 | `build/gulpfile.extensions.ts` | Baixa | Manter `'extensions/tarot-core/tsconfig.json'` no array `compilations`. |
 | `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixa | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` (alteração de 1 linha). |
+| `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Muito baixa | Manter os SVGs do Tarot IDE (`git checkout --ours`) se o upstream alterar ícones. |
 | `resources/{linux,win32,darwin,server}/**` | Muito baixa | Manter os ícones e manifestos do Tarot IDE (`git checkout --ours`) caso o upstream atualize assets da Microsoft. |
 | `pnpm-lock.yaml` | Alta | Não resolver manualmente: aceitar a versão do upstream (`git checkout --theirs pnpm-lock.yaml`) e rodar `pnpm install` para regenerar com `extensions/tarot-core`. |
 | `extensions/tarot-core/**`, `resources/tarot/**` e `docs/**` | Nula | Diretórios exclusivos do Tarot IDE; nunca conflitam com o upstream. |

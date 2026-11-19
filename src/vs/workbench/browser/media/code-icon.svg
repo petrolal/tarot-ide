@@ -1,1 +1,34 @@
-<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><style>.st0{fill:#f6f6f6;fill-opacity:0}.st1{fill:#fff}.st2{fill:#167abf}</style><path class="st0" d="M1024 1024H0V0h1024v1024z"/><path class="st1" d="M1024 85.333v853.333H0V85.333h1024z"/><path class="st2" d="M0 85.333h298.667v853.333H0V85.333zm1024 0v853.333H384V85.333h640zm-554.667 160h341.333v-64H469.333v64zm341.334 533.334H469.333v64h341.333l.001-64zm128-149.334H597.333v64h341.333l.001-64zm0-149.333H597.333v64h341.333l.001-64zm0-149.333H597.333v64h341.333l.001-64z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tarotGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5E08E"/>
+      <stop offset="50%" stop-color="#D4AF37"/>
+      <stop offset="100%" stop-color="#C49A2A"/>
+    </linearGradient>
+    <linearGradient id="tarotBlade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5E08E"/>
+      <stop offset="100%" stop-color="#D4AF37"/>
+    </linearGradient>
+  </defs>
+  <!-- Outer Tarot card frame -->
+  <rect x="150" y="48" width="724" height="928" rx="64" fill="#0A0A16" stroke="url(#tarotGold)" stroke-width="26"/>
+  <!-- Inner Tarot card border & arcane field -->
+  <rect x="194" y="92" width="636" height="840" rx="34" fill="#1D1135" stroke="#D4AF37" stroke-width="10"/>
+  <!-- Outer arcane violet ring -->
+  <circle cx="512" cy="512" r="244" fill="none" stroke="#4B0082" stroke-width="26"/>
+  <!-- Inner gold ritual circle -->
+  <circle cx="512" cy="512" r="200" fill="none" stroke="#D4AF37" stroke-width="8"/>
+  <!-- Crescent moon (top) -->
+  <path d="M518 194 A56 56 0 1 0 562 288 A44 44 0 1 1 518 194 Z" fill="#D4AF37"/>
+  <!-- Four-pointed star (bottom) -->
+  <path d="M512 738 L526 778 L566 792 L526 806 L512 846 L498 806 L458 792 L498 778 Z" fill="#D4AF37"/>
+  <!-- Code brackets < and > -->
+  <polyline points="384,442 324,512 384,582" fill="none" stroke="#D4AF37" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="640,442 700,512 640,582" fill="none" stroke="#D4AF37" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Wand (bottom-left to top-right) + orb -->
+  <line x1="354" y1="670" x2="660" y2="364" stroke="url(#tarotBlade)" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="668" cy="356" r="28" fill="#F5E08E"/>
+  <!-- Sword (top-left to bottom-right) + crossguard -->
+  <line x1="356" y1="356" x2="668" y2="668" stroke="url(#tarotBlade)" stroke-width="24" stroke-linecap="round"/>
+  <line x1="554" y1="654" x2="654" y2="554" stroke="#D4AF37" stroke-width="22" stroke-linecap="round"/>
+</svg>

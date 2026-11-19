@@ -56,6 +56,7 @@ Para manter atualizações futuras do `microsoft/vscode` simples e com risco mí
 | --- | --- | --- |
 | `product.json` | Modificado | Rebranding completo para Tarot IDE, tema `Tarot Arcana Dark` em `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false` e remoção de `agentsTelemetryAppName` e `voiceWsUrl`. |
 | `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (1 linha) | Define `ThemeSettingDefaults.COLOR_THEME_DARK = 'Tarot Arcana Dark'` como tema padrão de primeira inicialização. |
+| `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Substituição dos ícones SVG internos do workbench (barra de título `.window-appicon`, Welcome/Getting Started, banners, Sessions e marca d'água do editor vazio) pelo emblema vetorial da carta Tarot IDE. |
 | `resources/linux/{code.png,code.desktop,code.appdata.xml}`, `resources/win32/{code.ico,code_70x70.png,code_150x150.png,VisualElementsManifest.xml}`, `resources/darwin/code.icns`, `resources/server/{favicon.ico,code-192.png,code-512.png,manifest.json}` | Modificados | Substituição dos ícones, metadados de desktop/AppStream e manifestos Windows/PWA pela identidade oficial do Tarot IDE. |
 | `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png` e ícones 64..1024px). |
 | `build/gulpfile.extensions.ts` | Modificado | Registro de `extensions/tarot-core/tsconfig.json` no array `compilations` (compilação e `watch` automáticos). |
