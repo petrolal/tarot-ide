@@ -10,8 +10,8 @@
 
 | Fase | Marco | Status | Próximo Agente Pode Pegar? |
 | --- | --- | --- | --- |
-| **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core` | ✅ Concluída *(falta apenas `git remote add origin`)* | — |
-| **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot) | ✅ Concluída *(URLs finais pendentes do `origin`)* | — |
+| **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
+| **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
 | **Fase 3** | **IDE 100% Agêntica (Layout & Workflow Kiro + BYOA `claude`, `codex`, `agy`)** | ⏳ **Próxima (M3.1 → M3.6)** | **Sim — iniciar por M3.1** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -27,9 +27,9 @@ Commits de referência na branch `tarot-main`:
 - `b11b77c1` — Rebranding centralizado de strings UI em `src/vs/nls.ts`, atualização do playground Markdown e Walkthrough `Get Started with Tarot IDE`.
 - `9d838ac9` — Desativação limpa do Copilot (`product.json`, `scripts/code.{sh,bat}`), 5 guards contra `defaultChatAgent === undefined` e scripts rápidos `*-tarot*` no `package.json`.
 
-**Pendências administrativas menores das Fases 1/2 (quando o repositório remoto existir):**
-- [ ] `git remote add origin <url-do-repo-tarot> && git push -u origin tarot-main`
-- [ ] Atualizar `reportIssueUrl`, `documentationUrl` e `releaseNotesUrl` em `product.json`.
+**Pendências administrativas encerradas:**
+- [x] Licença **GNU GPL v3.0** configurada (`LICENSE`, `LICENSE.txt`, `NOTICE.md` com Copyright `Lucas Petrola` + atribuição obrigatória GPLv3 §7(b) + nota de dual-licensing comercial, preservando MIT do upstream em `LICENSE-VSCODE-MIT.txt`).
+- [x] Repositório remoto `origin` conectado (`https://github.com/petrolal/tarot-ide.git`) e URLs (`licenseUrl`, `serverLicenseUrl`, `reportIssueUrl`) atualizadas em `product.json`.
 - [ ] *(Opcional)* Substituir bitmaps `resources/win32/inno-*.bmp` antes do primeiro release Windows.
 
 ---
@@ -243,4 +243,4 @@ git checkout tarot-main && git merge --no-ff sync/vscode-1.149.0
 | `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixo | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'`. |
 | `onboardingVariationA.ts`, `defaultAccount.ts`, `extensionGalleryService.ts`, `extensionsWorkbenchService.ts`, `abstractExtensionManagementService.ts` | Muito baixo | Manter guards contra `defaultChatAgent === undefined`. |
 | `vs_code_editor_walkthrough.ts`, SVGs internos (`code-icon.svg`, `vscode-icon.svg`, `letterpress-*.svg`) e `resources/**` | Muito baixo | Manter versão Tarot (`git checkout --ours`). |
-| `extensions/tarot-core/**`, `resources/tarot/**` e `docs/**` | **Nulo** | Diretórios exclusivos do Tarot IDE. |
+| `extensions/tarot-core/**`, `resources/tarot/**`, `docs/**`, `LICENSE`, `LICENSE-VSCODE-MIT.txt`, `NOTICE.md` | **Nulo** | Arquivos exclusivos do Tarot IDE (em `LICENSE.txt`, manter versão GPL-3.0 do Tarot com `--ours`). |

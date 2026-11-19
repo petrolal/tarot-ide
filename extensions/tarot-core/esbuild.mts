@@ -1,6 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Tarot IDE. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *  Copyright (c) 2026 Lucas Petrola — Tarot IDE. All rights reserved.
+ *  Licensed under the GNU General Public License v3.0 (GPL-3.0). See LICENSE and NOTICE.md.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'node:path';
 import { run } from '../esbuild-extension-common.mts';

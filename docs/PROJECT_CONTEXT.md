@@ -24,6 +24,8 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
 | **Tema Padrão** | **Tarot Arcana Dark** (`#0A0A16` / `#1D1135` / `#4B0082` / `#D4AF37` / `#4FD1C5`) |
 | **Tema de Ícones Padrão** | **Tarot Arcana Icons** (`tarot-arcana-icons` — 46 SVGs de pastas e arquivos) |
+| **Repositório Oficial (`origin`)** | `https://github.com/petrolal/tarot-ide.git` |
+| **Licença & Copyright** | **GNU GPL v3.0** (`LICENSE` / `LICENSE.txt`) · **Copyright (c) 2026 Lucas Petrola** (`NOTICE.md`, atribuição obrigatória em forks + suporte a dual-licensing comercial; MIT do upstream preservada em `LICENSE-VSCODE-MIT.txt`) |
 | **Copilot / Telemetria Microsoft** | **Desativados** (`enableTelemetry: false`, sem `defaultChatAgent`, `--disable-extension=GitHub.copilot-chat`) |
 
 ---
@@ -139,6 +141,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png`, ícones 64..1024px). |
 | `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml`, `build/npm/dirs.ts` | Modificados (1 linha cada) | Registro nativo da extensão built-in `extensions/tarot-core`. |
 | `extensions/tarot-core/**` | Novo | Extensão built-in central do Tarot IDE (tema, ícones, walkthrough e futura engine agêntica Kiro/BYOA). |
+| `LICENSE`, `LICENSE.txt`, `LICENSE-VSCODE-MIT.txt`, `NOTICE.md` | Novo / Modificado | Licença GNU GPL v3.0 do Tarot IDE (`Copyright (c) 2026 Lucas Petrola`), atribuição obrigatória em forks (GPLv3 §7(b)), nota de dual-licensing comercial e preservação integral da MIT da Microsoft. |
 | `docs/**` | Novo | Documentação de contexto (`PROJECT_CONTEXT.md`) e plano de migração (`MIGRATION_PLAN.md`). |
 
 ---

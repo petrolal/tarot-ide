@@ -4,7 +4,14 @@
   "description": "%description%",
   "version": "0.1.0",
   "publisher": "tarot",
-  "license": "MIT",
+  "author": {
+    "name": "Lucas Petrola"
+  },
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/petrolal/tarot-ide.git"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
