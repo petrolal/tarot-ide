@@ -2,7 +2,7 @@
   "name": "tarot-core",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "tarot",
   "author": {
     "name": "Lucas Petrola"
@@ -50,6 +50,160 @@
         "path": "./icons/tarot-arcana-icon-theme.json"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tarot-sidebar",
+          "title": "%viewsContainer.tarot.title%",
+          "icon": "media/tarot-activity-icon.svg"
+        }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "tarot-agent-sidebar",
+          "title": "%viewsContainer.agent.title%",
+          "icon": "media/tarot-activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "tarot-sidebar": [
+        {
+          "id": "tarot.views.specs",
+          "name": "%view.specs.name%"
+        },
+        {
+          "id": "tarot.views.hooks",
+          "name": "%view.hooks.name%"
+        },
+        {
+          "id": "tarot.views.steering",
+          "name": "%view.steering.name%"
+        },
+        {
+          "id": "tarot.views.agents",
+          "name": "%view.agents.name%"
+        }
+      ],
+      "tarot-agent-sidebar": [
+        {
+          "type": "webview",
+          "id": "tarot.views.agentPanel",
+          "name": "%view.agentPanel.name%"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "tarot.views.specs",
+        "contents": "Nenhuma Spec em `.tarot/specs/`.\n[Nova Spec](command:tarot.specs.create)"
+      },
+      {
+        "view": "tarot.views.hooks",
+        "contents": "Nenhum Agent Hook em `.tarot/hooks/`.\n[Novo Hook](command:tarot.hooks.create)"
+      },
+      {
+        "view": "tarot.views.steering",
+        "contents": "Nenhuma regra de Steering em `.tarot/steering/`.\n[Novo Steering](command:tarot.steering.create)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tarot.specs.create",
+          "when": "view == tarot.views.specs",
+          "group": "navigation"
+        },
+        {
+          "command": "tarot.hooks.create",
+          "when": "view == tarot.views.hooks",
+          "group": "navigation"
+        },
+        {
+          "command": "tarot.steering.create",
+          "when": "view == tarot.views.steering",
+          "group": "navigation"
+        },
+        {
+          "command": "tarot.agents.refresh",
+          "when": "view == tarot.views.agents",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Tarot IDE",
+      "properties": {
+        "tarot.agents.default": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "claude",
+            "agy",
+            "codex"
+          ],
+          "description": "%config.agents.default.description%"
+        },
+        "tarot.agents.paths.claude": {
+          "type": "string",
+          "default": "",
+          "description": "%config.agents.paths.claude.description%"
+        },
+        "tarot.agents.paths.agy": {
+          "type": "string",
+          "default": "",
+          "description": "%config.agents.paths.agy.description%"
+        },
+        "tarot.agents.paths.codex": {
+          "type": "string",
+          "default": "",
+          "description": "%config.agents.paths.codex.description%"
+        },
+        "tarot.agents.timeoutMs": {
+          "type": "number",
+          "default": 300000,
+          "minimum": 10000,
+          "description": "%config.agents.timeoutMs.description%"
+        },
+        "tarot.agents.custom": {
+          "type": "array",
+          "default": [],
+          "description": "%config.agents.custom.description%",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "displayName",
+              "binary"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "binary": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "versionArgs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "walkthroughs": [
       {
         "id": "tarot.gettingStarted",
@@ -95,6 +249,40 @@
         "command": "tarot.welcome",
         "title": "%command.welcome.title%",
         "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.agentPanel.open",
+        "title": "%command.agentPanel.open.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.agents.select",
+        "title": "%command.agents.select.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.agents.refresh",
+        "title": "%command.agents.refresh.title%",
+        "category": "Tarot IDE",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tarot.specs.create",
+        "title": "%command.specs.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.steering.create",
+        "title": "%command.steering.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.hooks.create",
+        "title": "%command.hooks.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
       }
     ]
   },

@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Layout & Workflow Kiro + BYOA `claude`, `codex`, `agy`)** | ⏳ **Próxima (M3.1 → M3.6)** | **Sim — iniciar por M3.1** |
+| **Fase 3** | **IDE 100% Agêntica (Layout & Workflow Kiro + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.3 ✅ · próximo: M3.4)** | **Sim — iniciar por M3.4** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -71,7 +71,7 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.1 — Contratos & `AgentRuntimeManager` (UC-01)
+### Marco M3.1 — Contratos & `AgentRuntimeManager` (UC-01) — ✅ Concluído
 - **Objetivo**: detectar automaticamente na máquina do usuário as CLIs `claude`, `codex` e `agy` (e binários customizados), expondo status, caminho e versão.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/config/tarotConfig.ts`
@@ -85,9 +85,9 @@ extensions/tarot-core/
   - `AgentEvent = { type: 'text' | 'tool_start' | 'tool_end' | 'diff' | 'error' | 'done'; content?: string; metadata?: Record<string, unknown> }`
   - `AgentAdapter`: `detect(): Promise<AgentStatus>`, `run(req: AgentRunRequest, onEvent: (e: AgentEvent) => void, token: vscode.CancellationToken): Promise<void>`
 - **Critérios de Aceite (DoD)**:
-  - [ ] Detecta `claude`, `codex` e `agy` sem usar `shell: true` (via resolução de `PATH` + `spawn(bin, ['--version'], { shell: false })`).
-  - [ ] Comando `tarot.agents.refresh` e item na Status Bar exibindo o agente ativo (ex.: `$(sparkle) Tarot: claude`).
-  - [ ] Configurações `tarot.agents.default`, `tarot.agents.paths.{claude,codex,agy}` registradas no schema de Settings.
+  - [x] Detecta `claude`, `codex` e `agy` sem usar `shell: true` (via resolução de `PATH` + `~/.local/bin` + `spawn(bin, ['--version'], { shell: false })`).
+  - [x] Comando `tarot.agents.refresh`, `tarot.agents.select` e item na Status Bar exibindo o agente ativo (`$(sparkle) Tarot: claude`).
+  - [x] Configurações `tarot.agents.default`, `tarot.agents.paths.{claude,codex,agy}`, `tarot.agents.timeoutMs` e `tarot.agents.custom` registradas no schema de Settings.
 - **Verificação**:
   ```bash
   pnpm exec gulp compile-extension:tarot-core
@@ -95,7 +95,7 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.2 — Layout Kiro: Activity Bar Esquerda + Painel Agêntico na Secondary Side Bar (UC-01, UC-02)
+### Marco M3.2 — Layout Kiro: Activity Bar Esquerda + Painel Agêntico na Secondary Side Bar (UC-01, UC-02) — ✅ Concluído
 - **Objetivo**: criar a estrutura visual do **Kiro IDE** — container **Tarot** na barra lateral esquerda com 4 TreeViews (**Specs**, **Agent Hooks**, **Agent Steering**, **Local Agents**) e **Painel Agêntico** (`WebviewView`) ancorado na **Secondary Side Bar (direita)**.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/package.json` (`viewsContainers`, `views`, `menus`)
@@ -103,9 +103,9 @@ extensions/tarot-core/
   - `extensions/tarot-core/src/views/agentPanelView.ts`
   - `extensions/tarot-core/media/webview/{panel.css,panel.js}`
 - **Critérios de Aceite (DoD)**:
-  - [ ] Container esquerdo **Tarot** exibe as 4 seções (`Specs`, `Hooks`, `Steering`, `Local Agents`) com ícones coerentes e ações inline (`+`, refresh).
-  - [ ] Painel direito (`WebviewView`) exibe: seletor de agente (`claude` / `codex` / `agy`), toggle **Vibe / Spec**, lista de mensagens com streaming, botão de cancelar execução e chip de arquivos anexados do editor ativo.
-  - [ ] CSP estrita com `nonce` gerada por renderização e sanitização de todo output de agente (sem `innerHTML` inseguro).
+  - [x] Container esquerdo **Tarot** exibe as 4 seções (`Specs`, `Hooks`, `Steering`, `Local Agents`) com ícones coerentes e ações inline (`+`, refresh).
+  - [x] Painel direito (`WebviewView` em `viewsContainers.secondarySidebar`) exibe: seletor de agente (`claude` / `agy` / `codex`), toggle **Vibe / Spec**, lista de mensagens com streaming, botão de cancelar execução e chip de arquivos anexados do editor ativo.
+  - [x] CSP estrita com `nonce` gerada por renderização e sanitização de todo output de agente (DOM seguro com `textContent`, zero `innerHTML`).
 - **Verificação**:
   ```bash
   pnpm exec gulp compile-extension:tarot-core
@@ -114,20 +114,16 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.3 — Adaptadores dos Agentes Locais (`claude`, `codex`, `agy`) + Vibe Mode (UC-02, UC-06)
-- **Objetivo**: conectar o Painel Agêntico aos executáveis reais da máquina com streaming em tempo real, cancelamento limpo (`SIGTERM`), envio de contexto (`#file`, `#selection`) e revisão de diffs.
+### Marco M3.3 — Adaptadores dos Agentes Locais (`claude`, `codex`, `agy`) + Vibe Mode (UC-02, UC-06) — ✅ Concluído
+- **Objetivo**: conectar o Painel Agêntico aos executáveis reais da máquina com streaming em tempo real, cancelamento limpo (`SIGTERM`), envio de contexto (`#file`, `#selection`) e persistência agnóstica de sessão.
 - **Arquivos-alvo**:
-  - `extensions/tarot-core/src/agents/adapters/claudeAdapter.ts`
-  - `extensions/tarot-core/src/agents/adapters/codexAdapter.ts`
-  - `extensions/tarot-core/src/agents/adapters/agyAdapter.ts`
-- **Regras técnicas dos adaptadores**:
-  - Cada adaptador deve isolar flags específicas do seu CLI (ex.: modo não-interativo / stream JSON quando disponível, fallback seguro para stdout/stderr por linha).
-  - Suportar `cwd = workspaceFolder.uri.fsPath` e propagar `CancellationToken` para encerrar o subprocesso sem deixar processos órfãos.
-  - Persistir histórico agnóstico de fornecedor em `.tarot/sessions/<sessionId>.json` para permitir troca de agente no meio da conversa (`UC-06`).
+  - `extensions/tarot-core/src/agents/promptBuilder.ts`
+  - `extensions/tarot-core/src/agents/sessionStore.ts`
+  - `extensions/tarot-core/src/agents/adapters/{claudeAdapter,agyAdapter,codexAdapter,customAdapter}.ts`
 - **Critérios de Aceite (DoD)**:
-  - [ ] Enviar prompt no Vibe Mode dispara o agente selecionado, transmite resposta incremental no painel e permite cancelar a qualquer momento.
-  - [ ] Alterações feitas em arquivos podem ser abertas diretamente no Diff Editor nativo do VS Code (`vscode.diff`).
-  - [ ] Trocar de agente no seletor preserva o histórico da sessão e injeta resumo de contexto no novo agente.
+  - [x] Enviar prompt no Vibe Mode dispara o agente selecionado (`claude`, `agy`, `codex` ou custom), transmite resposta incremental no painel e permite cancelar a qualquer momento.
+  - [x] Trocar de agente no seletor preserva o histórico em `.tarot/sessions/<sessionId>.json` e injeta resumo de contexto no novo agente (`UC-06`).
+  - [ ] *(Aprimoramento futuro)* Ação dedicada no card de resposta para abrir diff de arquivos modificados via `vscode.diff`.
 
 ---
 

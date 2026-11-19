@@ -158,14 +158,27 @@ extensions/tarot-core/
 ├── media/
 │   ├── icon.png                        # Ícone 128x128 da extensão Tarot Core
 │   ├── logo.png                        # Logotipo "TAROT IDE — ARCANA CODE ENVIRONMENT"
-│   └── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
-├── package.json                        # Manifesto (tema, ícones, walkthrough, comandos tarot.*)
+│   ├── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
+│   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar
+│   └── webview/{panel.css,panel.js}    # UI do Painel Agêntico (CSP estrita + paleta Arcana)
+├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.agents.*, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
 │   └── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (UI + TextMate + Semantic)
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
-    └── extension.ts                    # Entry point (activate / deactivate + OutputChannel + tarot.welcome)
+    ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das views
+    ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
+    ├── agents/
+    │   ├── types.ts                    # Contratos AgentAdapter, AgentStatus, AgentEvent, AgentSession
+    │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento
+    │   ├── promptBuilder.ts            # Composição de prompt (modo, steering, histórico, anexos)
+    │   ├── sessionStore.ts             # Persistência agnóstica em .tarot/sessions/<id>.json
+    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom) + Status Bar
+    │   └── adapters/                   # claudeAdapter, agyAdapter, codexAdapter, customAdapter
+    └── views/
+        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs, Hooks, Steering, Local Agents)
+        └── agentPanelView.ts           # WebviewView na Secondary Side Bar direita (Vibe/Spec + streaming)
 ```
 
 ---
