@@ -36,6 +36,13 @@
         "path": "./themes/tarot-dark-color-theme.json"
       }
     ],
+    "iconThemes": [
+      {
+        "id": "tarot-arcana-icons",
+        "label": "%iconTheme.arcana.label%",
+        "path": "./icons/tarot-arcana-icon-theme.json"
+      }
+    ],
     "commands": [
       {
         "command": "tarot.welcome",

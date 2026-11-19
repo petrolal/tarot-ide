@@ -52,6 +52,7 @@ Objetivo: eliminar a aparência genérica de "Code - OSS" e dar identidade próp
 ### 2.2 Tema Padrão e Experiência de Boas-Vindas
 - [x] Tema oficial **Tarot Arcana Dark** integrado e enriquecido em `extensions/tarot-core/themes/tarot-dark-color-theme.json` (UI completa + Terminal ANSI + TextMate + Semantic Highlighting).
 - [x] Registrado em `extensions/tarot-core/package.json` (`contributes.themes`), `product.json` (`onboardingThemes`) e definido como tema escuro padrão em `src/vs/workbench/services/themes/common/workbenchThemeService.ts`.
+- [x] Tema de ícones de pastas e arquivos **Tarot Arcana Icons** (`extensions/tarot-core/icons/`, 46 SVGs) registrado via `contributes.iconThemes` e definido como padrão (`FILE_ICON_THEME = 'tarot-arcana-icons'`).
 - [ ] Adicionar `contributes.walkthroughs` na `extensions/tarot-core` para criar um *Getting Started* exclusivo do Tarot IDE (reaproveitando `media/logo.png` e `media/splash.png`).
 
 ### 2.3 Revisão de Endpoints e Referências Microsoft/Copilot

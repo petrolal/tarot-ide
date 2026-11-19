@@ -19,6 +19,7 @@
 | **Identidade Windows (`win32DirName` / `win32AppUserModelId`)** | `Tarot IDE` / `Tarot.TarotIDE` |
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
 | **Tema Padrão** | **Tarot Arcana Dark** (`#0A0A16` / `#1D1135` / `#4B0082` / `#D4AF37` / `#4FD1C5`) |
+| **Tema de Ícones Padrão** | **Tarot Arcana Icons** (`tarot-arcana-icons` — 46 SVGs de pastas e arquivos) |
 | **Telemetria Microsoft** | **Desativada** (`"enableTelemetry": false`) |
 
 ---
@@ -55,7 +56,7 @@ Para manter atualizações futuras do `microsoft/vscode` simples e com risco mí
 | Arquivo | Tipo | Finalidade |
 | --- | --- | --- |
 | `product.json` | Modificado | Rebranding completo para Tarot IDE, tema `Tarot Arcana Dark` em `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false` e remoção de `agentsTelemetryAppName` e `voiceWsUrl`. |
-| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (1 linha) | Define `ThemeSettingDefaults.COLOR_THEME_DARK = 'Tarot Arcana Dark'` como tema padrão de primeira inicialização. |
+| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (2 linhas) | Define `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` como padrões na primeira inicialização. |
 | `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Substituição dos ícones SVG internos do workbench (barra de título `.window-appicon`, Welcome/Getting Started, banners, Sessions e marca d'água do editor vazio) pelo emblema vetorial da carta Tarot IDE. |
 | `resources/linux/{code.png,code.desktop,code.appdata.xml}`, `resources/win32/{code.ico,code_70x70.png,code_150x150.png,VisualElementsManifest.xml}`, `resources/darwin/code.icns`, `resources/server/{favicon.ico,code-192.png,code-512.png,manifest.json}` | Modificados | Substituição dos ícones, metadados de desktop/AppStream e manifestos Windows/PWA pela identidade oficial do Tarot IDE. |
 | `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png` e ícones 64..1024px). |
@@ -86,6 +87,9 @@ No sistema de build do VS Code:
 extensions/tarot-core/
 ├── .vscodeignore                       # Exclusões para empacotamento de produção
 ├── esbuild.mts                         # Bundler de produção (gera dist/extension.js)
+├── icons/
+│   ├── tarot-arcana-icon-theme.json    # Tema de ícones de pastas/arquivos "Tarot Arcana Icons"
+│   └── svg/*.svg                       # 46 SVGs temáticos na paleta Arcana
 ├── media/
 │   ├── icon.png                        # Ícone 128x128 da extensão Tarot Core
 │   ├── logo.png                        # Logotipo horizontal "TAROT IDE — ARCANA CODE ENVIRONMENT"
