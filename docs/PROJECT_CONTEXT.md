@@ -96,7 +96,7 @@ extensions/tarot-core/
 │   ├── icon.png                        # Ícone 128x128 da extensão Tarot Core
 │   ├── logo.png                        # Logotipo horizontal "TAROT IDE — ARCANA CODE ENVIRONMENT"
 │   └── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
-├── package.json                        # Manifesto (publisher: "tarot", tema + comando tarot.welcome)
+├── package.json                        # Manifesto (publisher: "tarot", tema, ícones, walkthrough e comando tarot.welcome)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
 │   └── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (UI + TextMate + Semantic)
@@ -142,3 +142,13 @@ pnpm exec gulp compile-extension:tarot-core
 # 4. Executar o Tarot IDE em modo desenvolvimento (após o primeiro "Finished compilation")
 ./scripts/code.sh
 ```
+
+### Troubleshooting conhecido (Ubuntu 24.04)
+- **Erro `chrome-sandbox` ao rodar `./scripts/code.sh`**: com `kernel.apparmor_restrict_unprivileged_userns = 1`, o Electron exige que o helper SUID pertença ao `root`:
+  ```bash
+  sudo chown root:root .build/electron/chrome-sandbox && sudo chmod 4755 .build/electron/chrome-sandbox
+  ```
+- **Limite de watchers (`ENOSPC`) no `pnpm run watch`**: caso ocorra em sessões longas, aumente `fs.inotify.max_user_watches`:
+  ```bash
+  sudo sysctl fs.inotify.max_user_watches=524288
+  ```

@@ -8,8 +8,8 @@
 
 | Fase | Escopo | Status |
 | --- | --- | --- |
-| **Fase 1** | Setup do ambiente, fork base, rebranding inicial (`product.json`) e esqueleto `tarot-core` | ✅ Concluída *(aguardando validação visual + commit inicial)* |
-| **Fase 2** | Rebranding visual completo (ícones, tema padrão, onboarding/walkthrough, limpeza Copilot/links) | 🚧 Em progresso *(ícones e tema padrão integrados)* |
+| **Fase 1** | Setup do ambiente, fork base, rebranding inicial (`product.json`) e esqueleto `tarot-core` | ✅ Concluída *(validada e commitada em `tarot-main`)* |
+| **Fase 2** | Rebranding visual completo (ícones, tema padrão, ícones de arquivo, textos UI, walkthrough, limpeza Copilot/links) | 🚧 Quase concluída *(pendente apenas decisão Copilot/URLs)* |
 | **Fase 3** | Desenvolvimento das funcionalidades exclusivas do Tarot IDE em `extensions/tarot-core` | 📋 Planejada |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores (`.deb`/`.rpm`/AppImage/Win/Mac) e CI/CD | 📋 Planejada |
 | **Contínuo** | Processo de sincronização e atualização com novas releases do `microsoft/vscode` | 🔄 Recorrente |
@@ -26,12 +26,9 @@
 - [x] Criação da extensão built-in `extensions/tarot-core` integrada em `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml` e `build/npm/dirs.ts`.
 - [x] Execução de `pnpm install` (57 projetos do workspace) e validação de compilação isolada (`pnpm exec gulp compile-extension:tarot-core` com 0 erros).
 
-### Pendências de fechamento da Fase 1
-- [ ] Rodar `pnpm run watch` + `./scripts/code.sh` e validar:
-  - Título da janela (**Tarot IDE**) e criação de `~/.tarot-ide`.
-  - Busca e instalação de uma extensão via **Open VSX**.
-  - Execução do comando **`Tarot IDE: Welcome`** via Command Palette (`Ctrl+Shift+P`).
-- [ ] Criar o primeiro commit estruturado na branch `tarot-main`.
+### Fechamento da Fase 1
+- [x] Rodar `pnpm run compile` / `pnpm run watch` + `./scripts/code.sh` (com ajuste de permissão do `chrome-sandbox` no Ubuntu 24.04) e validar abertura com tema **Tarot Arcana Dark**.
+- [x] Registrar os commits iniciais estruturados na branch `tarot-main`.
 - [ ] Adicionar o repositório remoto próprio (`git remote add origin <url-do-repo-tarot>`).
 
 ---
