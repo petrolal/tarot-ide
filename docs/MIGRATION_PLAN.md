@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.3 ✅ · próximo: M3.4 → M3.8)** | **Sim — iniciar por M3.4** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.3 ✅ · próximo: M3.4 → M3.9)** | **Sim — iniciar por M3.4** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -127,20 +127,23 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.4 — Context Providers (`#`), Autonomia (`Autopilot`/`Supervised`) e Checkpoints (UC-02)
-- **Objetivo**: alcançar paridade de UX do composer com o Kiro IDE — menu popup `#` empilhável no input, seletor de autonomia e sistema de **Checkpoints** com rollback em 1 clique.
+### Marco M3.4 — Paridade Visual do Painel Kiro (Abas de Sessão, Disclosures, Composer Exato, `#` Context Providers, `Autopilot` Toggle e Checkpoints) (UC-02)
+- **Objetivo**: alinhar 100% a UX do `Tarot Agent` aos prints oficiais do Kiro IDE (ver `docs/KIRO_ARCHITECTURE_REFERENCE.md` Seção 3.1) e entregar `#` Context Providers + Autonomia + Checkpoints.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/context/contextProviders.ts`
   - `extensions/tarot-core/src/checkpoints/checkpointService.ts`
-  - Atualizações em `agentPanelView.ts`, `panel.css`, `panel.js` e `promptBuilder.ts`
-- **Especificação (baseada em `kiro.dev/docs` — ver `docs/KIRO_ARCHITECTURE_REFERENCE.md`)**:
-  - **Menu `#` empilhável**: `#File`, `#Folder`, `#Codebase`, `#Problems` (`vscode.languages.getDiagnostics`), `#Terminal` (última saída capturada), `#Git Diff` (`git diff` working tree + staged) e `#Steering` (arquivos `manual`).
-  - **Nível de autonomia**: toggle **Autopilot** (aplica edições automaticamente) vs **Supervised** (aprovação passo a passo).
-  - **Checkpoints**: snapshot automático antes de cada turno de agente gravado em `.tarot/checkpoints/<sessionId>/<turnId>/` (ou git tree), com botão **Restore Checkpoint** em cada turno da conversa preservando o histórico do chat.
+  - Atualizações em `agentPanelView.ts`, `panel.css`, `panel.js`, `sessionStore.ts` e `promptBuilder.ts`
+- **Especificação (fiel aos prints oficiais do Kiro)**:
+  - **Abas horizontais de sessão no topo do painel direito**: `TAROT | [Sessão 1] [• Spec: ...] [+]` com alternância entre múltiplas sessões e histórico pesquisável.
+  - **Transcript estruturado**: seções recolhíveis `> Thought complete` e `> N tool calls`, card **Updated task list** com barra de progresso (`done/total`) e rodapé **`Elapsed time: Xm Ys`**.
+  - **Composer exato do Kiro**: `<textarea>` no topo com botão quadrado `↑`/`■` no canto superior direito; barra inferior interna com `#` · `📎` · anel de contexto `○` · seletor do agente (`Auto / claude / agy / codex ⌄`) à esquerda, e seletor de modo (`Default / Vibe / Spec / Plan ⌄`) + **`Autopilot` toggle switch** à direita.
+  - **Menu `#` empilhável**: `#File`, `#Folder`, `#Codebase`, `#Problems` (`vscode.languages.getDiagnostics`), `#Terminal`, `#Git Diff` (`git diff`) e `#Steering`.
+  - **Checkpoints**: snapshot automático por turno em `.tarot/checkpoints/<sessionId>/<turnId>/` com botão **Restore Checkpoint** em 1 clique preservando o histórico da conversa.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Digitar `#` no composer abre menu filtrável com os provedores nativos e insere chips removíveis.
-  - [ ] `#Problems` e `#Git Diff` injetam diagnósticos reais e diffs reais no prompt do agente ativo (`claude`/`agy`/`codex`).
-  - [ ] Clicar em **Restore Checkpoint** restaura os arquivos modificados naquele turno mantendo o histórico visível.
+  - [ ] Painel direito exibe abas de múltiplas sessões + botão `+`, disclosures recolhíveis de tool calls e `Elapsed time`.
+  - [ ] Composer segue o layout exato (botão `↑` no topo direito, `#` / `📎` / `○` / agente à esquerda e modo + switch `Autopilot` à direita).
+  - [ ] Digitar `#` abre popup filtrável; `#Problems` e `#Git Diff` injetam dados reais no prompt.
+  - [ ] Clicar em **Restore Checkpoint** restaura arquivos do turno mantendo o histórico visível.
 
 ---
 
@@ -228,6 +231,23 @@ extensions/tarot-core/
   - [ ] TreeView lista servidores MCP configurados no workspace e no usuário.
   - [ ] `Shift+Tab` no composer alterna entre `Vibe` / `Plan` / `Spec`.
   - [ ] `.tarot/permissions.yaml` é avaliado antes de comandos `command` em Hooks e ações supervisionadas.
+
+---
+
+### Marco M3.9 — Workflows & Recipes Multi-Agente + Agent Swarms / Sessions View (UC-07)
+- **Objetivo**: implementar o motor de **Workflows & Recipes** visto no Kiro (`feature-pipeline`, `investigate`, `goal`, `publish-pr`, `semantic-review-multi-model`) aproveitando os múltiplos agentes locais do usuário (`claude`, `agy`, `codex`) por step.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/workflows/workflowEngine.ts`
+  - `extensions/tarot-core/src/workflows/recipes.ts`
+  - `extensions/tarot-core/src/views/workflowRunEditor.ts` (WebviewPanel no editor central)
+  - Novas views na barra esquerda: `WORKFLOW RUNS` + `RECIPES` e painel `SESSIONS` com busca
+- **Especificação (fiel aos prints oficiais do Kiro)**:
+  - Receitas declarativas em `.tarot/workflows/*.yaml` (e globais `~/.tarot/workflows/*.yaml`) definindo `steps` com `agent` (`claude` | `agy` | `codex` | `default`), `loop`, `parallel`, `gate` (`validate-gate` com testes/typecheck) e aprovação humana (`Approved`).
+  - Editor visual central mostrando status `Running · step X of Y`, badges `loop ×N` e `parallel`, sub-passos expansíveis e logs ao vivo.
+  - View **Sessions** com campo `Search sessions...`, status (`needs approval`, `done`, `running`) e `Older Sessions`.
+- **Critérios de Aceite (DoD)**:
+  - [ ] Receitas built-in (`feature-pipeline`, `investigate`, `semantic-review-multi-model`) listadas em `RECIPES` com botão Play `▷`.
+  - [ ] Executar uma Recipe abre o painel visual de steps no editor central, respeita `validate-gate` e registra o histórico em `WORKFLOW RUNS`.
 
 ---
 

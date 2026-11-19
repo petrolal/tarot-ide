@@ -18,7 +18,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Binário / CLI (`applicationName`)** | `tarot` |
 | **Protocolo de URL (`urlProtocol`)** | `tarot://` |
 | **Diretório de Dados do Usuário** | `.tarot-ide` (`~/.tarot-ide`) / compartilhado: `.tarot-ide-shared` |
-| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `sessions/`, `checkpoints/`, `settings/mcp.json`, `permissions.yaml`) + `AGENTS.md` na raiz |
+| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `workflows/`, `sessions/`, `checkpoints/`, `settings/mcp.json`, `permissions.yaml`) + `AGENTS.md` na raiz |
 | **Servidor / Túnel** | `tarot-server` (`.tarot-ide-server`) / `tarot-tunnel` |
 | **Bundle IDs** | macOS: `com.tarot.ide` · Linux: `com.tarot.ide` (`tarot-ide`) · Windows: `Tarot.TarotIDE` |
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
@@ -115,9 +115,13 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 
 ### UC-06 — Troca Dinâmica de Motor / Handoff + MCP / Powers
 - **Ator**: Desenvolvedor que planeja uma Spec com `claude`, executa tarefas com `agy`/`codex` e conecta ferramentas externas sem estourar tokens.
-- **Fluxo**: Estado padronizado em `.tarot/` (agnóstico de fornecedor), configuração MCP hierárquica (`.tarot/settings/mcp.json` + `~/.tarot/settings/mcp.json`) e **Powers** sob demanda ativados por palavras-chave.
+- **Fluxo**: Estado padronizado em `.tarot/` (agnóstico de fornecedor), múltiplas sessões em abas no painel direito, configuração MCP hierárquica (`.tarot/settings/mcp.json` + `~/.tarot/settings/mcp.json`) e **Powers** sob demanda ativados por palavras-chave.
 
-### UC-07 — Extensões Livres via Open VSX
+### UC-07 — Workflows & Recipes Multi-Agente (`.tarot/workflows/*.yaml`)
+- **Ator**: Desenvolvedor executando pipelines determinísticos de engenharia (ex.: `feature-pipeline`, `investigate`, `semantic-review-multi-model`, `publish-pr`).
+- **Fluxo**: Seleciona uma Recipe na view **Workflows** (com etapas encadeadas, `loop`, `parallel` e `validate-gate`), acompanhando cada passo em um painel visual no editor central (com status `Running · step X of Y` e aprovação humana nos gates). Cada etapa pode rodar em um agente local diferente (`claude` para design, `agy` para implementação, `codex` para review de segurança).
+
+### UC-08 — Extensões Livres via Open VSX
 - **Ator**: Desenvolvedor instalando suporte a linguagens, linters e temas extras.
 - **Fluxo**: Busca e instalação transparentes na view Extensions conectada ao Open VSX Registry, sem dependência do Marketplace da Microsoft.
 

@@ -116,3 +116,37 @@ Armazenados em `.tarot/hooks/*.json` (workspace) e `~/.tarot/hooks/*.json` (glob
 - **Powers**: bundles sob demanda (MCP + instruções) ativados por palavras-chave no prompt para evitar estourar a janela de contexto (*MCP sprawl*).
 - **Plan Subagent (`Shift+Tab` ou `/plan`)**: modo somente-leitura para explorar a codebase e desenhar planos sem alterar arquivos.
 - **Permissões baseadas em capacidades (`.tarot/permissions.yaml`)**: regras declarativas para `shell`, `fs_read`, `fs_write`, `network` e `mcp` com efeitos `allow` | `deny` | `ask`.
+
+---
+
+## 3. Especificação Visual Real (Baseada nos Prints Oficiais do Kiro IDE)
+
+Análise pixel-a-pixel dos 7 prints oficiais do Kiro IDE (layout 3 colunas, Composer, Crew/Sessions, Workflows/Recipes e pipeline de entrega):
+
+### 3.1 Layout Principal de 3 Colunas
+- **Activity Bar (Esquerda)**: ícones padrão do editor + grupo dedicado **Tarot** (equivalente ao Kiro):
+  1. **Tarot Hub** (Specs, Steering, Hooks, Local Agents, MCP)
+  2. **Workflows & Recipes** (`WORKFLOW RUNS` + `RECIPES` com botão Play `▷`)
+  3. **Agent Sessions / Crew** (lista pesquisável de sessões com status)
+- **Editor Central**: código, Diff Editor nativo (`+X -Y`), editor de Specs e **Visualizador de Workflow Run** (mostrando etapas, badges `loop ×N`, `parallel`, `Approved`, `Running · step X of Y`).
+- **Secondary Side Bar (Direita — `Tarot Agent`)**:
+  - **Barra de Abas de Sessão no Topo**: `TAROT | [Sessão 1] [Sessão 2] [• Spec: ...] [+]` — múltiplas sessões concorrentes em abas horizontais com bolinha indicadora de execução/Spec e botão `+`.
+  - **Transcript Estruturado**:
+    - Blocos recolhíveis (*collapsible disclosures*) para pensamento e ferramentas: `> Thought complete`, `> N tool calls`, `> Ran command ... · X passed`, `> Edited file.ts`.
+    - Card **Updated task list** com barra de progresso contínua (`2/2`) e itens concluídos (`✓`).
+    - Rodapé do turno com **`Elapsed time: Xm Ys`**.
+  - **Composer Exato do Kiro (Card Único)**:
+    - **Área superior**: `<textarea>` sem borda/resize (`Ask a question or describe a task...`, `Enter` envia / `Shift+Enter` quebra linha) + **botão quadrado arredondado `↑` (ou `■` Stop)** no canto superior direito da caixa.
+    - **Barra inferior interna**:
+      - *Esquerda*: ícone `#` (Context Providers), ícone `📎` (Anexar arquivo/imagem), anel indicador de uso de contexto (`○`), seletor do agente local (`Auto / claude / agy / codex ⌄`).
+      - *Direita*: seletor de perfil/modo (`Default / Vibe / Spec / Plan ⌄`) + label **`Autopilot`** com **toggle switch pill**.
+
+### 3.2 Workflows & Recipes Multi-Agente (`.tarot/workflows/*.yaml`)
+- **Recipes reutilizáveis** (inspiradas nas receitas nativas do Kiro: `feature-pipeline`, `investigate`, `goal`, `publish-pr`, `semantic-review-multi-model`):
+  - Encadeiam steps determinísticos com `loop` (ex.: `design-loop`, `code-loop`), `parallel` (implementação + review de corretude + review de segurança em paralelo) e `validate-gate` (impede o agente de pular testes falhando).
+  - **Vantagem exclusiva do Tarot IDE (BYOA)**: cada step pode especificar um agente local diferente (ex.: `design` em `claude`, `implement` em `agy`, `review-security` em `codex`), entregando **revisão adversarial multi-modelo** usando os CLIs já instalados na máquina.
+
+### 3.3 Sessions & Agent Swarms (Crew)
+- Lista de sessões com `Search sessions...`, agrupamento por projeto/branch, indicador de status (`Flaky tests fixed`, badge amarelo `1 sub-agent needs approval`), `+ New ⌄` e `Older Sessions >`.
+- Suporte a **sub-agentes** (`Spawned 1 sub-agent ...`) com aprovação humana quando uma etapa exigir intervenção.
+
