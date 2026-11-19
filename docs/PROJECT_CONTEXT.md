@@ -1,7 +1,7 @@
 # Tarot IDE — Contexto, Stack, Regras e Casos de Uso
 
 > **Fonte única de verdade (Single Source of Truth)** para engenheiros e agentes de IA (`claude-code`, `codex`, `agy`, etc.) que atuam no desenvolvimento do **Tarot IDE**.
-> Leia este documento e `docs/MIGRATION_PLAN.md` antes de planejar ou alterar qualquer arquivo do repositório.
+> Leia este documento, `docs/KIRO_ARCHITECTURE_REFERENCE.md` (paridade oficial com o Kiro IDE) e `docs/MIGRATION_PLAN.md` antes de planejar ou alterar qualquer arquivo do repositório.
 
 ---
 
@@ -18,7 +18,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Binário / CLI (`applicationName`)** | `tarot` |
 | **Protocolo de URL (`urlProtocol`)** | `tarot://` |
 | **Diretório de Dados do Usuário** | `.tarot-ide` (`~/.tarot-ide`) / compartilhado: `.tarot-ide-shared` |
-| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `sessions/`) |
+| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `sessions/`, `checkpoints/`, `settings/mcp.json`, `permissions.yaml`) + `AGENTS.md` na raiz |
 | **Servidor / Túnel** | `tarot-server` (`.tarot-ide-server`) / `tarot-tunnel` |
 | **Bundle IDs** | macOS: `com.tarot.ide` · Linux: `com.tarot.ide` (`tarot-ide`) · Windows: `Tarot.TarotIDE` |
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
@@ -90,34 +90,32 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 - **Fluxo**: Ao ativar `tarot-core`, o `AgentRuntimeManager` escaneia o `PATH` (e caminhos configurados em `tarot.agents.*`) para detectar `claude`, `codex` e `agy`, consultando disponibilidade e versão (`--version`).
 - **Resultado**: A view **Agents** exibe os motores disponíveis (verde = pronto, cinza = não instalado com instrução rápida) e permite definir o agente padrão global ou por sessão.
 
-### UC-02 — Vibe Mode (Chat Agêntico Direto no Painel Direito)
-- **Ator**: Desenvolvedor querendo implementar ou depurar algo rapidamente.
-- **Fluxo**: No **Painel Agêntico** (Secondary Side Bar, à direita — layout Kiro), o usuário escolhe o agente (`claude-code`, `codex` ou `agy`), seleciona **Vibe Mode**, anexa arquivos/seleções de código (`#file`, `#selection`) e envia o prompt.
-- **Resultado**: O adaptador executa o CLI local com o contexto do workspace + regras de Steering, faz streaming da resposta/ferramentas em tempo real no painel e permite inspecionar/aceitar/reverter diffs direto no Diff Editor do Tarot IDE.
+### UC-02 — Vibe Mode, Context Providers (`#`), Autonomia e Checkpoints
+- **Ator**: Desenvolvedor querendo implementar, depurar ou revisar código rapidamente.
+- **Fluxo**: No **Painel Agêntico** (Secondary Side Bar, à direita — layout Kiro), o usuário escolhe o agente (`claude`, `agy` ou `codex`), alterna entre **Vibe / Spec / Plan (`Shift+Tab`)**, define autonomia (**Autopilot** vs **Supervised**), digita `#` para empilhar provedores de contexto (`#File`, `#Folder`, `#Problems`, `#Terminal`, `#Git Diff`, `#Codebase`, `#Steering`, `#MCP`) e envia com `Enter` (`Shift+Enter` quebra linha).
+- **Resultado**: O adaptador executa o CLI local com contexto + Steering, transmite a resposta em tempo real e registra **Checkpoints** automáticos por turno permitindo rollback de arquivos em 1 clique preservando o histórico do chat.
 
-### UC-03 — Spec-Driven Development (Workflow Kiro: Requirements → Design → Tasks)
-- **Ator**: Desenvolvedor iniciando uma feature complexa ou refatoração.
+### UC-03 — Spec-Driven Development (Feature & Bugfix Specs com Notação EARS)
+- **Ator**: Desenvolvedor iniciando uma feature complexa ou corrigindo um bug crítico.
 - **Fluxo**:
-  1. Usuário seleciona **Spec Mode** e descreve a feature (ou aciona `Tarot: New Spec`).
-  2. O agente gera `.tarot/specs/<slug>/requirements.md` (histórias de usuário + critérios de aceite EARS). Usuário revisa e aprova.
-  3. O agente gera `.tarot/specs/<slug>/design.md` (arquitetura, componentes, contratos de dados e plano de testes). Usuário revisa e aprova.
-  4. O agente gera `.tarot/specs/<slug>/tasks.md` (checklist de tarefas executáveis e incrementais).
-  5. Usuário clica em **"Run Task"** em qualquer item (ou executa em sequência), podendo inclusive escolher qual agente local (`claude`, `codex`, `agy`) executa cada tarefa.
-- **Resultado**: Execução rastreável, auditável e versionada em Markdown dentro do próprio repositório do projeto.
+  1. **Feature Spec** (*Requirements-First* ou *Design-First*): gera `.tarot/specs/<slug>/requirements.md` em notação **EARS** (`WHEN ... THE SYSTEM SHALL ...`) ↔ `design.md` (arquitetura + propriedades de corretude/PBT) → `tasks.md` (checklist sequenciada).
+  2. **Bugfix Spec**: gera `.tarot/specs/<slug>/bugfix.md` com 3 blocos EARS (*Current Behavior*, *Expected Behavior*, *Unchanged Behavior* para prevenir regressões) → `design.md` (causa raiz) → `tasks.md`.
+  3. Usuário aprova cada transição e executa tarefas individualmente via CodeLens **"Run Task"** escolhendo qual agente local (`claude`, `agy`, `codex`) executa cada item.
+- **Resultado**: Execução rastreável, auditável e versionada em Markdown dentro do próprio repositório.
 
-### UC-04 — Agent Steering (Contexto Persistente do Projeto)
-- **Ator**: Time ou dev mantendo padrões de arquitetura/estilo consistentes entre diferentes agentes.
-- **Fluxo**: Arquivos Markdown em `.tarot/steering/*.md` (ex.: `product.md`, `tech.md`, `structure.md` ou arquivos com frontmatter de inclusão condicional por glob) são gerenciados na view **Steering** e injetados automaticamente como contexto de sistema/prompt em todas as sessões de `claude`, `codex` e `agy`.
-- **Resultado**: Todos os agentes locais obedecem às mesmas convenções do projeto, independentemente do CLI escolhido.
+### UC-04 — Agent Steering (`.tarot/steering/*.md`, `~/.tarot/steering/` e `AGENTS.md`)
+- **Ator**: Time ou dev mantendo padrões consistentes entre diferentes agentes.
+- **Fluxo**: Geração automática dos 3 arquivos fundacionais (`product.md`, `tech.md`, `structure.md`), suporte a `AGENTS.md` na raiz e 4 modos de inclusão via frontmatter (`always`, `fileMatch`, `auto`, `manual`).
+- **Resultado**: Todos os agentes locais (`claude`, `agy`, `codex`) obedecem às mesmas regras do projeto com mínima poluição da janela de contexto.
 
-### UC-05 — Agent Hooks (Automações Orientadas a Eventos)
-- **Ator**: Desenvolvedor automatizando tarefas repetitivas (ex.: atualizar testes ao salvar um arquivo, revisar i18n, validar contratos de API).
-- **Fluxo**: Usuário cria um hook em `.tarot/hooks/<nome>.json` (via UI da view **Agent Hooks**) definindo: evento (`onSave`, `onCreate`, `onDelete`, `manual`), padrão glob de arquivos, agente alvo (`claude` / `codex` / `agy`) e prompt.
-- **Resultado**: Quando o evento ocorre (em workspace confiável), o Tarot IDE dispara o agente em segundo plano com log estruturado e notificação do resultado/diff.
+### UC-05 — Agent Hooks v1 (`.tarot/hooks/*.json` e `~/.tarot/hooks/*.json`)
+- **Ator**: Desenvolvedor automatizando lint, testes, revisões ou geração de boilerplate por eventos.
+- **Fluxo**: Hooks no schema `v1` suportam gatilhos de arquivo (`PostFileCreate`, `PostFileSave`, `PostFileDelete` com regex `matcher`), ciclo de vida (`Stop`, `SessionStart`, `SessionEnd`) e `Manual` (botão Play), executando tanto comandos shell (`type: "command"`) quanto prompts em agentes (`type: "agent"`).
+- **Resultado**: Automações determinísticas e agênticas respeitando `vscode.workspace.isTrusted` e `.tarot/permissions.yaml`.
 
-### UC-06 — Troca Dinâmica de Motor / Handoff entre Agentes
-- **Ator**: Desenvolvedor que planeja uma Spec com `claude-code`, implementa uma tarefa com `codex` e revisa com `agy` (ou contorna limites de cota de uma ferramenta).
-- **Fluxo**: Como o estado de Specs, Steering, Hooks e histórico da sessão fica padronizado em `.tarot/` (agnóstico de fornecedor), o usuário troca o agente ativo no seletor do painel sem perder o contexto da tarefa.
+### UC-06 — Troca Dinâmica de Motor / Handoff + MCP / Powers
+- **Ator**: Desenvolvedor que planeja uma Spec com `claude`, executa tarefas com `agy`/`codex` e conecta ferramentas externas sem estourar tokens.
+- **Fluxo**: Estado padronizado em `.tarot/` (agnóstico de fornecedor), configuração MCP hierárquica (`.tarot/settings/mcp.json` + `~/.tarot/settings/mcp.json`) e **Powers** sob demanda ativados por palavras-chave.
 
 ### UC-07 — Extensões Livres via Open VSX
 - **Ator**: Desenvolvedor instalando suporte a linguagens, linters e temas extras.

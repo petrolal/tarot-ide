@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Layout & Workflow Kiro + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.3 ✅ · próximo: M3.4)** | **Sim — iniciar por M3.4** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.3 ✅ · próximo: M3.4 → M3.8)** | **Sim — iniciar por M3.4** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -127,61 +127,107 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.4 — Agent Steering (`.tarot/steering/*.md`) (UC-04)
-- **Objetivo**: implementar o sistema de regras persistentes do projeto no modelo do Kiro, injetado automaticamente em qualquer agente local selecionado.
+### Marco M3.4 — Context Providers (`#`), Autonomia (`Autopilot`/`Supervised`) e Checkpoints (UC-02)
+- **Objetivo**: alcançar paridade de UX do composer com o Kiro IDE — menu popup `#` empilhável no input, seletor de autonomia e sistema de **Checkpoints** com rollback em 1 clique.
 - **Arquivos-alvo**:
-  - `extensions/tarot-core/src/steering/steeringService.ts`
-  - Integração com `tarotSidebarViews.ts` e adaptadores em `src/agents/`
-- **Especificação**:
-  - Suportar arquivos `.tarot/steering/*.md` com frontmatter opcional:
-    - `inclusion: always` (padrão) — sempre injetado.
-    - `inclusion: fileMatch` + `fileMatchPattern: "src/**/*.ts"` — injetado quando o arquivo ativo ou referenciado casa com o glob.
-    - `inclusion: manual` — injetado quando citado pelo usuário (`#steering-name`).
-  - Ação **"Generate Base Steering"** que pede ao agente ativo para criar `product.md`, `tech.md` e `structure.md` analisando o workspace.
+  - `extensions/tarot-core/src/context/contextProviders.ts`
+  - `extensions/tarot-core/src/checkpoints/checkpointService.ts`
+  - Atualizações em `agentPanelView.ts`, `panel.css`, `panel.js` e `promptBuilder.ts`
+- **Especificação (baseada em `kiro.dev/docs` — ver `docs/KIRO_ARCHITECTURE_REFERENCE.md`)**:
+  - **Menu `#` empilhável**: `#File`, `#Folder`, `#Codebase`, `#Problems` (`vscode.languages.getDiagnostics`), `#Terminal` (última saída capturada), `#Git Diff` (`git diff` working tree + staged) e `#Steering` (arquivos `manual`).
+  - **Nível de autonomia**: toggle **Autopilot** (aplica edições automaticamente) vs **Supervised** (aprovação passo a passo).
+  - **Checkpoints**: snapshot automático antes de cada turno de agente gravado em `.tarot/checkpoints/<sessionId>/<turnId>/` (ou git tree), com botão **Restore Checkpoint** em cada turno da conversa preservando o histórico do chat.
 - **Critérios de Aceite (DoD)**:
-  - [ ] TreeView **Agent Steering** lista, cria e abre arquivos `.tarot/steering/*.md` em tempo real via `FileSystemWatcher`.
-  - [ ] Contexto de Steering é anexado ao prompt efetivo de `claude`, `codex` e `agy` de forma transparente e visível no painel.
+  - [ ] Digitar `#` no composer abre menu filtrável com os provedores nativos e insere chips removíveis.
+  - [ ] `#Problems` e `#Git Diff` injetam diagnósticos reais e diffs reais no prompt do agente ativo (`claude`/`agy`/`codex`).
+  - [ ] Clicar em **Restore Checkpoint** restaura os arquivos modificados naquele turno mantendo o histórico visível.
 
 ---
 
-### Marco M3.5 — Spec-Driven Development (`.tarot/specs/<slug>/`) (UC-03)
-- **Objetivo**: implementar o fluxo completo do Kiro IDE de especificação antes da implementação: **`requirements.md` → `design.md` → `tasks.md` → execução tarefa a tarefa**.
+### Marco M3.5 — Agent Steering Completo (`product.md`, `tech.md`, `structure.md`, `AGENTS.md`, 4 Modos) (UC-04)
+- **Objetivo**: implementar o sistema completo de Steering do Kiro (workspace + global + `AGENTS.md`) injetado em todos os agentes locais.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/steering/steeringService.ts`
+  - Integração com `tarotSidebarViews.ts`, `agentPanelView.ts` e `promptBuilder.ts`
+- **Especificação**:
+  - Hierarquia de descoberta: `AGENTS.md` (raiz do repo) + `~/.tarot/steering/*.md` (global) + `.tarot/steering/*.md` (workspace).
+  - Parser de frontmatter YAML suportando os **4 modos oficiais do Kiro**:
+    - `inclusion: always` *(padrão)*
+    - `inclusion: fileMatch` + `fileMatchPattern` (glob casado contra editor ativo e `#File` anexados)
+    - `inclusion: auto` + `description` (incluído quando relevante ao prompt)
+    - `inclusion: manual` (injetado apenas quando referenciado via `#steering-name`)
+  - Comando **`Tarot IDE: Generate Project Steering Documents`** criando `product.md`, `tech.md` e `structure.md` via agente ativo.
+- **Critérios de Aceite (DoD)**:
+  - [ ] TreeView **Agent Steering** exibe grupo *Workspace*, *Global* e `AGENTS.md` com badge do modo de inclusão.
+  - [ ] Todos os 4 modos de inclusão funcionam de forma determinística e são visíveis nos metadados do turno.
+
+---
+
+### Marco M3.6 — Spec-Driven Development Completo (Feature EARS, Bugfix `bugfix.md`, Run Task & PBT) (UC-03)
+- **Objetivo**: implementar o ciclo completo de Specs do Kiro IDE, incluindo Feature Specs (*Requirements-First* e *Design-First*), Bugfix Specs e execução granular de tarefas por qualquer agente local.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/specs/specService.ts`
   - `extensions/tarot-core/src/specs/taskParser.ts`
-  - Integração com `tarotSidebarViews.ts` e `agentPanelView.ts`
+  - `extensions/tarot-core/src/specs/taskCodeLensProvider.ts`
 - **Especificação**:
-  - Estrutura em disco: `.tarot/specs/<slug>/{requirements.md,design.md,tasks.md}`.
-  - Transições guiadas com portão de aprovação humana entre cada fase (Requirements → Design → Tasks).
-  - CodeLens (ou ações inline na TreeView) sobre itens `- [ ]` em `tasks.md`: **"Run Task with Active Agent"** e **"Run Task with..."** (escolhendo `claude` / `codex` / `agy`), atualizando automaticamente para `- [x]` após validação.
+  - **Feature Spec**: `.tarot/specs/<slug>/{requirements.md,design.md,tasks.md}` usando notação **EARS** (`WHEN ... THE SYSTEM SHALL ...`), suportando entrada *Requirements-First* e *Design-First* + seção de *Correctness / Property-Based Testing* em `design.md`.
+  - **Bugfix Spec**: `.tarot/specs/<slug>/{bugfix.md,design.md,tasks.md}` com os 3 blocos EARS (*Current Behavior*, *Expected Behavior*, *Unchanged Behavior*).
+  - **Portões de aprovação humana** entre fases (Requirements/Bugfix → Design → Tasks) no painel agêntico.
+  - **CodeLens em `tasks.md`** sobre cada `- [ ]`: **`▶ Run Task`** (agente ativo) e **`▶ Run Task with...`** (`claude` / `agy` / `codex`), marcando `- [x]` após conclusão.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Criar nova Spec no **Spec Mode** gera sequencialmente os 3 arquivos Markdown no workspace.
-  - [ ] TreeView **Specs** mostra o progresso (ex.: `3/7 tasks`) e permite disparar tarefas individuais.
-  - [ ] Cada execução de tarefa injeta automaticamente `requirements.md`, `design.md`, `tasks.md` e os arquivos de **Steering** aplicáveis.
+  - [ ] Comando `Tarot: New Spec` permite escolher **Feature (Requirements-First)**, **Feature (Design-First)** ou **Bugfix**.
+  - [ ] CodeLens em `tasks.md` dispara o agente escolhido com o contexto completo da Spec + Steering e atualiza progresso (`done/total tasks`) na TreeView.
 
 ---
 
-### Marco M3.6 — Agent Hooks (`.tarot/hooks/*.json`) (UC-05)
-- **Objetivo**: automações orientadas a eventos do editor que invocam agentes locais em segundo plano.
+### Marco M3.7 — Agent Hooks Engine `v1` (File + Lifecycle + Manual, `command` & `agent`) (UC-05)
+- **Objetivo**: implementar a engine de automações orientadas a eventos fiel ao schema `v1` do Kiro IDE.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/hooks/hookEngine.ts`
-  - Integração com `tarotSidebarViews.ts`
-- **Schema de Hook (`.tarot/hooks/<id>.json`)**:
+  - Integração com `tarotSidebarViews.ts` e `agentPanelView.ts`
+- **Schema `v1` (`.tarot/hooks/*.json` e `~/.tarot/hooks/*.json`)**:
   ```json
   {
-    "id": "update-tests-on-save",
-    "name": "Atualizar testes ao salvar",
-    "enabled": true,
-    "trigger": "onSave",
-    "glob": "src/**/*.ts",
-    "agent": "default",
-    "prompt": "Verifique se o arquivo alterado {{file}} exige atualização nos testes unitários."
+    "version": "v1",
+    "hooks": [
+      {
+        "name": "Lint on save",
+        "enabled": true,
+        "trigger": "PostFileSave",
+        "matcher": "\\.(ts|tsx)$",
+        "action": {
+          "type": "command",
+          "command": "pnpm exec eslint --fix {{file}}"
+        }
+      }
+    ]
   }
   ```
+- **Especificação**:
+  - Triggers: `PostFileCreate`, `PostFileSave`, `PostFileDelete` (com `matcher` regex), `Stop` (fim de turno do agente), `SessionStart`, `SessionEnd` e `Manual` (botão Play na TreeView).
+  - Ações: `type: "command"` (execução direta segura sem shell injection) e `type: "agent"` (dispara prompt no agente escolhido).
+  - Debounce, fila serial por hook e **bloqueio obrigatório quando `!vscode.workspace.isTrusted`**.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Suporta gatilhos `onSave`, `onCreate`, `onDelete` e `manual` com debounce e fila para evitar disparos simultâneos redundantes.
-  - [ ] **Bloqueado automaticamente quando `!vscode.workspace.isTrusted`** (exigência de segurança).
-  - [ ] Toggle habilitar/desabilitar e execução manual direto na TreeView **Agent Hooks**, com log dedicado no OutputChannel `Tarot IDE`.
+  - [ ] Hooks `PostFileSave` e `Manual` funcionam para `command` e `agent`, com toggle habilitar/desabilitar e botão Play na TreeView.
+  - [ ] Nenhum hook executa automaticamente em workspaces não confiáveis.
+
+---
+
+### Marco M3.8 — MCP (`mcp.json`), Powers, Plan Subagent (`Shift+Tab`) & Permissões (`permissions.yaml`) (UC-06)
+- **Objetivo**: fechar a paridade com os recursos avançados do Kiro IDE 1.0+.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/mcp/mcpConfigService.ts`
+  - `extensions/tarot-core/src/permissions/permissionsService.ts`
+  - `extensions/tarot-core/src/powers/powersService.ts`
+- **Especificação**:
+  - **MCP**: leitura hierárquica `.tarot/settings/mcp.json` → `~/.tarot/settings/mcp.json` com nova TreeView **MCP Servers** na barra lateral Tarot e sincronização de flags/configs com `claude`, `agy` e `codex`.
+  - **Plan Subagent (`Shift+Tab` ou `/plan`)**: alterna para modo somente-leitura de exploração/planejamento sem alterar arquivos.
+  - **Powers**: pacotes sob demanda (`.tarot/powers/`) que ativam instruções + MCP apenas quando palavras-chave relevantes aparecem no prompt.
+  - **Permissões (`.tarot/permissions.yaml`)**: regras declarativas para `shell`, `fs_read`, `fs_write`, `network` e `mcp` (`allow` / `deny` / `ask`).
+- **Critérios de Aceite (DoD)**:
+  - [ ] TreeView lista servidores MCP configurados no workspace e no usuário.
+  - [ ] `Shift+Tab` no composer alterna entre `Vibe` / `Plan` / `Spec`.
+  - [ ] `.tarot/permissions.yaml` é avaliado antes de comandos `command` em Hooks e ações supervisionadas.
 
 ---
 
