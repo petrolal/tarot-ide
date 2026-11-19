@@ -43,6 +43,46 @@
         "path": "./icons/tarot-arcana-icon-theme.json"
       }
     ],
+    "walkthroughs": [
+      {
+        "id": "tarot.gettingStarted",
+        "title": "%walkthrough.title%",
+        "description": "%walkthrough.description%",
+        "icon": "media/icon.png",
+        "featuredFor": [
+          "*"
+        ],
+        "steps": [
+          {
+            "id": "tarot.welcomeStep",
+            "title": "%walkthrough.step.welcome.title%",
+            "description": "%walkthrough.step.welcome.description%",
+            "media": {
+              "image": "media/splash.png",
+              "altText": "Tarot IDE — Arcana Code Environment"
+            }
+          },
+          {
+            "id": "tarot.themeStep",
+            "title": "%walkthrough.step.theme.title%",
+            "description": "%walkthrough.step.theme.description%",
+            "media": {
+              "image": "media/logo.png",
+              "altText": "Tarot Arcana Dark & Icons"
+            }
+          },
+          {
+            "id": "tarot.extensionsStep",
+            "title": "%walkthrough.step.extensions.title%",
+            "description": "%walkthrough.step.extensions.description%",
+            "media": {
+              "image": "media/icon.png",
+              "altText": "Open VSX Extensions"
+            }
+          }
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "tarot.welcome",

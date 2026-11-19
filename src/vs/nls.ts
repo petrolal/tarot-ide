@@ -25,13 +25,27 @@ export interface ILocalizedString {
 	value: string;
 }
 
+const _tarotBrandPattern = /\b(?:Visual Studio Code|VS Code|Code - OSS)\b/g;
+const _tarotBrandPreservePattern = /\b(?:from\s+(?:Visual Studio Code|VS Code)|(?:Visual Studio Code|VS Code)\s+(?:keymap|keybindings?|profile)|(?:import\w*|migra\w*)\b[^.\n]{0,40}\b(?:Visual Studio Code|VS Code))\b/i;
+
+function _rebrandMessage(message: string): string {
+	if (!message.includes('Code')) {
+		return message;
+	}
+	if (message.trim() === 'VS Code' || _tarotBrandPreservePattern.test(message)) {
+		return message;
+	}
+	return message.replace(_tarotBrandPattern, 'Tarot IDE');
+}
+
 function _format(message: string, args: (string | number | boolean | undefined | null)[]): string {
+	const brandedMessage = _rebrandMessage(message);
 	let result: string;
 
 	if (args.length === 0) {
-		result = message;
+		result = brandedMessage;
 	} else {
-		result = message.replace(/\{(\d+)\}/g, (match, rest) => {
+		result = brandedMessage.replace(/\{(\d+)\}/g, (match, rest) => {
 			const index = parseInt(rest, 10);
 			const arg = args[index];
 			let result = match;

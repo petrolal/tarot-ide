@@ -53,7 +53,8 @@ Objetivo: eliminar a aparência genérica de "Code - OSS" e dar identidade próp
 - [x] Tema oficial **Tarot Arcana Dark** integrado e enriquecido em `extensions/tarot-core/themes/tarot-dark-color-theme.json` (UI completa + Terminal ANSI + TextMate + Semantic Highlighting).
 - [x] Registrado em `extensions/tarot-core/package.json` (`contributes.themes`), `product.json` (`onboardingThemes`) e definido como tema escuro padrão em `src/vs/workbench/services/themes/common/workbenchThemeService.ts`.
 - [x] Tema de ícones de pastas e arquivos **Tarot Arcana Icons** (`extensions/tarot-core/icons/`, 46 SVGs) registrado via `contributes.iconThemes` e definido como padrão (`FILE_ICON_THEME = 'tarot-arcana-icons'`).
-- [ ] Adicionar `contributes.walkthroughs` na `extensions/tarot-core` para criar um *Getting Started* exclusivo do Tarot IDE (reaproveitando `media/logo.png` e `media/splash.png`).
+- [x] **Rebranding de textos UI (padrão Cursor/Kiro/Windsurf)**: camada central `_rebrandMessage` em `src/vs/nls.ts` cobrindo todas as 337 strings `localize()` do core (inclusive Language Packs) sem editar dezenas de arquivos + ajuste dos 6 textos Markdown em `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` (extensões built-in de linguagem `extensions/*/package.nls.json` intencionalmente preservadas para zero conflito com upstream).
+- [x] **Getting Started Walkthrough exclusivo**: registrado em `extensions/tarot-core/package.json` (`contributes.walkthroughs`, `featuredFor: ["*"]`) utilizando `media/splash.png` e `media/logo.png`.
 
 ### 2.3 Revisão de Endpoints e Referências Microsoft/Copilot
 - [ ] Decidir o destino de `defaultChatAgent` e `builtInExtensionsEnabledWithAutoUpdates` (`GitHub.copilot-chat`) em `product.json`:
@@ -158,7 +159,9 @@ git merge --no-ff sync/vscode-1.149.0
 | `product.json` | Média-Alta | Manter chaves de identidade Tarot, `extensionsGallery` (Open VSX) e `enableTelemetry: false`; aceitar atualizações upstream de `builtInExtensions` (ex.: novas versões de `js-debug`) e `webviewContentExternalBaseUrlTemplate`. |
 | `pnpm-workspace.yaml` & `build/npm/dirs.ts` | Baixa | Manter a linha `extensions/tarot-core` em ordem alfabética junto aos novos membros adicionados pelo upstream. |
 | `build/gulpfile.extensions.ts` | Baixa | Manter `'extensions/tarot-core/tsconfig.json'` no array `compilations`. |
-| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixa | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` (alteração de 1 linha). |
+| `src/vs/nls.ts` | Muito baixa | Manter `_rebrandMessage` em `_format` (~15 linhas) garantindo execução antes da interpolação de `args`. |
+| `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` | Muito baixa | Manter "Tarot IDE" nos 6 trechos de texto do playground interativo. |
+| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixa | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` (2 linhas). |
 | `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Muito baixa | Manter os SVGs do Tarot IDE (`git checkout --ours`) se o upstream alterar ícones. |
 | `resources/{linux,win32,darwin,server}/**` | Muito baixa | Manter os ícones e manifestos do Tarot IDE (`git checkout --ours`) caso o upstream atualize assets da Microsoft. |
 | `pnpm-lock.yaml` | Alta | Não resolver manualmente: aceitar a versão do upstream (`git checkout --theirs pnpm-lock.yaml`) e rodar `pnpm install` para regenerar com `extensions/tarot-core`. |
