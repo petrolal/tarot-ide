@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.3 ✅ · próximo: M3.4 → M3.9)** | **Sim — iniciar por M3.4** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.4 ✅ · próximo: M3.5 → M3.9)** | **Sim — iniciar por M3.5** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -127,23 +127,23 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.4 — Paridade Visual do Painel Kiro (Abas de Sessão, Disclosures, Composer Exato, `#` Context Providers, `Autopilot` Toggle e Checkpoints) (UC-02)
+### Marco M3.4 — Paridade Visual do Painel Kiro (Abas de Sessão, Disclosures, Composer Exato, `#` Context Providers, `Autopilot` Toggle e Checkpoints) (UC-02) — ✅ Concluído
 - **Objetivo**: alinhar 100% a UX do `Tarot Agent` aos prints oficiais do Kiro IDE (ver `docs/KIRO_ARCHITECTURE_REFERENCE.md` Seção 3.1) e entregar `#` Context Providers + Autonomia + Checkpoints.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/context/contextProviders.ts`
   - `extensions/tarot-core/src/checkpoints/checkpointService.ts`
-  - Atualizações em `agentPanelView.ts`, `panel.css`, `panel.js`, `sessionStore.ts` e `promptBuilder.ts`
+  - Atualizações em `agentPanelView.ts`, `panel.css`, `panel.js`, `sessionStore.ts`, `promptBuilder.ts`, `agyAdapter.ts` e `types.ts`
 - **Especificação (fiel aos prints oficiais do Kiro)**:
-  - **Abas horizontais de sessão no topo do painel direito**: `TAROT | [Sessão 1] [• Spec: ...] [+]` com alternância entre múltiplas sessões e histórico pesquisável.
-  - **Transcript estruturado**: seções recolhíveis `> Thought complete` e `> N tool calls`, card **Updated task list** com barra de progresso (`done/total`) e rodapé **`Elapsed time: Xm Ys`**.
-  - **Composer exato do Kiro**: `<textarea>` no topo com botão quadrado `↑`/`■` no canto superior direito; barra inferior interna com `#` · `📎` · anel de contexto `○` · seletor do agente (`Auto / claude / agy / codex ⌄`) à esquerda, e seletor de modo (`Default / Vibe / Spec / Plan ⌄`) + **`Autopilot` toggle switch** à direita.
+  - **Abas horizontais de sessão no topo do painel direito**: `TAROT | [Sessão 1] [• Spec: ...] [+]` com alternância entre múltiplas sessões e fechamento individual.
+  - **Transcript estruturado**: seções recolhíveis `> Thought complete` e `> N tool calls`, rodapé **`Elapsed time: Xm Ys`** e ação **`↺ Restore Checkpoint`** por turno.
+  - **Composer exato do Kiro**: `<textarea>` no topo com botão quadrado `↑`/`■` no canto superior direito; barra inferior interna com `#` · `📎` · anel de contexto `○` · seletor do agente (`claude / agy / codex ⌄`) à esquerda, e seletor de modo (`Vibe / Spec / Plan ⌄`, `Shift+Tab`) + **`Autopilot` toggle switch** à direita.
   - **Menu `#` empilhável**: `#File`, `#Folder`, `#Codebase`, `#Problems` (`vscode.languages.getDiagnostics`), `#Terminal`, `#Git Diff` (`git diff`) e `#Steering`.
   - **Checkpoints**: snapshot automático por turno em `.tarot/checkpoints/<sessionId>/<turnId>/` com botão **Restore Checkpoint** em 1 clique preservando o histórico da conversa.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Painel direito exibe abas de múltiplas sessões + botão `+`, disclosures recolhíveis de tool calls e `Elapsed time`.
-  - [ ] Composer segue o layout exato (botão `↑` no topo direito, `#` / `📎` / `○` / agente à esquerda e modo + switch `Autopilot` à direita).
-  - [ ] Digitar `#` abre popup filtrável; `#Problems` e `#Git Diff` injetam dados reais no prompt.
-  - [ ] Clicar em **Restore Checkpoint** restaura arquivos do turno mantendo o histórico visível.
+  - [x] Painel direito exibe abas de múltiplas sessões + botão `+`, disclosures recolhíveis de tool calls e `Elapsed time`.
+  - [x] Composer segue o layout exato (botão `↑` no topo direito, `#` / `📎` / `○` / agente à esquerda e modo + switch `Autopilot` à direita).
+  - [x] Digitar `#` abre popup filtrável; `#Problems`, `#Git Diff`, `#File`, `#Folder`, `#Terminal`, `#Codebase` e `#Steering` injetam dados reais no prompt.
+  - [x] Clicar em **Restore Checkpoint** restaura arquivos do turno mantendo o histórico visível.
 
 ---
 

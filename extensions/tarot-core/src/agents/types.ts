@@ -7,7 +7,10 @@ import * as vscode from 'vscode';
 
 export type BuiltInAgentId = 'claude' | 'codex' | 'agy';
 export type AgentId = BuiltInAgentId | (string & {});
-export type AgentMode = 'vibe' | 'spec';
+export type AgentMode = 'vibe' | 'spec' | 'plan';
+export type AutonomyMode = 'autopilot' | 'supervised';
+
+export type ContextProviderKind = 'file' | 'folder' | 'problems' | 'gitDiff' | 'terminal' | 'codebase' | 'steering';
 
 export interface CustomAgentConfig {
 	readonly id: string;
@@ -29,14 +32,17 @@ export interface AgentStatus {
 }
 
 export interface AttachedContext {
+	readonly kind: ContextProviderKind;
 	readonly label: string;
-	readonly path: string;
+	readonly path?: string;
 	readonly selection?: string;
+	readonly content?: string;
 }
 
 export interface AgentRunRequest {
 	readonly prompt: string;
 	readonly mode: AgentMode;
+	readonly autonomy: AutonomyMode;
 	readonly cwd: string;
 	readonly systemContext?: string;
 	readonly attachments?: readonly AttachedContext[];
@@ -44,7 +50,7 @@ export interface AgentRunRequest {
 	readonly timeoutMs: number;
 }
 
-export type AgentEventType = 'text' | 'tool_start' | 'tool_end' | 'diff' | 'status' | 'error' | 'done';
+export type AgentEventType = 'text' | 'thought' | 'tool_start' | 'tool_end' | 'diff' | 'status' | 'error' | 'done';
 
 export interface AgentEvent {
 	readonly type: AgentEventType;
@@ -68,17 +74,21 @@ export interface SessionMessage {
 	readonly agentId?: AgentId;
 	readonly mode: AgentMode;
 	readonly content: string;
+	readonly thought?: string;
 	readonly tools?: readonly string[];
 	readonly attachments?: readonly AttachedContext[];
+	readonly elapsedMs?: number;
+	readonly checkpointId?: string;
 	readonly timestamp: string;
 }
 
 export interface AgentSession {
 	readonly id: string;
-	readonly title: string;
+	title: string;
 	readonly createdAt: string;
 	updatedAt: string;
 	activeAgentId: AgentId;
 	mode: AgentMode;
+	autonomy: AutonomyMode;
 	messages: SessionMessage[];
 }

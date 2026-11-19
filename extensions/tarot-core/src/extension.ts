@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
+import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
 import { LocalAgentsTreeProvider, TarotWorkspaceFolderTreeProvider } from './views/tarotSidebarViews';
 
@@ -28,6 +29,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const runtimeManager = new AgentRuntimeManager(context, outputChannel);
 	const sessionStore = new TarotSessionStore();
+	const checkpointService = new TarotCheckpointService();
 
 	// Left Sidebar (Kiro-style) TreeViews
 	const specsProvider = new TarotWorkspaceFolderTreeProvider('.tarot/specs', 'specs');
@@ -40,6 +42,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		context.extensionUri,
 		runtimeManager,
 		sessionStore,
+		checkpointService,
 		outputChannel,
 	);
 

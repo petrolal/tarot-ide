@@ -6,8 +6,8 @@
 import { AgentRunRequest } from './types';
 
 /**
- * Builds an agent-agnostic prompt combining mode instructions, Steering context,
- * prior session handoff context, attached files/selections, and the user's message.
+ * Builds an agent-agnostic prompt combining mode, autonomy level, Steering context,
+ * prior session handoff context, attached `#` context providers, and the user's message.
  */
 export function buildEffectivePrompt(request: AgentRunRequest): string {
 	const parts: string[] = [];
@@ -15,7 +15,19 @@ export function buildEffectivePrompt(request: AgentRunRequest): string {
 	if (request.mode === 'spec') {
 		parts.push(
 			'[Tarot IDE — Spec Mode]\n' +
-			'Follow Spec-Driven Development: structure work cleanly into requirements, design, and actionable tasks when requested.'
+			'Follow Spec-Driven Development (Kiro workflow): use EARS notation (WHEN ... THE SYSTEM SHALL ...) for requirements, produce structured design and discrete tasks before editing code.'
+		);
+	} else if (request.mode === 'plan') {
+		parts.push(
+			'[Tarot IDE — Plan Mode (Read-Only)]\n' +
+			'Analyze the codebase and propose a clear step-by-step plan WITHOUT modifying files or running destructive commands.'
+		);
+	}
+
+	if (request.autonomy === 'supervised' && request.mode !== 'plan') {
+		parts.push(
+			'[Autonomy: Supervised]\n' +
+			'Keep edits incremental, clearly explain each file change and wait for user review before large refactors or destructive shell commands.'
 		);
 	}
 
@@ -34,11 +46,14 @@ export function buildEffectivePrompt(request: AgentRunRequest): string {
 	if (request.attachments && request.attachments.length > 0) {
 		const attachmentBlocks = request.attachments.map(att => {
 			if (att.selection && att.selection.trim().length > 0) {
-				return `- File: ${att.path}\n\`\`\`\n${att.selection}\n\`\`\``;
+				return `### #${att.label}\nPath: ${att.path ?? 'workspace'}\n\`\`\`\n${att.selection}\n\`\`\``;
 			}
-			return `- File: ${att.path}`;
+			if (att.content && att.content.trim().length > 0) {
+				return `### #${att.label}\n${att.content}`;
+			}
+			return `### #${att.label}\nPath: ${att.path ?? 'workspace'}`;
 		});
-		parts.push(`[Attached Workspace Context]\n${attachmentBlocks.join('\n')}`);
+		parts.push(`[Attached # Context Providers]\n${attachmentBlocks.join('\n\n')}`);
 	}
 
 	parts.push(request.prompt);

@@ -173,15 +173,19 @@ extensions/tarot-core/
     ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das views
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
-    │   ├── types.ts                    # Contratos AgentAdapter, AgentStatus, AgentEvent, AgentSession
+    │   ├── types.ts                    # Contratos AgentAdapter, AgentStatus, AgentEvent, AgentSession, AutonomyMode
     │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento
-    │   ├── promptBuilder.ts            # Composição de prompt (modo, steering, histórico, anexos)
-    │   ├── sessionStore.ts             # Persistência agnóstica em .tarot/sessions/<id>.json
+    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, histórico, anexos #)
+    │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json
     │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom) + Status Bar
     │   └── adapters/                   # claudeAdapter, agyAdapter, codexAdapter, customAdapter
+    ├── context/
+    │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering)
+    ├── checkpoints/
+    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/ e rollback 1-clique
     └── views/
         ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs, Hooks, Steering, Local Agents)
-        └── agentPanelView.ts           # WebviewView na Secondary Side Bar direita (Vibe/Spec + streaming)
+        └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar (abas, disclosures, composer #, Autopilot, checkpoints)
 ```
 
 ---

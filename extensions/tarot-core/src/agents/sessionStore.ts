@@ -7,21 +7,66 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { AgentId, AgentMode, AgentSession, SessionMessage } from './types';
+import { AgentId, AgentMode, AgentSession, AutonomyMode, SessionMessage } from './types';
 
 export class TarotSessionStore {
-	private currentSession: AgentSession | undefined;
+	private readonly sessions: AgentSession[] = [];
+	private activeSessionId: string | undefined;
 
-	getOrCreateSession(activeAgentId: AgentId, mode: AgentMode): AgentSession {
-		if (!this.currentSession) {
-			this.currentSession = this.createSession(activeAgentId, mode);
-		}
-		return this.currentSession;
+	listSessions(): readonly AgentSession[] {
+		return this.sessions;
 	}
 
-	resetSession(activeAgentId: AgentId, mode: AgentMode): AgentSession {
-		this.currentSession = this.createSession(activeAgentId, mode);
-		return this.currentSession;
+	getActiveSession(activeAgentId: AgentId, mode: AgentMode, autonomy: AutonomyMode): AgentSession {
+		if (this.activeSessionId) {
+			const existing = this.sessions.find(s => s.id === this.activeSessionId);
+			if (existing) {
+				return existing;
+			}
+		}
+		if (this.sessions.length > 0) {
+			this.activeSessionId = this.sessions[0].id;
+			return this.sessions[0];
+		}
+		return this.createSession(activeAgentId, mode, autonomy);
+	}
+
+	createSession(activeAgentId: AgentId, mode: AgentMode, autonomy: AutonomyMode): AgentSession {
+		const now = new Date().toISOString();
+		const session: AgentSession = {
+			id: `session-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
+			title: mode === 'spec' ? 'Spec: nova tarefa' : 'Nova sessão',
+			createdAt: now,
+			updatedAt: now,
+			activeAgentId,
+			mode,
+			autonomy,
+			messages: [],
+		};
+		this.sessions.push(session);
+		this.activeSessionId = session.id;
+		return session;
+	}
+
+	selectSession(sessionId: string): AgentSession | undefined {
+		const found = this.sessions.find(s => s.id === sessionId);
+		if (found) {
+			this.activeSessionId = found.id;
+		}
+		return found;
+	}
+
+	closeSession(sessionId: string, fallbackAgentId: AgentId): AgentSession {
+		const idx = this.sessions.findIndex(s => s.id === sessionId);
+		if (idx !== -1) {
+			this.sessions.splice(idx, 1);
+		}
+		if (this.sessions.length === 0) {
+			return this.createSession(fallbackAgentId, 'vibe', 'autopilot');
+		}
+		const nextIdx = Math.min(idx, this.sessions.length - 1);
+		this.activeSessionId = this.sessions[Math.max(0, nextIdx)].id;
+		return this.sessions[Math.max(0, nextIdx)];
 	}
 
 	async appendMessage(session: AgentSession, message: Omit<SessionMessage, 'id' | 'timestamp'>): Promise<SessionMessage> {
@@ -30,23 +75,15 @@ export class TarotSessionStore {
 			id: crypto.randomUUID(),
 			timestamp: new Date().toISOString(),
 		};
+		if (message.role === 'user' && session.messages.length === 0) {
+			const clean = message.content.replace(/\s+/g, ' ').trim();
+			const prefix = session.mode === 'spec' ? 'Spec: ' : '';
+			session.title = `${prefix}${clean.slice(0, 26)}${clean.length > 26 ? '…' : ''}`;
+		}
 		session.messages.push(entry);
 		session.updatedAt = entry.timestamp;
 		await this.persist(session);
 		return entry;
-	}
-
-	private createSession(activeAgentId: AgentId, mode: AgentMode): AgentSession {
-		const now = new Date().toISOString();
-		return {
-			id: `session-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
-			title: 'New Session',
-			createdAt: now,
-			updatedAt: now,
-			activeAgentId,
-			mode,
-			messages: [],
-		};
 	}
 
 	private async persist(session: AgentSession): Promise<void> {
@@ -60,7 +97,7 @@ export class TarotSessionStore {
 			const filePath = path.join(dir, `${session.id}.json`);
 			await fs.writeFile(filePath, JSON.stringify(session, null, 2), 'utf8');
 		} catch {
-			// Best-effort persistence (e.g., read-only workspace)
+			// Best-effort persistence
 		}
 	}
 }

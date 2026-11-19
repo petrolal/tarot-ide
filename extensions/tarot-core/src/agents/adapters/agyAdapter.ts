@@ -64,8 +64,10 @@ export class AgyAdapter implements AgentAdapter {
 
 		const prompt = buildEffectivePrompt(request);
 		const args = ['--print', '--output-format', 'stream-json'];
-		if (request.mode === 'spec') {
+		if (request.mode === 'plan' || request.mode === 'spec') {
 			args.push('--mode', 'plan');
+		} else if (request.autonomy === 'autopilot') {
+			args.push('--mode', 'accept-edits');
 		}
 		args.push(prompt);
 

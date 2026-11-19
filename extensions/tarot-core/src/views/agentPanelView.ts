@@ -9,14 +9,34 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { TarotSessionStore } from '../agents/sessionStore';
-import { AgentId, AgentMode, AttachedContext } from '../agents/types';
+import { AgentId, AgentMode, AttachedContext, AutonomyMode, ContextProviderKind } from '../agents/types';
+import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
+import { resolveContextProvider } from '../context/contextProviders';
 
 interface WebviewIncomingMessage {
-	readonly type: 'ready' | 'send' | 'cancel' | 'selectAgent' | 'setMode' | 'attachActiveFile' | 'removeAttachment' | 'newSession' | 'refreshAgents';
+	readonly type:
+		| 'ready'
+		| 'send'
+		| 'cancel'
+		| 'selectAgent'
+		| 'setMode'
+		| 'setAutonomy'
+		| 'attachActiveFile'
+		| 'pickContextProvider'
+		| 'removeAttachment'
+		| 'newSession'
+		| 'selectSession'
+		| 'closeSession'
+		| 'restoreCheckpoint'
+		| 'refreshAgents';
 	readonly prompt?: string;
 	readonly agentId?: AgentId;
 	readonly mode?: AgentMode;
+	readonly autonomy?: AutonomyMode;
+	readonly kind?: ContextProviderKind;
+	readonly sessionId?: string;
+	readonly checkpointId?: string;
 	readonly index?: number;
 }
 
@@ -25,15 +45,17 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	private view: vscode.WebviewView | undefined;
 	private mode: AgentMode = 'vibe';
+	private autonomy: AutonomyMode = 'autopilot';
 	private attachments: AttachedContext[] = [];
 	private activeCancellation: vscode.CancellationTokenSource | undefined;
-	private isRunning = false;
+	private runningSessionId: string | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
 		private readonly runtimeManager: AgentRuntimeManager,
 		private readonly sessionStore: TarotSessionStore,
+		private readonly checkpointService: TarotCheckpointService,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.disposables.push(
@@ -62,10 +84,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	async setMode(mode: AgentMode): Promise<void> {
 		this.mode = mode;
+		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+		session.mode = mode;
 		this.postState();
 	}
 
 	private async handleMessage(msg: WebviewIncomingMessage): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
 		switch (msg.type) {
 			case 'ready':
 				this.postState();
@@ -76,16 +101,34 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			case 'selectAgent':
 				if (msg.agentId) {
 					await this.runtimeManager.setActiveAgent(msg.agentId);
+					const session = this.sessionStore.getActiveSession(msg.agentId, this.mode, this.autonomy);
+					session.activeAgentId = msg.agentId;
+					this.postState();
 				}
 				break;
 			case 'setMode':
-				if (msg.mode === 'vibe' || msg.mode === 'spec') {
-					this.mode = msg.mode;
+				if (msg.mode === 'vibe' || msg.mode === 'spec' || msg.mode === 'plan') {
+					await this.setMode(msg.mode);
+				}
+				break;
+			case 'setAutonomy':
+				if (msg.autonomy === 'autopilot' || msg.autonomy === 'supervised') {
+					this.autonomy = msg.autonomy;
+					const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+					session.autonomy = this.autonomy;
 					this.postState();
 				}
 				break;
 			case 'attachActiveFile':
-				this.attachActiveEditor();
+				await this.attachActiveEditor();
+				break;
+			case 'pickContextProvider':
+				if (msg.kind) {
+					const resolved = await resolveContextProvider(msg.kind);
+					if (resolved) {
+						this.addAttachment(resolved);
+					}
+				}
 				break;
 			case 'removeAttachment':
 				if (typeof msg.index === 'number' && msg.index >= 0 && msg.index < this.attachments.length) {
@@ -94,10 +137,39 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 				break;
 			case 'newSession':
-				this.cancelActiveRun();
 				this.attachments = [];
-				this.sessionStore.resetSession(this.runtimeManager.getActiveAgentId(), this.mode);
+				this.sessionStore.createSession(activeAgent, this.mode, this.autonomy);
 				this.postState();
+				break;
+			case 'selectSession':
+				if (msg.sessionId) {
+					const selected = this.sessionStore.selectSession(msg.sessionId);
+					if (selected) {
+						this.mode = selected.mode;
+						this.autonomy = selected.autonomy;
+						this.postState();
+					}
+				}
+				break;
+			case 'closeSession':
+				if (msg.sessionId) {
+					if (this.runningSessionId === msg.sessionId) {
+						this.cancelActiveRun();
+					}
+					const next = this.sessionStore.closeSession(msg.sessionId, activeAgent);
+					this.mode = next.mode;
+					this.autonomy = next.autonomy;
+					this.postState();
+				}
+				break;
+			case 'restoreCheckpoint':
+				if (msg.checkpointId) {
+					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+					const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+					if (cwd) {
+						await this.checkpointService.restoreCheckpoint(cwd, session.id, msg.checkpointId);
+					}
+				}
 				break;
 			case 'cancel':
 				this.cancelActiveRun();
@@ -110,25 +182,35 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 	}
 
-	private attachActiveEditor(): void {
+	private addAttachment(att: AttachedContext): void {
+		const exists = this.attachments.some(a => a.kind === att.kind && a.label === att.label);
+		if (!exists) {
+			this.attachments.push(att);
+			this.postState();
+		}
+	}
+
+	private async attachActiveEditor(): Promise<void> {
 		const editor = vscode.window.activeTextEditor;
 		if (!editor) {
-			vscode.window.showInformationMessage('Abra um arquivo no editor para anexá-lo ao contexto do agente.');
+			const picked = await resolveContextProvider('file');
+			if (picked) {
+				this.addAttachment(picked);
+			}
 			return;
 		}
 		const fsPath = editor.document.uri.fsPath;
 		const relPath = vscode.workspace.asRelativePath(editor.document.uri, false);
 		const selectionText = editor.selection.isEmpty ? undefined : editor.document.getText(editor.selection);
+		const content = selectionText ? undefined : editor.document.getText().slice(0, 12_000);
 
-		const exists = this.attachments.some(a => a.path === fsPath && a.selection === selectionText);
-		if (!exists) {
-			this.attachments.push({
-				label: selectionText ? `${relPath} (seleção)` : relPath,
-				path: fsPath,
-				selection: selectionText,
-			});
-			this.postState();
-		}
+		this.addAttachment({
+			kind: 'file',
+			label: selectionText ? `${relPath} (seleção)` : relPath,
+			path: fsPath,
+			selection: selectionText,
+			content,
+		});
 	}
 
 	private cancelActiveRun(): void {
@@ -140,11 +222,23 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	}
 
 	private async loadAlwaysSteeringContext(cwd: string): Promise<string | undefined> {
+		const blocks: string[] = [];
+
+		// 1. Root AGENTS.md (Kiro convention)
+		try {
+			const agentsMd = await fs.readFile(path.join(cwd, 'AGENTS.md'), 'utf8');
+			if (agentsMd.trim().length > 0) {
+				blocks.push(`### AGENTS.md\n${agentsMd.trim()}`);
+			}
+		} catch {
+			// Optional
+		}
+
+		// 2. Workspace .tarot/steering/*.md (always inclusion)
 		const steeringDir = path.join(cwd, '.tarot', 'steering');
 		try {
 			const entries = await fs.readdir(steeringDir, { withFileTypes: true });
 			const mdFiles = entries.filter(e => e.isFile() && e.name.endsWith('.md')).sort((a, b) => a.name.localeCompare(b.name));
-			const blocks: string[] = [];
 			for (const f of mdFiles) {
 				const raw = await fs.readFile(path.join(steeringDir, f.name), 'utf8');
 				if (/^---[\s\S]*?inclusion:\s*(?:manual|fileMatch)/m.test(raw)) {
@@ -152,14 +246,15 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 				blocks.push(`### ${f.name}\n${raw.trim()}`);
 			}
-			return blocks.length > 0 ? blocks.join('\n\n') : undefined;
 		} catch {
-			return undefined;
+			// Optional
 		}
+
+		return blocks.length > 0 ? blocks.join('\n\n') : undefined;
 	}
 
 	private async runPrompt(prompt: string): Promise<void> {
-		if (this.isRunning) {
+		if (this.runningSessionId) {
 			return;
 		}
 
@@ -171,9 +266,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-		const session = this.sessionStore.getOrCreateSession(agentId, this.mode);
+		const session = this.sessionStore.getActiveSession(agentId, this.mode, this.autonomy);
 		session.activeAgentId = agentId;
 		session.mode = this.mode;
+		session.autonomy = this.autonomy;
 
 		const historySnapshot = [...session.messages];
 		const requestAttachments = [...this.attachments];
@@ -186,22 +282,29 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			attachments: requestAttachments,
 		});
 
-		this.isRunning = true;
+		const checkpointId = vscode.workspace.workspaceFolders?.[0]
+			? await this.checkpointService.createCheckpoint(cwd, session.id)
+			: undefined;
+
+		const startedAt = Date.now();
+		this.runningSessionId = session.id;
 		this.activeCancellation = new vscode.CancellationTokenSource();
 		this.postState();
-		this.postMessage({ type: 'streamStart', agentId, agentName: adapter.displayName });
+		this.postMessage({ type: 'streamStart', agentId, agentName: adapter.displayName, sessionId: session.id });
 
 		const steeringContext = await this.loadAlwaysSteeringContext(cwd);
 		let accumulatedText = '';
+		let accumulatedThought = '';
 		const usedTools: string[] = [];
 
-		this.outputChannel.appendLine(`[AgentPanel] Running ${adapter.id} (${this.mode}) in ${cwd}`);
+		this.outputChannel.appendLine(`[AgentPanel] Running ${adapter.id} (${this.mode}/${this.autonomy}) in ${cwd}`);
 
 		try {
 			await adapter.run(
 				{
 					prompt,
 					mode: this.mode,
+					autonomy: this.autonomy,
 					cwd,
 					systemContext: steeringContext,
 					attachments: requestAttachments,
@@ -212,6 +315,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					if (event.type === 'text' && event.content) {
 						accumulatedText += event.content;
 						this.postMessage({ type: 'streamChunk', content: event.content });
+					} else if (event.type === 'thought' && event.content) {
+						accumulatedThought += event.content;
+						this.postMessage({ type: 'streamThought', content: event.content });
 					} else if (event.type === 'tool_start' && event.toolName) {
 						usedTools.push(event.toolName);
 						this.postMessage({ type: 'streamTool', toolName: event.toolName });
@@ -225,19 +331,23 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				this.activeCancellation.token,
 			);
 		} finally {
-			this.isRunning = false;
+			const elapsedMs = Date.now() - startedAt;
+			this.runningSessionId = undefined;
 			if (this.activeCancellation) {
 				this.activeCancellation.dispose();
 				this.activeCancellation = undefined;
 			}
 
-			if (accumulatedText.trim().length > 0) {
+			if (accumulatedText.trim().length > 0 || usedTools.length > 0) {
 				await this.sessionStore.appendMessage(session, {
 					role: 'assistant',
 					agentId,
 					mode: this.mode,
-					content: accumulatedText,
+					content: accumulatedText || '(Execução concluída sem texto adicional.)',
+					thought: accumulatedThought || undefined,
 					tools: usedTools.length > 0 ? usedTools : undefined,
+					elapsedMs,
+					checkpointId,
 				});
 			}
 
@@ -246,17 +356,40 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 	}
 
+	private estimateContextPercent(messages: readonly { content: string }[], attachments: readonly AttachedContext[]): number {
+		let chars = 0;
+		for (const m of messages) {
+			chars += m.content.length;
+		}
+		for (const a of attachments) {
+			chars += (a.content?.length ?? 0) + (a.selection?.length ?? 0) + 120;
+		}
+		// Rough visual estimate against ~120k chars context window
+		return Math.min(100, Math.round((chars / 120_000) * 100));
+	}
+
 	private postState(): void {
 		const activeAgentId = this.runtimeManager.getActiveAgentId();
-		const session = this.sessionStore.getOrCreateSession(activeAgentId, this.mode);
+		const activeSession = this.sessionStore.getActiveSession(activeAgentId, this.mode, this.autonomy);
+		const sessions = this.sessionStore.listSessions().map(s => ({
+			id: s.id,
+			title: s.title,
+			mode: s.mode,
+			isRunning: this.runningSessionId === s.id,
+		}));
+
 		this.postMessage({
 			type: 'state',
 			agents: this.runtimeManager.getStatuses(),
 			activeAgentId,
 			mode: this.mode,
-			isRunning: this.isRunning,
-			attachments: this.attachments,
-			messages: session.messages,
+			autonomy: this.autonomy,
+			isRunning: Boolean(this.runningSessionId),
+			activeSessionId: activeSession.id,
+			sessions,
+			attachments: this.attachments.map(a => ({ kind: a.kind, label: a.label })),
+			messages: activeSession.messages,
+			contextPercent: this.estimateContextPercent(activeSession.messages, this.attachments),
 		});
 	}
 
@@ -282,61 +415,77 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 </head>
 <body>
 	<div class="tarot-shell">
-		<header class="tarot-header">
-			<div class="tarot-brand">
-				<span class="tarot-sigil">✦</span>
-				<span class="tarot-title">Tarot Agent</span>
-			</div>
-			<div class="tarot-header-actions">
-				<button id="btn-new-session" class="header-icon-btn" type="button" title="Nova sessão">
-					<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-				</button>
-				<button id="btn-refresh-agents" class="header-icon-btn" type="button" title="Atualizar agentes locais">
-					<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.65M13.5 2.5v2.75h-2.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-				</button>
-			</div>
+		<header class="session-tabbar">
+			<span class="tabbar-brand">TAROT</span>
+			<div id="session-tabs" class="session-tabs" role="tablist"></div>
+			<button id="btn-new-session" class="tabbar-add-btn" type="button" title="Nova sessão">+</button>
 		</header>
 
 		<main id="messages" class="tarot-messages" aria-live="polite"></main>
 
 		<footer class="tarot-composer-wrap">
+			<div id="context-menu" class="context-popup hidden" role="menu">
+				<div class="context-popup-header">Context Providers (#)</div>
+				<button class="context-menu-item" type="button" data-kind="file"><span class="ctx-tag">#File</span><span class="ctx-desc">Selecionar arquivo do workspace</span></button>
+				<button class="context-menu-item" type="button" data-kind="folder"><span class="ctx-tag">#Folder</span><span class="ctx-desc">Listar diretório do projeto</span></button>
+				<button class="context-menu-item" type="button" data-kind="problems"><span class="ctx-tag">#Problems</span><span class="ctx-desc">Erros e warnings ativos do editor</span></button>
+				<button class="context-menu-item" type="button" data-kind="gitDiff"><span class="ctx-tag">#Git Diff</span><span class="ctx-desc">Alterações atuais (git diff HEAD)</span></button>
+				<button class="context-menu-item" type="button" data-kind="codebase"><span class="ctx-tag">#Codebase</span><span class="ctx-desc">Mapa de arquivos do workspace</span></button>
+				<button class="context-menu-item" type="button" data-kind="terminal"><span class="ctx-tag">#Terminal</span><span class="ctx-desc">Contexto do terminal ativo</span></button>
+				<button class="context-menu-item" type="button" data-kind="steering"><span class="ctx-tag">#Steering</span><span class="ctx-desc">Arquivo manual de .tarot/steering/</span></button>
+			</div>
+
 			<div id="status-row" class="status-row hidden">
 				<span class="status-dot"></span>
 				<span id="status-indicator" class="status-text"></span>
 			</div>
 
-			<div id="composer-card" class="composer-card">
-				<div class="composer-top">
-					<button id="btn-attach" class="context-pill" type="button" title="Anexar arquivo ou seleção atual">
-						<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-						<span>Contexto</span>
-					</button>
-					<div id="attachments" class="attachments-bar"></div>
-				</div>
+			<div class="composer-card">
+				<div id="attachments" class="attachments-bar hidden"></div>
 
-				<textarea
-					id="prompt-input"
-					rows="1"
-					placeholder="Peça para criar, editar ou planejar... (Enter envia · Shift+Enter quebra linha)"
-				></textarea>
-
-				<div class="composer-bottom">
-					<div class="composer-controls">
-						<div class="mode-pill-group" role="tablist" aria-label="Modo">
-							<button id="mode-vibe" class="mode-pill active" type="button" data-mode="vibe">Vibe</button>
-							<button id="mode-spec" class="mode-pill" type="button" data-mode="spec">Spec</button>
-						</div>
-						<select id="agent-select" class="agent-pill-select" aria-label="Agente local"></select>
-					</div>
-
+				<div class="composer-input-row">
+					<textarea
+						id="prompt-input"
+						rows="1"
+						placeholder="Ask a question or describe a task..."
+					></textarea>
 					<button id="btn-send" class="action-icon-btn" type="button" title="Enviar (Enter)" disabled>
-						<svg id="icon-send" width="15" height="15" viewBox="0 0 16 16" fill="none">
+						<svg id="icon-send" width="14" height="14" viewBox="0 0 16 16" fill="none">
 							<path d="M8 12.5V3.5M4 7.5L8 3.5L12 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
 						</svg>
-						<svg id="icon-stop" class="hidden" width="12" height="12" viewBox="0 0 16 16" fill="none">
+						<svg id="icon-stop" class="hidden" width="11" height="11" viewBox="0 0 16 16" fill="none">
 							<rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/>
 						</svg>
 					</button>
+				</div>
+
+				<div class="composer-bottom">
+					<div class="composer-left">
+						<button id="btn-hash" class="tool-icon-btn" type="button" title="Context Providers (#)">#</button>
+						<button id="btn-attach" class="tool-icon-btn" type="button" title="Anexar arquivo ativo">
+							<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10.5 4.5L5.8 9.2a1.75 1.75 0 1 0 2.48 2.48l5.3-5.3a3 3 0 0 0-4.24-4.24l-5.5 5.5a4.25 4.25 0 0 0 6.01 6.01l4.4-4.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
+						</button>
+						<span id="context-ring" class="context-ring" title="Uso estimado de contexto: 0%">
+							<svg width="14" height="14" viewBox="0 0 16 16">
+								<circle cx="8" cy="8" r="5.5" fill="none" stroke="#35235C" stroke-width="1.8"/>
+								<circle id="context-ring-arc" cx="8" cy="8" r="5.5" fill="none" stroke="#D4AF37" stroke-width="1.8" stroke-dasharray="34.56" stroke-dashoffset="34.56" transform="rotate(-90 8 8)"/>
+							</svg>
+						</span>
+						<select id="agent-select" class="inline-select" aria-label="Agente local"></select>
+					</div>
+
+					<div class="composer-right">
+						<select id="mode-select" class="inline-select" aria-label="Modo (Shift+Tab)">
+							<option value="vibe">Vibe</option>
+							<option value="spec">Spec</option>
+							<option value="plan">Plan</option>
+						</select>
+						<label class="autopilot-toggle" title="Autopilot aplica edições direto; desativado ativa modo Supervised">
+							<span class="autopilot-label">Autopilot</span>
+							<input id="autopilot-checkbox" type="checkbox" checked />
+							<span class="toggle-track"><span class="toggle-thumb"></span></span>
+						</label>
+					</div>
 				</div>
 			</div>
 		</footer>
