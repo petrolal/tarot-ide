@@ -1,181 +1,246 @@
-# Tarot IDE — Plano de Migração e Evolução
+# Tarot IDE — Plano de Migração e Execução (Agent-Ready)
 
-> Roteiro estruturado de migração a partir do `microsoft/vscode` (Code - OSS) até um produto completo e distribuível (**Tarot IDE**), incluindo a estratégia contínua de sincronização com o upstream.
-
----
-
-## Visão Geral das Fases
-
-| Fase | Escopo | Status |
-| --- | --- | --- |
-| **Fase 1** | Setup do ambiente, fork base, rebranding inicial (`product.json`) e esqueleto `tarot-core` | ✅ Concluída *(validada e commitada em `tarot-main`)* |
-| **Fase 2** | Rebranding visual completo (ícones, tema padrão, ícones de arquivo, textos UI, walkthrough, desativação do Copilot) | ✅ Concluída *(pendente apenas conectar `origin` e URLs do repo)* |
-| **Fase 3** | Arquitetura 100% Agêntica (layout e workflow Kiro: Specs, Hooks, Steering e painel multi-agente local `claude-code`, `codex`, `agy`) | ⏳ Próxima |
-| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores (`.deb`/`.rpm`/AppImage/Win/Mac) e CI/CD | 📋 Planejada |
-| **Contínuo** | Processo de sincronização e atualização com novas releases do `microsoft/vscode` | 🔄 Recorrente |
+> **Guia de execução estruturado para agentes de IA e engenheiros.**
+> Cada etapa abaixo define: **Objetivo**, **Arquivos-Alvo**, **Contratos/Especificação**, **Critérios de Aceite (DoD)** e **Comandos de Verificação**.
+> Consulte `docs/PROJECT_CONTEXT.md` para regras obrigatórias, stack e casos de uso (`UC-01` a `UC-07`).
 
 ---
 
-## Fase 1 — Fundação e Setup Inicial (Concluída ✅)
+## Mapa Geral de Fases
 
-### O que já foi entregue
-- [x] Verificação de pré-requisitos (Git, Node.js `v24.22.2` compatível com `.nvmrc` `24.22.1`, Python 3.12, `g++`/`make`/`pkg-config`, `pnpm`).
-- [x] Instalação dos headers nativos Linux (`libx11-dev`, `libxkbfile-dev`, `libsecret-1-dev`, `libkrb5-dev`).
-- [x] Clonagem do `microsoft/vscode` (`1.148.0`) em `tarot-ide`, configuração do remote `upstream` e criação da branch `tarot-main`.
-- [x] Rebranding inicial em `product.json` (identidade `Tarot IDE`, CLI `tarot`, `.tarot-ide`, Open VSX Registry, `"enableTelemetry": false`, remoção de `agentsTelemetryAppName` e `voiceWsUrl`).
-- [x] Criação da extensão built-in `extensions/tarot-core` integrada em `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml` e `build/npm/dirs.ts`.
-- [x] Execução de `pnpm install` (57 projetos do workspace) e validação de compilação isolada (`pnpm exec gulp compile-extension:tarot-core` com 0 erros).
-
-### Fechamento da Fase 1
-- [x] Rodar `pnpm run compile` / `pnpm run watch` + `./scripts/code.sh` (com ajuste de permissão do `chrome-sandbox` no Ubuntu 24.04) e validar abertura com tema **Tarot Arcana Dark**.
-- [x] Registrar os commits iniciais estruturados na branch `tarot-main`.
-- [ ] Adicionar o repositório remoto próprio (`git remote add origin <url-do-repo-tarot>`).
+| Fase | Marco | Status | Próximo Agente Pode Pegar? |
+| --- | --- | --- | --- |
+| **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core` | ✅ Concluída *(falta apenas `git remote add origin`)* | — |
+| **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot) | ✅ Concluída *(URLs finais pendentes do `origin`)* | — |
+| **Fase 3** | **IDE 100% Agêntica (Layout & Workflow Kiro + BYOA `claude`, `codex`, `agy`)** | ⏳ **Próxima (M3.1 → M3.6)** | **Sim — iniciar por M3.1** |
+| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
+| **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
 ---
 
-## Fase 2 — Rebranding Visual e Experiência Inicial
+## Histórico Consolidado (Fases 1 e 2 — Concluídas ✅)
 
-Objetivo: eliminar a aparência genérica de "Code - OSS" e dar identidade própria ao Tarot IDE sem criar dívida de merge no núcleo.
+Commits de referência na branch `tarot-main`:
+- `6763816a` — Setup inicial, rebranding `product.json`, tema **Tarot Arcana Dark**, ícones de SO/web, `extensions/tarot-core` e docs.
+- `fea4ec6e` — Substituição dos SVGs internos do workbench (`code-icon.svg`, `vscode-icon.svg`, `letterpress-*.svg`).
+- `8af8dfbb` — Tema de ícones de pastas/arquivos **Tarot Arcana Icons** (46 SVGs) como padrão.
+- `b11b77c1` — Rebranding centralizado de strings UI em `src/vs/nls.ts`, atualização do playground Markdown e Walkthrough `Get Started with Tarot IDE`.
+- `9d838ac9` — Desativação limpa do Copilot (`product.json`, `scripts/code.{sh,bat}`), 5 guards contra `defaultChatAgent === undefined` e scripts rápidos `*-tarot*` no `package.json`.
 
-### 2.1 Assets e Ícones do Sistema Operacional
-- [x] **Linux**: `resources/linux/code.png` (1024x1024) atualizado com a carta arcana do Tarot IDE.
-- [x] **macOS**: `resources/darwin/code.icns` atualizado.
-- [x] **Windows**: `resources/win32/code.ico` (6 tamanhos), `code_150x150.png` e `code_70x70.png` atualizados.
-- [x] **Server / Web**: `resources/server/favicon.ico`, `code-192.png`, `code-512.png` e `manifest.json` atualizados.
-- [x] **Assets mestres**: `logo.png` e `splash.png` salvos em `resources/tarot/` e `extensions/tarot-core/media/`.
-- [x] **Workbench SVGs & Watermark**: `src/vs/workbench/browser/media/code-icon.svg` (titlebar/banners/welcome), `src/vs/sessions/browser/media/vscode-icon.svg` e `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` (marca d'água do editor vazio) substituídos pelo emblema vetorial do Tarot IDE.
-- [ ] **Pendências opcionais**: `inno-big-*.bmp` / `inno-small-*.bmp` (instalador Windows).
-
-### 2.2 Tema Padrão e Experiência de Boas-Vindas
-- [x] Tema oficial **Tarot Arcana Dark** integrado e enriquecido em `extensions/tarot-core/themes/tarot-dark-color-theme.json` (UI completa + Terminal ANSI + TextMate + Semantic Highlighting).
-- [x] Registrado em `extensions/tarot-core/package.json` (`contributes.themes`), `product.json` (`onboardingThemes`) e definido como tema escuro padrão em `src/vs/workbench/services/themes/common/workbenchThemeService.ts`.
-- [x] Tema de ícones de pastas e arquivos **Tarot Arcana Icons** (`extensions/tarot-core/icons/`, 46 SVGs) registrado via `contributes.iconThemes` e definido como padrão (`FILE_ICON_THEME = 'tarot-arcana-icons'`).
-- [x] **Rebranding de textos UI (padrão Cursor/Kiro/Windsurf)**: camada central `_rebrandMessage` em `src/vs/nls.ts` cobrindo todas as 337 strings `localize()` do core (inclusive Language Packs) sem editar dezenas de arquivos + ajuste dos 6 textos Markdown em `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` (extensões built-in de linguagem `extensions/*/package.nls.json` intencionalmente preservadas para zero conflito com upstream).
-- [x] **Getting Started Walkthrough exclusivo**: registrado em `extensions/tarot-core/package.json` (`contributes.walkthroughs`, `featuredFor: ["*"]`) utilizando `media/splash.png` e `media/logo.png`.
-
-### 2.3 Revisão de Endpoints e Referências Microsoft/Copilot
-- [x] **Decisão Copilot executada (Desativação Limpa)**:
-  - Removidos `defaultChatAgent`, `"GitHub.copilot-chat"` de `builtInExtensionsEnabledWithAutoUpdates` e entradas Copilot de `trustedExtensionAuthAccess` em `product.json`.
-  - Adicionado `--disable-extension=GitHub.copilot-chat` em `scripts/code.sh` e `scripts/code.bat` (em produção, `copilot` já é excluído em `build/lib/extensions.ts -> excludedExtensions`).
-  - Adicionados scripts leves `compile-tarot`, `watch-tarot`, `watch-tarot-fast` e `watch-tarot-core` em `package.json`, preservando `extensions/copilot/` no Git para evitar conflitos de merge com `upstream`.
-- [ ] Atualizar URLs institucionais em `product.json` quando o repositório remoto `origin` existir (`reportIssueUrl`, `documentationUrl`, `releaseNotesUrl`).
-- [ ] Avaliar a substituição de `webviewContentExternalBaseUrlTemplate` caso o Tarot IDE venha a distribuir versão Web/Server com infraestrutura própria.
+**Pendências administrativas menores das Fases 1/2 (quando o repositório remoto existir):**
+- [ ] `git remote add origin <url-do-repo-tarot> && git push -u origin tarot-main`
+- [ ] Atualizar `reportIssueUrl`, `documentationUrl` e `releaseNotesUrl` em `product.json`.
+- [ ] *(Opcional)* Substituir bitmaps `resources/win32/inno-*.bmp` antes do primeiro release Windows.
 
 ---
 
-## Fase 3 — Experiência 100% Agêntica (Layout & Workflow Kiro)
+## Fase 3 — Arquitetura 100% Agêntica (Layout & Workflow Kiro + BYOA)
 
-Objetivo: transformar o Tarot IDE em uma IDE 100% agêntica no modelo do **Kiro IDE**, orquestrando as ferramentas de IA já instaladas na máquina do usuário (`claude-code`, `codex`, `agy`) de forma modular dentro de `extensions/tarot-core`.
+> **Princípio de execução**: todas as entregas M3.1–M3.6 residem em **`extensions/tarot-core/`**. Não alterar `src/vs/` salvo justificativa explícita na especificação do marco.
 
-### 3.1 Pilares do Workflow (Estilo Kiro)
-1. **Descoberta e Orquestração de Agentes Locais (`Agent Runtime Manager`)**:
-   - Auto-detecção no `PATH` das CLIs instaladas (`claude`, `codex`, `agy`) com status, versão e seleção por sessão/tarefa.
-   - Adaptadores unificados (stream JSON / PTY / subprocesso) abstraindo diferenças de flags, contexto e aprovação de ferramentas.
-2. **Painel Agêntico Dedicado (Secondary Side Bar — Direita)**:
-   - WebviewView nativa ocupando o painel direito (livre após desativação do Copilot), com seletor de agente (`claude-code` / `codex` / `agy`), alternância **Vibe Mode** vs **Spec Mode**, histórico de sessões, visualização de diffs e ações rápidas de aprovação.
-3. **Spec-Driven Development (`Specs` — Barra Lateral Esquerda)**:
-   - Fluxo estruturado `.tarot/specs/<feature>/`: `requirements.md` → `design.md` → `tasks.md` com execução incremental de tarefas pelos agentes e marcação automática de progresso.
-4. **Agent Hooks & Steering (`.tarot/hooks/` e `.tarot/steering/`)**:
-   - **Steering**: arquivos Markdown de contexto/regras injetados automaticamente nas sessões dos agentes.
-   - **Hooks**: gatilhos em eventos do editor (`onDidSaveTextDocument`, criação/remoção de arquivos, pré-commit) que disparam um agente local automaticamente.
+### Arquitetura Alvo dentro de `extensions/tarot-core/`
 
-### 3.2 Diretrizes Arquiteturais
-1. **Extensão primeiro (`extensions/tarot-core`)**:
-   - Comandos, menus, barras de status, TreeViews (Specs/Hooks/Steering/Agents), WebviewView na Secondary Side Bar, integração com Diff Editor/Terminal/MCP e configurações `tarot.*`.
-   - Se alguma integração exigir APIs internas do VS Code, declarar em `enabledApiProposals` no `extensions/tarot-core/package.json` e incluir o respectivo `.d.ts` no `tsconfig.json`.
-2. **Core (`src/vs/`) apenas como último recurso**:
-   - Quando inevitável (ex.: ajustes finos de layout inicial padrão da Secondary Side Bar), isolar com o mínimo de linhas tocadas para manter merges com `upstream` limpos.
-
-### 3.3 Estrutura Modular Sugerida dentro de `extensions/tarot-core/src/`
 ```text
-extensions/tarot-core/src/
-├── extension.ts        # Registro central de módulos e ciclo de vida
-├── agents/             # Detecção e adaptadores para claude-code, codex e agy
-├── specs/              # Gerenciador de Spec-Driven Development (.tarot/specs/)
-├── hooks/              # Engine de Agent Hooks (eventos do workspace → agente)
-├── steering/           # Carregamento e injeção de regras (.tarot/steering/)
-├── views/              # WebviewView do Painel Agêntico + TreeViews laterais
-├── commands/           # Comandos tarot.*
-└── config/             # Leitura tipada de configurações tarot.*
+extensions/tarot-core/
+├── package.json                 # Views (Activity Bar esquerda + Secondary Side Bar direita), comandos e settings tarot.*
+├── src/
+│   ├── extension.ts             # Bootstrap e composição de todos os módulos
+│   ├── config/
+│   │   └── tarotConfig.ts       # Leitura tipada de configurações tarot.*
+│   ├── agents/
+│   │   ├── types.ts             # Interfaces AgentAdapter, AgentInfo, AgentSession, AgentEvent
+│   │   ├── runtimeManager.ts    # Auto-detecção no PATH (claude, codex, agy) + status + seleção ativa
+│   │   ├── processRunner.ts     # Execução segura spawn(bin, args, { shell: false }), cancelamento, timeouts
+│   │   └── adapters/
+│   │       ├── claudeAdapter.ts # Adaptador para Claude Code CLI (`claude`)
+│   │       ├── codexAdapter.ts  # Adaptador para OpenAI Codex CLI (`codex`)
+│   │       └── agyAdapter.ts    # Adaptador para Antigravity CLI (`agy`)
+│   ├── steering/
+│   │   └── steeringService.ts   # Descoberta e montagem de contexto `.tarot/steering/*.md`
+│   ├── specs/
+│   │   ├── specService.ts       # CRUD de `.tarot/specs/<slug>/{requirements,design,tasks}.md`
+│   │   └── taskParser.ts        # Parser de checklists `- [ ]` / `- [x]` em `tasks.md`
+│   ├── hooks/
+│   │   └── hookEngine.ts        # Engine `.tarot/hooks/*.json` ligada a eventos do workspace (respeitando Workspace Trust)
+│   └── views/
+│       ├── tarotSidebarViews.ts # TreeViews na barra lateral esquerda (Specs, Hooks, Steering, Agents)
+│       └── agentPanelView.ts    # WebviewView na Secondary Side Bar (Painel Agêntico Vibe/Spec + streaming + diffs)
+└── media/
+    └── webview/                 # CSS/JS do Painel Agêntico (CSP estrita + paleta Arcana)
 ```
+
+---
+
+### Marco M3.1 — Contratos & `AgentRuntimeManager` (UC-01)
+- **Objetivo**: detectar automaticamente na máquina do usuário as CLIs `claude`, `codex` e `agy` (e binários customizados), expondo status, caminho e versão.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/config/tarotConfig.ts`
+  - `extensions/tarot-core/src/agents/types.ts`
+  - `extensions/tarot-core/src/agents/processRunner.ts`
+  - `extensions/tarot-core/src/agents/runtimeManager.ts`
+  - `extensions/tarot-core/package.json` (`contributes.configuration` com `tarot.agents.*`)
+- **Contratos obrigatórios (`types.ts`)**:
+  - `AgentId = 'claude' | 'codex' | 'agy' | string`
+  - `AgentStatus = { id: AgentId; displayName: string; binary: string; available: boolean; resolvedPath?: string; version?: string; error?: string }`
+  - `AgentEvent = { type: 'text' | 'tool_start' | 'tool_end' | 'diff' | 'error' | 'done'; content?: string; metadata?: Record<string, unknown> }`
+  - `AgentAdapter`: `detect(): Promise<AgentStatus>`, `run(req: AgentRunRequest, onEvent: (e: AgentEvent) => void, token: vscode.CancellationToken): Promise<void>`
+- **Critérios de Aceite (DoD)**:
+  - [ ] Detecta `claude`, `codex` e `agy` sem usar `shell: true` (via resolução de `PATH` + `spawn(bin, ['--version'], { shell: false })`).
+  - [ ] Comando `tarot.agents.refresh` e item na Status Bar exibindo o agente ativo (ex.: `$(sparkle) Tarot: claude`).
+  - [ ] Configurações `tarot.agents.default`, `tarot.agents.paths.{claude,codex,agy}` registradas no schema de Settings.
+- **Verificação**:
+  ```bash
+  pnpm exec gulp compile-extension:tarot-core
+  ```
+
+---
+
+### Marco M3.2 — Layout Kiro: Activity Bar Esquerda + Painel Agêntico na Secondary Side Bar (UC-01, UC-02)
+- **Objetivo**: criar a estrutura visual do **Kiro IDE** — container **Tarot** na barra lateral esquerda com 4 TreeViews (**Specs**, **Agent Hooks**, **Agent Steering**, **Local Agents**) e **Painel Agêntico** (`WebviewView`) ancorado na **Secondary Side Bar (direita)**.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/package.json` (`viewsContainers`, `views`, `menus`)
+  - `extensions/tarot-core/src/views/tarotSidebarViews.ts`
+  - `extensions/tarot-core/src/views/agentPanelView.ts`
+  - `extensions/tarot-core/media/webview/{panel.css,panel.js}`
+- **Critérios de Aceite (DoD)**:
+  - [ ] Container esquerdo **Tarot** exibe as 4 seções (`Specs`, `Hooks`, `Steering`, `Local Agents`) com ícones coerentes e ações inline (`+`, refresh).
+  - [ ] Painel direito (`WebviewView`) exibe: seletor de agente (`claude` / `codex` / `agy`), toggle **Vibe / Spec**, lista de mensagens com streaming, botão de cancelar execução e chip de arquivos anexados do editor ativo.
+  - [ ] CSP estrita com `nonce` gerada por renderização e sanitização de todo output de agente (sem `innerHTML` inseguro).
+- **Verificação**:
+  ```bash
+  pnpm exec gulp compile-extension:tarot-core
+  ./scripts/code.sh # validar visualmente barras esquerda e direita
+  ```
+
+---
+
+### Marco M3.3 — Adaptadores dos Agentes Locais (`claude`, `codex`, `agy`) + Vibe Mode (UC-02, UC-06)
+- **Objetivo**: conectar o Painel Agêntico aos executáveis reais da máquina com streaming em tempo real, cancelamento limpo (`SIGTERM`), envio de contexto (`#file`, `#selection`) e revisão de diffs.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/agents/adapters/claudeAdapter.ts`
+  - `extensions/tarot-core/src/agents/adapters/codexAdapter.ts`
+  - `extensions/tarot-core/src/agents/adapters/agyAdapter.ts`
+- **Regras técnicas dos adaptadores**:
+  - Cada adaptador deve isolar flags específicas do seu CLI (ex.: modo não-interativo / stream JSON quando disponível, fallback seguro para stdout/stderr por linha).
+  - Suportar `cwd = workspaceFolder.uri.fsPath` e propagar `CancellationToken` para encerrar o subprocesso sem deixar processos órfãos.
+  - Persistir histórico agnóstico de fornecedor em `.tarot/sessions/<sessionId>.json` para permitir troca de agente no meio da conversa (`UC-06`).
+- **Critérios de Aceite (DoD)**:
+  - [ ] Enviar prompt no Vibe Mode dispara o agente selecionado, transmite resposta incremental no painel e permite cancelar a qualquer momento.
+  - [ ] Alterações feitas em arquivos podem ser abertas diretamente no Diff Editor nativo do VS Code (`vscode.diff`).
+  - [ ] Trocar de agente no seletor preserva o histórico da sessão e injeta resumo de contexto no novo agente.
+
+---
+
+### Marco M3.4 — Agent Steering (`.tarot/steering/*.md`) (UC-04)
+- **Objetivo**: implementar o sistema de regras persistentes do projeto no modelo do Kiro, injetado automaticamente em qualquer agente local selecionado.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/steering/steeringService.ts`
+  - Integração com `tarotSidebarViews.ts` e adaptadores em `src/agents/`
+- **Especificação**:
+  - Suportar arquivos `.tarot/steering/*.md` com frontmatter opcional:
+    - `inclusion: always` (padrão) — sempre injetado.
+    - `inclusion: fileMatch` + `fileMatchPattern: "src/**/*.ts"` — injetado quando o arquivo ativo ou referenciado casa com o glob.
+    - `inclusion: manual` — injetado quando citado pelo usuário (`#steering-name`).
+  - Ação **"Generate Base Steering"** que pede ao agente ativo para criar `product.md`, `tech.md` e `structure.md` analisando o workspace.
+- **Critérios de Aceite (DoD)**:
+  - [ ] TreeView **Agent Steering** lista, cria e abre arquivos `.tarot/steering/*.md` em tempo real via `FileSystemWatcher`.
+  - [ ] Contexto de Steering é anexado ao prompt efetivo de `claude`, `codex` e `agy` de forma transparente e visível no painel.
+
+---
+
+### Marco M3.5 — Spec-Driven Development (`.tarot/specs/<slug>/`) (UC-03)
+- **Objetivo**: implementar o fluxo completo do Kiro IDE de especificação antes da implementação: **`requirements.md` → `design.md` → `tasks.md` → execução tarefa a tarefa**.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/specs/specService.ts`
+  - `extensions/tarot-core/src/specs/taskParser.ts`
+  - Integração com `tarotSidebarViews.ts` e `agentPanelView.ts`
+- **Especificação**:
+  - Estrutura em disco: `.tarot/specs/<slug>/{requirements.md,design.md,tasks.md}`.
+  - Transições guiadas com portão de aprovação humana entre cada fase (Requirements → Design → Tasks).
+  - CodeLens (ou ações inline na TreeView) sobre itens `- [ ]` em `tasks.md`: **"Run Task with Active Agent"** e **"Run Task with..."** (escolhendo `claude` / `codex` / `agy`), atualizando automaticamente para `- [x]` após validação.
+- **Critérios de Aceite (DoD)**:
+  - [ ] Criar nova Spec no **Spec Mode** gera sequencialmente os 3 arquivos Markdown no workspace.
+  - [ ] TreeView **Specs** mostra o progresso (ex.: `3/7 tasks`) e permite disparar tarefas individuais.
+  - [ ] Cada execução de tarefa injeta automaticamente `requirements.md`, `design.md`, `tasks.md` e os arquivos de **Steering** aplicáveis.
+
+---
+
+### Marco M3.6 — Agent Hooks (`.tarot/hooks/*.json`) (UC-05)
+- **Objetivo**: automações orientadas a eventos do editor que invocam agentes locais em segundo plano.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/src/hooks/hookEngine.ts`
+  - Integração com `tarotSidebarViews.ts`
+- **Schema de Hook (`.tarot/hooks/<id>.json`)**:
+  ```json
+  {
+    "id": "update-tests-on-save",
+    "name": "Atualizar testes ao salvar",
+    "enabled": true,
+    "trigger": "onSave",
+    "glob": "src/**/*.ts",
+    "agent": "default",
+    "prompt": "Verifique se o arquivo alterado {{file}} exige atualização nos testes unitários."
+  }
+  ```
+- **Critérios de Aceite (DoD)**:
+  - [ ] Suporta gatilhos `onSave`, `onCreate`, `onDelete` e `manual` com debounce e fila para evitar disparos simultâneos redundantes.
+  - [ ] **Bloqueado automaticamente quando `!vscode.workspace.isTrusted`** (exigência de segurança).
+  - [ ] Toggle habilitar/desabilitar e execução manual direto na TreeView **Agent Hooks**, com log dedicado no OutputChannel `Tarot IDE`.
 
 ---
 
 ## Fase 4 — Empacotamento, CLI `tarot` e Distribuição
 
-Objetivo: gerar instaladores finais prontos para usuários finais e automatizar releases.
-
 ### 4.1 Builds de Produção Locais (Linux)
-Com `product.json` configurado (`applicationName: "tarot"`), o pipeline de build do VS Code gera automaticamente o binário CLI `tarot`, o pacote e o lançador `.desktop`:
-
 ```bash
-# Build minificado da aplicação Linux x64 (gera ../VSCode-linux-x64/)
 pnpm exec gulp vscode-linux-x64-min
-
-# Gerar pacote instalável .deb (Debian/Ubuntu)
 pnpm exec gulp vscode-linux-x64-build-deb
-
-# Gerar pacote .rpm (Fedora/RHEL)
 pnpm exec gulp vscode-linux-x64-build-rpm
 ```
+- **Critério de Aceite**: pacote `.deb` instala o binário `/usr/bin/tarot`, ícone `tarot-ide`, `.desktop` funcional, tema **Tarot Arcana Dark**, **Tarot Arcana Icons**, Open VSX ativo e sem `extensions/copilot`.
 
-### 4.2 Alvos Multiplataforma (Windows e macOS)
-- **Windows**: `vscode-win32-x64-min` + instaladores Inno Setup (`vscode-win32-x64-user-setup` / `system-setup`).
-- **macOS**: `vscode-darwin-arm64-min` / `vscode-darwin-x64-min` + assinatura de código (Apple Developer ID + notarização) usando `darwinBundleIdentifier: "com.tarot.ide"`.
-
-### 4.3 Pipeline de CI/CD e Auto-Update
-- [ ] Configurar GitHub Actions com matriz de builds (Linux x64/arm64, macOS arm64, Windows x64) acionada por tags `v*`.
-- [ ] Publicar artefatos em GitHub Releases.
-- [ ] (Opcional) Configurar `updateUrl` em `product.json` apontando para um serviço leve de atualização (compatível com o protocolo de update do VS Code / padrão VSCodium) para atualizações automáticas do cliente desktop.
+### 4.2 Multiplataforma & CI/CD
+- [ ] Alvos Windows (`vscode-win32-x64-min` + Inno Setup) e macOS (`vscode-darwin-arm64-min`, `com.tarot.ide`).
+- [ ] GitHub Actions acionado por tags `v*` publicando artefatos em GitHub Releases.
+- [ ] *(Opcional)* Serviço leve de auto-update configurado via `updateUrl` em `product.json`.
 
 ---
 
-## Estratégia de Sincronização Contínua com o Upstream (`microsoft/vscode`)
+## Protocolo Contínuo de Sincronização com o Upstream (`microsoft/vscode`)
 
-Como o repositório foi clonado inicialmente com `--depth 1` para agilizar o setup, siga este protocolo ao atualizar o Tarot IDE para novas versões estáveis da Microsoft (ex.: mensalmente, por tag de release `1.149.0`, `1.150.0`, etc.):
-
-### Passo a Passo de Atualização
 ```bash
-# 1. Garantir histórico suficiente do upstream (necessário apenas na primeira sincronização após clone shallow)
-git fetch --unshallow upstream
-# Ou buscar explicitamente uma tag estável específica:
+# 1. Buscar histórico/tag alvo (na primeira vez após clone shallow, usar --unshallow ou --depth)
 git fetch upstream tag 1.149.0 --depth=100
 
-# 2. Atualizar a branch main local com o upstream
-git checkout main
-git merge --ff-only upstream/main
+# 2. Atualizar main local sem alterações do Tarot
+git checkout main && git merge --ff-only upstream/main
 
-# 3. Criar uma branch dedicada de sincronização a partir de tarot-main
-git checkout tarot-main
-git checkout -b sync/vscode-1.149.0
+# 3. Criar branch dedicada de sincronização
+git checkout tarot-main && git checkout -b sync/vscode-1.149.0
+git merge 1.149.0
 
-# 4. Mesclar a nova base da Microsoft (preferir merge a rebase em forks de longa duração)
-git merge upstream/main   # ou: git merge 1.149.0
-
-# 5. Resolver eventuais conflitos (ver matriz abaixo), atualizar dependências e validar
+# 4. Resolver conflitos (ver matriz), reinstalar e validar
 pnpm install
-pnpm exec gulp compile-extension:tarot-core
-pnpm run watch            # validar 0 erros de compilação
-./scripts/code.sh         # smoke test manual
+pnpm run compile-tarot
+pnpm run typecheck-client
+node --test build/lib/test/nlsMessages.test.ts build/lib/test/nlsMetadata.test.ts build/next/test/resources.test.ts
+./scripts/code.sh
 
-# 6. Integrar de volta em tarot-main
-git checkout tarot-main
-git merge --no-ff sync/vscode-1.149.0
+# 5. Integrar em tarot-main
+git checkout tarot-main && git merge --no-ff sync/vscode-1.149.0
 ```
 
-### Matriz de Risco de Conflitos por Arquivo
+### Matriz de Conflitos por Arquivo
 
-| Arquivo | Probabilidade de Conflito | Como Resolver |
+| Arquivo | Risco | Regra de Resolução |
 | --- | --- | --- |
-| `product.json` | Média-Alta | Manter chaves de identidade Tarot, `extensionsGallery` (Open VSX), `enableTelemetry: false` e ausência de `defaultChatAgent`/`GitHub.copilot-chat`; aceitar atualizações upstream de `builtInExtensions` (ex.: `js-debug`) e `webviewContentExternalBaseUrlTemplate`. |
-| `package.json` & `scripts/code.{sh,bat}` | Muito baixa | Manter scripts `*-tarot*` no `package.json` e `--disable-extension=GitHub.copilot-chat` em `scripts/code.{sh,bat}`. |
-| `pnpm-workspace.yaml` & `build/npm/dirs.ts` | Baixa | Manter a linha `extensions/tarot-core` em ordem alfabética junto aos novos membros adicionados pelo upstream. |
-| `build/gulpfile.extensions.ts` | Baixa | Manter `'extensions/tarot-core/tsconfig.json'` no array `compilations`. |
-| `src/vs/nls.ts` | Muito baixa | Manter `_rebrandMessage` em `_format` (~15 linhas) garantindo execução antes da interpolação de `args`. |
-| `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` | Muito baixa | Manter "Tarot IDE" nos 6 trechos de texto do playground interativo. |
-| `onboardingVariationA.ts`, `defaultAccount.ts`, `extensionGalleryService.ts`, `extensionsWorkbenchService.ts`, `abstractExtensionManagementService.ts` | Muito baixa | Manter os guards contra `defaultChatAgent === undefined` (garante boot limpo e busca/instalação no Open VSX sem Copilot). |
-| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixa | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` (2 linhas). |
-| `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Muito baixa | Manter os SVGs do Tarot IDE (`git checkout --ours`) se o upstream alterar ícones. |
-| `resources/{linux,win32,darwin,server}/**` | Muito baixa | Manter os ícones e manifestos do Tarot IDE (`git checkout --ours`) caso o upstream atualize assets da Microsoft. |
-| `pnpm-lock.yaml` | Alta | Não resolver manualmente: aceitar a versão do upstream (`git checkout --theirs pnpm-lock.yaml`) e rodar `pnpm install` para regenerar com `extensions/tarot-core`. |
-| `extensions/tarot-core/**`, `resources/tarot/**` e `docs/**` | Nula | Diretórios exclusivos do Tarot IDE; nunca conflitam com o upstream. |
+| `product.json` | Médio-Alto | Preservar identidade Tarot, Open VSX, `enableTelemetry: false` e ausência de `defaultChatAgent`/`GitHub.copilot-chat`; aceitar atualizações upstream de `builtInExtensions` (`js-debug`) e `webviewContentExternalBaseUrlTemplate`. |
+| `pnpm-lock.yaml` | Alto | Nunca resolver manualmente: `git checkout --theirs pnpm-lock.yaml && pnpm install`. |
+| `pnpm-workspace.yaml` & `build/npm/dirs.ts` | Baixo | Manter `extensions/tarot-core` em ordem alfabética. |
+| `build/gulpfile.extensions.ts` | Baixo | Manter `'extensions/tarot-core/tsconfig.json'` em `compilations`. |
+| `package.json` & `scripts/code.{sh,bat}` | Muito baixo | Manter scripts `*-tarot*` e `--disable-extension=GitHub.copilot-chat`. |
+| `src/vs/nls.ts` | Muito baixo | Manter `_rebrandMessage` em `_format` antes da interpolação de `args`. |
+| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixo | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'`. |
+| `onboardingVariationA.ts`, `defaultAccount.ts`, `extensionGalleryService.ts`, `extensionsWorkbenchService.ts`, `abstractExtensionManagementService.ts` | Muito baixo | Manter guards contra `defaultChatAgent === undefined`. |
+| `vs_code_editor_walkthrough.ts`, SVGs internos (`code-icon.svg`, `vscode-icon.svg`, `letterpress-*.svg`) e `resources/**` | Muito baixo | Manter versão Tarot (`git checkout --ours`). |
+| `extensions/tarot-core/**`, `resources/tarot/**` e `docs/**` | **Nulo** | Diretórios exclusivos do Tarot IDE. |

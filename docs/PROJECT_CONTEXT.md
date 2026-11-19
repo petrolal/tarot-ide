@@ -1,107 +1,162 @@
-# Tarot IDE — Contexto do Projeto
+# Tarot IDE — Contexto, Stack, Regras e Casos de Uso
 
-> Documento de contexto arquitetural e operacional do **Tarot IDE**, uma IDE **100% agêntica** (inspirada no layout e workflow do **Kiro IDE**) construída sobre o núcleo open-source do Visual Studio Code (`microsoft/vscode` / Code - OSS) e Electron, orquestrando diretamente as ferramentas de IA instaladas na máquina do usuário (`claude-code`, `codex`, `agy`).
+> **Fonte única de verdade (Single Source of Truth)** para engenheiros e agentes de IA (`claude-code`, `codex`, `agy`, etc.) que atuam no desenvolvimento do **Tarot IDE**.
+> Leia este documento e `docs/MIGRATION_PLAN.md` antes de planejar ou alterar qualquer arquivo do repositório.
 
 ---
 
-## 1. Visão Geral e Identidade do Produto
+## 1. Visão do Produto & Identidade
+
+O **Tarot IDE** é uma IDE **100% agêntica**, inspirada no **layout e workflow do Kiro IDE** (*Spec-Driven Development*, *Agent Steering*, *Agent Hooks* e *Painel Agêntico Dedicado*), construída sobre o núcleo open-source do Visual Studio Code (`microsoft/vscode` / Code - OSS) e Electron.
+
+**Diferencial central (BYOA — Bring Your Own Agents):**
+Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao GitHub Copilot, o Tarot IDE **detecta e orquestra diretamente as ferramentas agênticas de IA já instaladas na máquina do usuário** — com suporte nativo inicial a **`claude-code`** (`claude`), **`codex`** (`codex`) e **`agy`** (`agy`).
 
 | Propriedade | Valor configurado |
 | --- | --- |
 | **Nome do Produto (`nameShort` / `nameLong`)** | `Tarot IDE` |
 | **Binário / CLI (`applicationName`)** | `tarot` |
 | **Protocolo de URL (`urlProtocol`)** | `tarot://` |
-| **Diretório de Dados (`dataFolderName`)** | `.tarot-ide` (`~/.tarot-ide`) |
-| **Diretório Compartilhado (`sharedDataFolderName`)** | `.tarot-ide-shared` |
+| **Diretório de Dados do Usuário** | `.tarot-ide` (`~/.tarot-ide`) / compartilhado: `.tarot-ide-shared` |
+| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `sessions/`) |
 | **Servidor / Túnel** | `tarot-server` (`.tarot-ide-server`) / `tarot-tunnel` |
-| **Bundle ID macOS (`darwinBundleIdentifier`)** | `com.tarot.ide` |
-| **Desktop / Ícone Linux (`linuxDesktopName` / `linuxIconName`)** | `com.tarot.ide` / `tarot-ide` |
-| **Identidade Windows (`win32DirName` / `win32AppUserModelId`)** | `Tarot IDE` / `Tarot.TarotIDE` |
+| **Bundle IDs** | macOS: `com.tarot.ide` · Linux: `com.tarot.ide` (`tarot-ide`) · Windows: `Tarot.TarotIDE` |
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
 | **Tema Padrão** | **Tarot Arcana Dark** (`#0A0A16` / `#1D1135` / `#4B0082` / `#D4AF37` / `#4FD1C5`) |
 | **Tema de Ícones Padrão** | **Tarot Arcana Icons** (`tarot-arcana-icons` — 46 SVGs de pastas e arquivos) |
-| **Copilot / Chat Microsoft** | **Desativado** (`defaultChatAgent` removido; `GitHub.copilot-chat` desabilitada no runtime e fora do bundle) |
-| **Arquitetura de IA** | **100% Agêntica (workflow Kiro)**: Specs, Agent Hooks, Steering e orquestração de CLIs locais (`claude-code`, `codex`, `agy`) |
-| **Telemetria Microsoft** | **Desativada** (`"enableTelemetry": false`) |
+| **Copilot / Telemetria Microsoft** | **Desativados** (`enableTelemetry: false`, sem `defaultChatAgent`, `--disable-extension=GitHub.copilot-chat`) |
 
 ---
 
-## 2. Base Técnica e Ambiente
+## 2. Stack Técnica
 
-- **Repositório upstream**: `https://github.com/microsoft/vscode.git`
-- **Versão base do Code - OSS**: `1.148.0`
-- **Commit base (`upstream/main`)**: `6cb9b401f8e7209fecb7ffe4d45dcb490e5dbb87` (2026-11-19)
-- **Runtime Electron**: `43.8.10` (definido em `package.json -> nativeBuild.target`)
-- **Node.js requerido (`.nvmrc`)**: `24.22.1` (mesma major `24`, validado em `build/npm/preinstall.ts`)
-- **Gerenciador de pacotes**: **`pnpm@12.16.0`** (obrigatório nesta versão do VS Code; `npm install` é bloqueado pelo `preinstall.ts`)
-- **Dependências de sistema (Linux / Ubuntu 24.04)**:
-  - `git`, `python3`, `build-essential` (`g++`, `make`), `pkg-config`
-  - Headers nativos para módulos C++/Electron: `libx11-dev`, `libxkbfile-dev`, `libsecret-1-dev`, `libkrb5-dev`
+### 2.1 Base & Runtime
+| Camada | Tecnologia / Versão | Notas |
+| --- | --- | --- |
+| **Core Editor** | `microsoft/vscode` (`Code - OSS`) `1.148.0` | Commit upstream base: `6cb9b401f8e7209fecb7ffe4d45dcb490e5dbb87` |
+| **Shell Desktop** | **Electron `43.8.10`** | Configurado em `package.json -> nativeBuild.target` |
+| **Node.js** | **Node `24.22.x`** (`.nvmrc`: `24.22.1`) | Validado em `build/npm/preinstall.ts` |
+| **Gerenciador de Pacotes** | **`pnpm@12.16.0`** | **Obrigatório.** `npm install` é bloqueado pelo `preinstall.ts`. |
+| **Linguagem Principal** | **TypeScript** (`strict: true`, `ES2024`) | `extensions/tsconfig.base.json` (`noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`) |
+| **Build & Bundling** | `build/next/index.ts` (transpile), `gulp`, `esbuild` | `extensions/tarot-core/esbuild.mts` gera bundle de produção (`dist/extension.js`) |
+| **UI de Extensões** | VS Code Extension API (`src/vscode-dts/vscode.d.ts`), `WebviewView`, `TreeView`, `DiffEditor` | Estilização aderente aos CSS tokens `--vscode-*` / paleta Arcana |
+| **Orquestração de Agentes Locais** | `node:child_process`, `node-pty` / streams NDJSON, `FileSystemWatcher`, MCP | Sem acoplamento a SDK proprietário de um único fornecedor |
+| **Toolchain Linux (Ubuntu 24.04)** | `git`, `python3`, `build-essential`, `pkg-config`, `libx11-dev`, `libxkbfile-dev`, `libsecret-1-dev`, `libkrb5-dev` | Obrigatórios para compilação de módulos nativos |
+
+### 2.2 Runtimes Agênticos Locais Alvo (BYOA)
+| Agente | Binário esperado no `PATH` | Papel no Tarot IDE |
+| --- | --- | --- |
+| **Claude Code** | `claude` | Execução agêntica (edição, terminal, planejamento, modo headless/JSON stream) |
+| **OpenAI Codex CLI** | `codex` | Execução agêntica local via CLI / modo não-interativo |
+| **Antigravity CLI (`agy`)** | `agy` | Execução agêntica local via CLI / workflows |
+| **Extensível (Custom)** | Configurável em `tarot.agents.custom` | Permite ao usuário registrar qualquer outro CLI agêntico compatível |
 
 ---
 
-## 3. Estratégia de Git e Branches
+## 3. Regras e Guardrails do Projeto (Obrigatório para Agentes)
 
-O repositório local em `/home/lucas.petrola/Projects/Personal/tarot-ide` segue separação estrita entre código da Microsoft e customizações do Tarot IDE:
+### 3.1 Regras Arquiteturais (Extension-First)
+1. **Regra de Ouro (90%+ em `extensions/tarot-core/`)**: toda nova feature do Tarot IDE (Painel Agêntico, Specs, Hooks, Steering, detectores/adaptadores de CLIs, comandos, configurações `tarot.*`) **DEVE** ser implementada dentro de `extensions/tarot-core/` (ou extensões irmãs `extensions/tarot-*`).
+2. **Núcleo (`src/vs/`) sob restrição estrita**: só modificar `src/vs/` quando for tecnicamente impossível via Extension API (ex.: layout default do workbench ou guards de remoção do Copilot). Toda alteração em `src/vs/` deve ter o menor diff possível e ser imediatamente registrada na Seção 5 deste documento e na matriz de conflitos de `docs/MIGRATION_PLAN.md`.
+3. **Nunca deletar `extensions/copilot/` do Git**: o Copilot é desativado via `product.json` + `--disable-extension=GitHub.copilot-chat` + `excludedExtensions`. Deletar a pasta quebraria `pnpm-lock.yaml` e criaria conflitos massivos em merges com `upstream`.
+4. **Nunca fazer find-and-replace global de "VS Code" em `src/vs/` ou `extensions/*/package.nls.json`**: o rebranding de textos da UI do core já é feito de forma centralizada e segura em `src/vs/nls.ts` (`_rebrandMessage`).
 
-- **Remote `upstream`**: aponta para `https://github.com/microsoft/vscode.git` (somente leitura/sincronização).
-- **Remote `origin`** *(a configurar)*: apontará para o repositório próprio do Tarot IDE.
-- **Branch `main`**: mantida limpa, espelhando `upstream/main`. Nunca commitar alterações do Tarot diretamente nela.
-- **Branch `tarot-main`**: branch principal de desenvolvimento do Tarot IDE.
+### 3.2 Regras de Git e Versionamento
+5. **Branch de desenvolvimento**: trabalhar sempre em `tarot-main` (ou feature branches criadas a partir dela). **Nunca** commitar na branch `main` (reservada exclusivamente para espelhar `upstream/main`).
+6. **Commits atômicos e verificados**: antes de commitar, validar JSON/XML modificados, rodar `pnpm exec gulp compile-extension:tarot-core` e, se tocou em `src/vs/`, rodar `node build/next/index.ts transpile` e `pnpm run typecheck-client`.
+7. **Manter docs sincronizadas**: qualquer novo arquivo em `src/vs/`, novo script em `package.json`, ou entrega de marco da Fase 3/4 deve atualizar `docs/PROJECT_CONTEXT.md` e `docs/MIGRATION_PLAN.md` no mesmo ciclo.
+
+### 3.3 Regras de Privacidade, Segurança e Execução de Agentes
+8. **Telemetria zero da Microsoft**: nunca reintroduzir `enableTelemetry: true`, `aiConfig`, `tasConfig`, `defaultChatAgent` ou endpoints proprietários Microsoft no `product.json`.
+9. **Marketplace livre**: manter `extensionsGallery` apontando exclusivamente para o **Open VSX Registry**.
+10. **Segurança na orquestração de CLIs locais**:
+    - Executar sempre com `spawn(binary, args, { shell: false })` (nunca concatenar prompts do usuário em strings de shell).
+    - Nunca logar ou persistir tokens/credenciais do usuário em `.tarot/` ou OutputChannels.
+    - Respeitar *Workspace Trust* (`vscode.workspace.isTrusted`) antes de disparar Agent Hooks automáticos ou comandos de escrita no disco.
+    - Em Webviews, aplicar CSP estrita (`nonce`), nunca usar `innerHTML` com conteúdo não sanitizado de saída de LLMs/CLIs.
+
+### 3.4 Regras de Build e Validação
+11. **Usar sempre `pnpm`** (nunca `npm`). Preferir os scripts leves `pnpm run watch-tarot`, `pnpm run watch-tarot-fast`, `pnpm run watch-tarot-core` e `pnpm run compile-tarot`.
+12. **`tarot-core` não vai em `product.json -> builtInExtensions`**: aquele campo é apenas para extensões externas baixadas via GitHub/Marketplace; extensões locais em `extensions/` são registradas em `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml` e `build/npm/dirs.ts`.
 
 ---
 
-## 4. Superfície de Alterações no Núcleo (Diff Mínimo)
+## 4. Casos de Uso Principais (Workflow Kiro + BYOA)
 
-Para manter atualizações futuras do `microsoft/vscode` simples e com risco mínimo de conflito, a superfície de arquivos modificados no núcleo é deliberadamente enxuta:
+### UC-01 — Descoberta e Configuração de Agentes Locais
+- **Ator**: Desenvolvedor abrindo o Tarot IDE.
+- **Fluxo**: Ao ativar `tarot-core`, o `AgentRuntimeManager` escaneia o `PATH` (e caminhos configurados em `tarot.agents.*`) para detectar `claude`, `codex` e `agy`, consultando disponibilidade e versão (`--version`).
+- **Resultado**: A view **Agents** exibe os motores disponíveis (verde = pronto, cinza = não instalado com instrução rápida) e permite definir o agente padrão global ou por sessão.
+
+### UC-02 — Vibe Mode (Chat Agêntico Direto no Painel Direito)
+- **Ator**: Desenvolvedor querendo implementar ou depurar algo rapidamente.
+- **Fluxo**: No **Painel Agêntico** (Secondary Side Bar, à direita — layout Kiro), o usuário escolhe o agente (`claude-code`, `codex` ou `agy`), seleciona **Vibe Mode**, anexa arquivos/seleções de código (`#file`, `#selection`) e envia o prompt.
+- **Resultado**: O adaptador executa o CLI local com o contexto do workspace + regras de Steering, faz streaming da resposta/ferramentas em tempo real no painel e permite inspecionar/aceitar/reverter diffs direto no Diff Editor do Tarot IDE.
+
+### UC-03 — Spec-Driven Development (Workflow Kiro: Requirements → Design → Tasks)
+- **Ator**: Desenvolvedor iniciando uma feature complexa ou refatoração.
+- **Fluxo**:
+  1. Usuário seleciona **Spec Mode** e descreve a feature (ou aciona `Tarot: New Spec`).
+  2. O agente gera `.tarot/specs/<slug>/requirements.md` (histórias de usuário + critérios de aceite EARS). Usuário revisa e aprova.
+  3. O agente gera `.tarot/specs/<slug>/design.md` (arquitetura, componentes, contratos de dados e plano de testes). Usuário revisa e aprova.
+  4. O agente gera `.tarot/specs/<slug>/tasks.md` (checklist de tarefas executáveis e incrementais).
+  5. Usuário clica em **"Run Task"** em qualquer item (ou executa em sequência), podendo inclusive escolher qual agente local (`claude`, `codex`, `agy`) executa cada tarefa.
+- **Resultado**: Execução rastreável, auditável e versionada em Markdown dentro do próprio repositório do projeto.
+
+### UC-04 — Agent Steering (Contexto Persistente do Projeto)
+- **Ator**: Time ou dev mantendo padrões de arquitetura/estilo consistentes entre diferentes agentes.
+- **Fluxo**: Arquivos Markdown em `.tarot/steering/*.md` (ex.: `product.md`, `tech.md`, `structure.md` ou arquivos com frontmatter de inclusão condicional por glob) são gerenciados na view **Steering** e injetados automaticamente como contexto de sistema/prompt em todas as sessões de `claude`, `codex` e `agy`.
+- **Resultado**: Todos os agentes locais obedecem às mesmas convenções do projeto, independentemente do CLI escolhido.
+
+### UC-05 — Agent Hooks (Automações Orientadas a Eventos)
+- **Ator**: Desenvolvedor automatizando tarefas repetitivas (ex.: atualizar testes ao salvar um arquivo, revisar i18n, validar contratos de API).
+- **Fluxo**: Usuário cria um hook em `.tarot/hooks/<nome>.json` (via UI da view **Agent Hooks**) definindo: evento (`onSave`, `onCreate`, `onDelete`, `manual`), padrão glob de arquivos, agente alvo (`claude` / `codex` / `agy`) e prompt.
+- **Resultado**: Quando o evento ocorre (em workspace confiável), o Tarot IDE dispara o agente em segundo plano com log estruturado e notificação do resultado/diff.
+
+### UC-06 — Troca Dinâmica de Motor / Handoff entre Agentes
+- **Ator**: Desenvolvedor que planeja uma Spec com `claude-code`, implementa uma tarefa com `codex` e revisa com `agy` (ou contorna limites de cota de uma ferramenta).
+- **Fluxo**: Como o estado de Specs, Steering, Hooks e histórico da sessão fica padronizado em `.tarot/` (agnóstico de fornecedor), o usuário troca o agente ativo no seletor do painel sem perder o contexto da tarefa.
+
+### UC-07 — Extensões Livres via Open VSX
+- **Ator**: Desenvolvedor instalando suporte a linguagens, linters e temas extras.
+- **Fluxo**: Busca e instalação transparentes na view Extensions conectada ao Open VSX Registry, sem dependência do Marketplace da Microsoft.
+
+---
+
+## 5. Mapa de Alterações no Repositório (Diff Mínimo Auditável)
 
 | Arquivo | Tipo | Finalidade |
 | --- | --- | --- |
 | `product.json` | Modificado | Rebranding completo para Tarot IDE, tema `Tarot Arcana Dark` em `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false`, remoção de `defaultChatAgent`, `GitHub.copilot-chat`, `agentsTelemetryAppName` e `voiceWsUrl`. |
-| `package.json` | Modificado (4 scripts) | Adiciona scripts leves sem Copilot (`compile-tarot`, `watch-tarot`, `watch-tarot-fast`, `watch-tarot-core`), preservando os scripts originais do upstream. |
-| `scripts/code.sh` & `scripts/code.bat` | Modificados (2 linhas cada) | Passam `--disable-extension=GitHub.copilot-chat` em dev para não carregar `extensions/copilot` em runtime. |
-| `src/vs/nls.ts` | Modificado (~15 linhas) | Normalização centralizada de strings UI (`_rebrandMessage` em `_format`) antes da interpolação de `args`: rebranda `"Visual Studio Code"`, `"VS Code"` e `"Code - OSS"` para `"Tarot IDE"` em toda a UI do core (inclusive Language Packs PT-BR), preservando URLs, argumentos de usuário e exceções legítimas (keymaps/importação do VS Code). |
-| `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` | Modificado (6 trechos) | Atualiza as menções de marca no playground interativo em Markdown (fora de `localize`). |
-| `src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts`, `src/vs/workbench/services/accounts/browser/defaultAccount.ts`, `src/vs/platform/extensionManagement/common/{extensionGalleryService,abstractExtensionManagementService}.ts`, `src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts` | Modificados (guards mínimos) | Protegem acessos a `productService.defaultChatAgent` contra `undefined` no boot, conta padrão e busca/instalação/remoção de extensões no Open VSX após a desativação do Copilot. |
-| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (2 linhas) | Define `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` como padrões na primeira inicialização. |
-| `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Substituição dos ícones SVG internos do workbench (barra de título `.window-appicon`, Welcome/Getting Started, banners, Sessions e marca d'água do editor vazio) pelo emblema vetorial da carta Tarot IDE. |
-| `resources/linux/{code.png,code.desktop,code.appdata.xml}`, `resources/win32/{code.ico,code_70x70.png,code_150x150.png,VisualElementsManifest.xml}`, `resources/darwin/code.icns`, `resources/server/{favicon.ico,code-192.png,code-512.png,manifest.json}` | Modificados | Substituição dos ícones, metadados de desktop/AppStream e manifestos Windows/PWA pela identidade oficial do Tarot IDE. |
-| `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png` e ícones 64..1024px). |
-| `build/gulpfile.extensions.ts` | Modificado | Registro de `extensions/tarot-core/tsconfig.json` no array `compilations` (compilação e `watch` automáticos). |
-| `pnpm-workspace.yaml` | Modificado | Inclusão de `extensions/tarot-core` como membro do workspace pnpm. |
-| `build/npm/dirs.ts` | Modificado | Inclusão de `extensions/tarot-core` em `workspaceMembers` (mantido sincronizado com `pnpm-workspace.yaml`). |
-| `extensions/tarot-core/**` | Novo | Extensão built-in exclusiva do Tarot IDE (desacoplada do core `src/vs/`). |
-| `docs/**` | Novo | Documentação de contexto e plano de migração (pasta inexistente no upstream). |
-
-> **Decisão sobre `extensions/copilot`**: o Copilot foi desativado no produto (`defaultChatAgent` removido do `product.json`, `--disable-extension=GitHub.copilot-chat` em dev, e já listado em `excludedExtensions` em `build/lib/extensions.ts` para produção), porém a pasta `extensions/copilot/` permanece intacta no Git para evitar conflitos no `pnpm-lock.yaml` e futuros merges com o `upstream`.
+| `package.json` | Modificado (4 scripts) | Scripts leves sem Copilot: `compile-tarot`, `watch-tarot`, `watch-tarot-fast`, `watch-tarot-core`. |
+| `scripts/code.sh` & `scripts/code.bat` | Modificados (2 linhas cada) | Passam `--disable-extension=GitHub.copilot-chat` em dev. |
+| `src/vs/nls.ts` | Modificado (~15 linhas) | `_rebrandMessage` em `_format` (antes da interpolação de `args`): rebranda `"Visual Studio Code"`, `"VS Code"` e `"Code - OSS"` para `"Tarot IDE"` em toda a UI do core (inclusive Language Packs), preservando URLs, argumentos e exceções legítimas (keymaps/importação). |
+| `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` | Modificado (6 trechos) | Atualiza menções de marca no playground interativo em Markdown. |
+| `src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts`, `src/vs/workbench/services/accounts/browser/defaultAccount.ts`, `src/vs/platform/extensionManagement/common/{extensionGalleryService,abstractExtensionManagementService}.ts`, `src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts` | Modificados (guards mínimos) | Protegem acessos a `productService.defaultChatAgent` contra `undefined` no boot, conta padrão e busca/instalação/remoção no Open VSX. |
+| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (2 linhas) | Define `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` como padrões. |
+| `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Emblema vetorial da carta Tarot IDE na titlebar, banners, Welcome, Sessions e marca d'água do editor vazio. |
+| `resources/{linux,win32,darwin,server}/**` | Modificados | Ícones do SO/janela/web e manifestos (`code.desktop`, `code.appdata.xml`, `VisualElementsManifest.xml`, `manifest.json`). |
+| `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png`, ícones 64..1024px). |
+| `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml`, `build/npm/dirs.ts` | Modificados (1 linha cada) | Registro nativo da extensão built-in `extensions/tarot-core`. |
+| `extensions/tarot-core/**` | Novo | Extensão built-in central do Tarot IDE (tema, ícones, walkthrough e futura engine agêntica Kiro/BYOA). |
+| `docs/**` | Novo | Documentação de contexto (`PROJECT_CONTEXT.md`) e plano de migração (`MIGRATION_PLAN.md`). |
 
 ---
 
-## 5. Arquitetura de Extensibilidade (`extensions/tarot-core`)
+## 6. Estrutura Atual de `extensions/tarot-core/`
 
-### Regra de Ouro do Projeto
-Concentrar **90%+ das funcionalidades exclusivas do Tarot IDE** dentro de `extensions/tarot-core/` (ou extensões built-in irmãs em `extensions/tarot-*`), utilizando a API oficial do VS Code (`vscode.d.ts`) e *Proposed APIs* (`enabledApiProposals`) quando necessário.
-
-Alterações em `src/vs/` devem ocorrer **apenas** quando for tecnicamente impossível implementar o requisito via extensão (ex.: mudanças estruturais de layout do workbench ou chrome nativo).
-
-### Por que `tarot-core` não está em `product.json -> builtInExtensions`?
-No sistema de build do VS Code:
-- `product.json -> builtInExtensions` destina-se exclusivamente a extensões **externas** baixadas de outros repositórios/Marketplace durante o build (via `repo` + `sha256`, como `ms-vscode.js-debug`).
-- Extensões built-in **locais** em `extensions/*/` são descobertas automaticamente em runtime (Extension Host) e no empacotamento via `glob.sync('extensions/*/package.json')` em `build/lib/extensions.ts`.
-
-### Estrutura atual de `extensions/tarot-core/`
 ```text
 extensions/tarot-core/
 ├── .vscodeignore                       # Exclusões para empacotamento de produção
 ├── esbuild.mts                         # Bundler de produção (gera dist/extension.js)
 ├── icons/
-│   ├── tarot-arcana-icon-theme.json    # Tema de ícones de pastas/arquivos "Tarot Arcana Icons"
+│   ├── tarot-arcana-icon-theme.json    # Tema de ícones "Tarot Arcana Icons"
 │   └── svg/*.svg                       # 46 SVGs temáticos na paleta Arcana
 ├── media/
 │   ├── icon.png                        # Ícone 128x128 da extensão Tarot Core
-│   ├── logo.png                        # Logotipo horizontal "TAROT IDE — ARCANA CODE ENVIRONMENT"
+│   ├── logo.png                        # Logotipo "TAROT IDE — ARCANA CODE ENVIRONMENT"
 │   └── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
-├── package.json                        # Manifesto (publisher: "tarot", tema, ícones, walkthrough e comando tarot.welcome)
+├── package.json                        # Manifesto (tema, ícones, walkthrough, comandos tarot.*)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
 │   └── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (UI + TextMate + Semantic)
@@ -112,51 +167,36 @@ extensions/tarot-core/
 
 ---
 
-## 6. Marketplace e Privacidade
-
-### Open VSX Registry
-Configurado em `product.json -> extensionsGallery`:
-- `serviceUrl`: `https://open-vsx.org/vscode/gallery`
-- `itemUrl`: `https://open-vsx.org/vscode/item`
-- `resourceUrlTemplate`: `https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}`
-- `controlUrl`: `""`
-- `nlsBaseUrl`: `""`
-
-Essa configuração evita o uso do Marketplace proprietário da Microsoft (cujos termos restringem o uso fora dos binários oficiais da Microsoft) e habilita ícones, READMEs e extensões web do Open VSX.
-
-### Telemetria
-- `"enableTelemetry": false` em `product.json` desativa a coleta de telemetria diretamente na verificação central de `src/vs/platform/telemetry/common/telemetryUtils.ts`.
-- Removidos `agentsTelemetryAppName` e o endpoint proprietário `voiceWsUrl` (`falcon-caas.mai.microsoft.com`).
-
----
-
-## 7. Comandos do Dia a Dia
+## 7. Comandos do Dia a Dia & Troubleshooting
 
 ```bash
-# 1. Instalar/atualizar dependências do workspace (obrigatório usar pnpm)
+# Instalar/atualizar dependências (sempre pnpm)
 pnpm install
 
-# 2. Iniciar compilação contínua do Tarot IDE (SEM Copilot — mais rápido e menos RAM)
+# Watch completo do Tarot IDE (SEM Copilot — recomendado)
 pnpm run watch-tarot
-# Modo ultra-rápido (transpile + extensões, sem typecheck contínuo do core):
+
+# Watch rápido (transpile + extensões, sem typecheck contínuo do core)
 pnpm run watch-tarot-fast
-# Watch apenas da extensão tarot-core (~200ms por alteração):
+
+# Watch isolado da extensão tarot-core (~200ms)
 pnpm run watch-tarot-core
 
-# 3. Compilar build completo do Tarot IDE (sem Copilot) ou só a tarot-core
-pnpm run compile-tarot
+# Validações pontuais (antes de commitar)
 pnpm exec gulp compile-extension:tarot-core
+node build/next/index.ts transpile
+pnpm run typecheck-client
 
-# 4. Executar o Tarot IDE em modo desenvolvimento (após o primeiro "Finished compilation")
+# Executar o Tarot IDE em modo desenvolvimento
 ./scripts/code.sh
 ```
 
-### Troubleshooting conhecido (Ubuntu 24.04)
-- **Erro `chrome-sandbox` ao rodar `./scripts/code.sh`**: com `kernel.apparmor_restrict_unprivileged_userns = 1`, o Electron exige que o helper SUID pertença ao `root`:
+### Troubleshooting (Ubuntu 24.04)
+- **Erro `chrome-sandbox` no `./scripts/code.sh`**: com `kernel.apparmor_restrict_unprivileged_userns = 1`, o helper SUID precisa pertencer ao `root`:
   ```bash
   sudo chown root:root .build/electron/chrome-sandbox && sudo chmod 4755 .build/electron/chrome-sandbox
   ```
-- **Limite de watchers (`ENOSPC`) no `pnpm run watch`**: caso ocorra em sessões longas, aumente `fs.inotify.max_user_watches`:
+- **Erro `ENOSPC` no `watch`**: aumentar watchers do kernel:
   ```bash
   sudo sysctl fs.inotify.max_user_watches=524288
   ```
