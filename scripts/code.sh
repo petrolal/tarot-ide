@@ -44,12 +44,13 @@ function code() {
 	export ELECTRON_ENABLE_LOGGING=1
 
 	DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+	DISABLE_COPILOT_EXTENSION="--disable-extension=GitHub.copilot-chat"
 	if [[ "$@" == *"--extensionTestsPath"* ]]; then
 		DISABLE_TEST_EXTENSION=""
 	fi
 
 	# Launch Code
-	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION $DISABLE_COPILOT_EXTENSION "$@"
 }
 
 function code-wsl()

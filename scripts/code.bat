@@ -38,6 +38,7 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 set DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+set DISABLE_COPILOT_EXTENSION="--disable-extension=GitHub.copilot-chat"
 for %%A in (%*) do (
 	if "%%~A"=="--extensionTestsPath" (
 		set DISABLE_TEST_EXTENSION=""
@@ -45,7 +46,7 @@ for %%A in (%*) do (
 )
 
 :: Launch Code
-%CODE% . %DISABLE_TEST_EXTENSION% %*
+%CODE% . %DISABLE_TEST_EXTENSION% %DISABLE_COPILOT_EXTENSION% %*
 goto end
 
 :builtin

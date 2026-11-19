@@ -1,6 +1,6 @@
 # Tarot IDE — Contexto do Projeto
 
-> Documento de contexto arquitetural e operacional do **Tarot IDE**, um editor de código baseado no núcleo open-source do Visual Studio Code (`microsoft/vscode` / Code - OSS) e Electron.
+> Documento de contexto arquitetural e operacional do **Tarot IDE**, uma IDE **100% agêntica** (inspirada no layout e workflow do **Kiro IDE**) construída sobre o núcleo open-source do Visual Studio Code (`microsoft/vscode` / Code - OSS) e Electron, orquestrando diretamente as ferramentas de IA instaladas na máquina do usuário (`claude-code`, `codex`, `agy`).
 
 ---
 
@@ -20,6 +20,8 @@
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
 | **Tema Padrão** | **Tarot Arcana Dark** (`#0A0A16` / `#1D1135` / `#4B0082` / `#D4AF37` / `#4FD1C5`) |
 | **Tema de Ícones Padrão** | **Tarot Arcana Icons** (`tarot-arcana-icons` — 46 SVGs de pastas e arquivos) |
+| **Copilot / Chat Microsoft** | **Desativado** (`defaultChatAgent` removido; `GitHub.copilot-chat` desabilitada no runtime e fora do bundle) |
+| **Arquitetura de IA** | **100% Agêntica (workflow Kiro)**: Specs, Agent Hooks, Steering e orquestração de CLIs locais (`claude-code`, `codex`, `agy`) |
 | **Telemetria Microsoft** | **Desativada** (`"enableTelemetry": false`) |
 
 ---
@@ -55,9 +57,12 @@ Para manter atualizações futuras do `microsoft/vscode` simples e com risco mí
 
 | Arquivo | Tipo | Finalidade |
 | --- | --- | --- |
-| `product.json` | Modificado | Rebranding completo para Tarot IDE, tema `Tarot Arcana Dark` em `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false` e remoção de `agentsTelemetryAppName` e `voiceWsUrl`. |
+| `product.json` | Modificado | Rebranding completo para Tarot IDE, tema `Tarot Arcana Dark` em `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false`, remoção de `defaultChatAgent`, `GitHub.copilot-chat`, `agentsTelemetryAppName` e `voiceWsUrl`. |
+| `package.json` | Modificado (4 scripts) | Adiciona scripts leves sem Copilot (`compile-tarot`, `watch-tarot`, `watch-tarot-fast`, `watch-tarot-core`), preservando os scripts originais do upstream. |
+| `scripts/code.sh` & `scripts/code.bat` | Modificados (2 linhas cada) | Passam `--disable-extension=GitHub.copilot-chat` em dev para não carregar `extensions/copilot` em runtime. |
 | `src/vs/nls.ts` | Modificado (~15 linhas) | Normalização centralizada de strings UI (`_rebrandMessage` em `_format`) antes da interpolação de `args`: rebranda `"Visual Studio Code"`, `"VS Code"` e `"Code - OSS"` para `"Tarot IDE"` em toda a UI do core (inclusive Language Packs PT-BR), preservando URLs, argumentos de usuário e exceções legítimas (keymaps/importação do VS Code). |
 | `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` | Modificado (6 trechos) | Atualiza as menções de marca no playground interativo em Markdown (fora de `localize`). |
+| `src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts`, `src/vs/workbench/services/accounts/browser/defaultAccount.ts`, `src/vs/platform/extensionManagement/common/{extensionGalleryService,abstractExtensionManagementService}.ts`, `src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts` | Modificados (guards mínimos) | Protegem acessos a `productService.defaultChatAgent` contra `undefined` no boot, conta padrão e busca/instalação/remoção de extensões no Open VSX após a desativação do Copilot. |
 | `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (2 linhas) | Define `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` como padrões na primeira inicialização. |
 | `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Substituição dos ícones SVG internos do workbench (barra de título `.window-appicon`, Welcome/Getting Started, banners, Sessions e marca d'água do editor vazio) pelo emblema vetorial da carta Tarot IDE. |
 | `resources/linux/{code.png,code.desktop,code.appdata.xml}`, `resources/win32/{code.ico,code_70x70.png,code_150x150.png,VisualElementsManifest.xml}`, `resources/darwin/code.icns`, `resources/server/{favicon.ico,code-192.png,code-512.png,manifest.json}` | Modificados | Substituição dos ícones, metadados de desktop/AppStream e manifestos Windows/PWA pela identidade oficial do Tarot IDE. |
@@ -68,7 +73,7 @@ Para manter atualizações futuras do `microsoft/vscode` simples e com risco mí
 | `extensions/tarot-core/**` | Novo | Extensão built-in exclusiva do Tarot IDE (desacoplada do core `src/vs/`). |
 | `docs/**` | Novo | Documentação de contexto e plano de migração (pasta inexistente no upstream). |
 
-> **Observação sobre `defaultChatAgent`**: o bloco `defaultChatAgent` (Copilot) em `product.json` foi preservado inicialmente para minimizar conflitos até que a estratégia de IA/chat do Tarot IDE seja definida (ver `docs/MIGRATION_PLAN.md`).
+> **Decisão sobre `extensions/copilot`**: o Copilot foi desativado no produto (`defaultChatAgent` removido do `product.json`, `--disable-extension=GitHub.copilot-chat` em dev, e já listado em `excludedExtensions` em `build/lib/extensions.ts` para produção), porém a pasta `extensions/copilot/` permanece intacta no Git para evitar conflitos no `pnpm-lock.yaml` e futuros merges com o `upstream`.
 
 ---
 
@@ -131,12 +136,15 @@ Essa configuração evita o uso do Marketplace proprietário da Microsoft (cujos
 # 1. Instalar/atualizar dependências do workspace (obrigatório usar pnpm)
 pnpm install
 
-# 2. Iniciar compilação contínua (core + todas as extensões + tarot-core)
-pnpm run watch
-# Alternativa em background daemon:
-pnpm run watchd
+# 2. Iniciar compilação contínua do Tarot IDE (SEM Copilot — mais rápido e menos RAM)
+pnpm run watch-tarot
+# Modo ultra-rápido (transpile + extensões, sem typecheck contínuo do core):
+pnpm run watch-tarot-fast
+# Watch apenas da extensão tarot-core (~200ms por alteração):
+pnpm run watch-tarot-core
 
-# 3. Compilar apenas a extensão tarot-core (validação rápida ~1s)
+# 3. Compilar build completo do Tarot IDE (sem Copilot) ou só a tarot-core
+pnpm run compile-tarot
 pnpm exec gulp compile-extension:tarot-core
 
 # 4. Executar o Tarot IDE em modo desenvolvimento (após o primeiro "Finished compilation")
