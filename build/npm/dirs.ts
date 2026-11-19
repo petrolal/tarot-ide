@@ -53,6 +53,7 @@ export const workspaceMembers = [
 	'extensions/references-view',
 	'extensions/search-result',
 	'extensions/simple-browser',
+	'extensions/tarot-core',
 	'extensions/terminal-suggest',
 	'extensions/tunnel-forwarding',
 	'extensions/typescript-language-features',

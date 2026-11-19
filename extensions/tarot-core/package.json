@@ -1,0 +1,50 @@
+{
+  "name": "tarot-core",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.1.0",
+  "publisher": "tarot",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Themes",
+    "Other"
+  ],
+  "icon": "media/icon.png",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "main": "./out/extension",
+  "scripts": {
+    "compile": "gulp compile-extension:tarot-core",
+    "watch": "gulp watch-extension:tarot-core"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "id": "Tarot Arcana Dark",
+        "label": "%theme.arcanaDark.label%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/tarot-dark-color-theme.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "tarot.welcome",
+        "title": "%command.welcome.title%",
+        "category": "Tarot IDE"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "24.x"
+  }
+}

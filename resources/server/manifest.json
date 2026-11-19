@@ -1,8 +1,10 @@
 {
-	"name": "Code - OSS",
-	"short_name": "Code- OSS",
+	"name": "Tarot IDE",
+	"short_name": "Tarot IDE",
 	"start_url": "/",
 	"lang": "en-US",
+	"theme_color": "#0A0A16",
+	"background_color": "#0A0A16",
 	"display": "standalone",
 	"display_override": ["window-controls-overlay"],
 	"icons": [

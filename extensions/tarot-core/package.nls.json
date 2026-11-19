@@ -1,0 +1,6 @@
+{
+	"displayName": "Tarot Core",
+	"description": "Core built-in extension and Arcana theme for Tarot IDE.",
+	"theme.arcanaDark.label": "Tarot Arcana Dark",
+	"command.welcome.title": "Welcome"
+}
