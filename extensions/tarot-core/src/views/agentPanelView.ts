@@ -166,7 +166,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const agentId = this.runtimeManager.getActiveAgentId();
 		const adapter = this.runtimeManager.getAdapter(agentId);
 		if (!adapter) {
-			this.postMessage({ type: 'error', content: `Nenhum adaptador encontrado para '${agentId}'.` });
+			this.postMessage({ type: 'streamError', content: `Nenhum adaptador encontrado para '${agentId}'.` });
 			return;
 		}
 
@@ -288,30 +288,56 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				<span class="tarot-title">Tarot Agent</span>
 			</div>
 			<div class="tarot-header-actions">
-				<button id="btn-new-session" class="icon-btn" title="Nova Sessão">+</button>
-				<button id="btn-refresh-agents" class="icon-btn" title="Atualizar Agentes Locais">↻</button>
+				<button id="btn-new-session" class="header-icon-btn" type="button" title="Nova sessão">
+					<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+				</button>
+				<button id="btn-refresh-agents" class="header-icon-btn" type="button" title="Atualizar agentes locais">
+					<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M13.5 8a5.5 5.5 0 1 1-1.4-3.65M13.5 2.5v2.75h-2.75" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+				</button>
 			</div>
 		</header>
 
-		<div class="tarot-toolbar">
-			<div class="mode-switch" role="tablist" aria-label="Modo de Execução">
-				<button id="mode-vibe" class="mode-btn active" data-mode="vibe">Vibe</button>
-				<button id="mode-spec" class="mode-btn" data-mode="spec">Spec</button>
-			</div>
-			<select id="agent-select" class="agent-select" aria-label="Agente Local"></select>
-		</div>
-
 		<main id="messages" class="tarot-messages" aria-live="polite"></main>
 
-		<footer class="tarot-composer">
-			<div id="attachments" class="attachments-bar"></div>
-			<div class="composer-actions">
-				<button id="btn-attach" class="chip-btn" type="button">+ Arquivo Ativo</button>
+		<footer class="tarot-composer-wrap">
+			<div id="status-row" class="status-row hidden">
+				<span class="status-dot"></span>
 				<span id="status-indicator" class="status-text"></span>
 			</div>
-			<div class="input-row">
-				<textarea id="prompt-input" rows="3" placeholder="Descreva a tarefa para seu agente local... (Ctrl+Enter para enviar)"></textarea>
-				<button id="btn-send" class="send-btn" type="button">Enviar</button>
+
+			<div id="composer-card" class="composer-card">
+				<div class="composer-top">
+					<button id="btn-attach" class="context-pill" type="button" title="Anexar arquivo ou seleção atual">
+						<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+						<span>Contexto</span>
+					</button>
+					<div id="attachments" class="attachments-bar"></div>
+				</div>
+
+				<textarea
+					id="prompt-input"
+					rows="1"
+					placeholder="Peça para criar, editar ou planejar... (Enter envia · Shift+Enter quebra linha)"
+				></textarea>
+
+				<div class="composer-bottom">
+					<div class="composer-controls">
+						<div class="mode-pill-group" role="tablist" aria-label="Modo">
+							<button id="mode-vibe" class="mode-pill active" type="button" data-mode="vibe">Vibe</button>
+							<button id="mode-spec" class="mode-pill" type="button" data-mode="spec">Spec</button>
+						</div>
+						<select id="agent-select" class="agent-pill-select" aria-label="Agente local"></select>
+					</div>
+
+					<button id="btn-send" class="action-icon-btn" type="button" title="Enviar (Enter)" disabled>
+						<svg id="icon-send" width="15" height="15" viewBox="0 0 16 16" fill="none">
+							<path d="M8 12.5V3.5M4 7.5L8 3.5L12 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+						<svg id="icon-stop" class="hidden" width="12" height="12" viewBox="0 0 16 16" fill="none">
+							<rect x="3" y="3" width="10" height="10" rx="2" fill="currentColor"/>
+						</svg>
+					</button>
+				</div>
 			</div>
 		</footer>
 	</div>
