@@ -724,6 +724,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		let accumulatedText = '';
 		let accumulatedThought = '';
 		let hadError = false;
+		let totalTokens: number | undefined;
 		const usedTools: string[] = [];
 
 		this.outputChannel.appendLine(
@@ -755,8 +756,14 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					} else if (event.type === 'tool_start' && event.toolName) {
 						usedTools.push(event.toolName);
 						this.postMessage({ type: 'streamTool', toolName: event.toolName });
-					} else if (event.type === 'status' && event.content) {
-						this.postMessage({ type: 'streamStatus', content: event.content });
+					} else if (event.type === 'status') {
+						const usage = event.metadata?.usage as { total_tokens?: number } | undefined;
+						if (usage && typeof usage.total_tokens === 'number' && usage.total_tokens > 0) {
+							totalTokens = usage.total_tokens;
+						}
+						if (event.content) {
+							this.postMessage({ type: 'streamStatus', content: event.content });
+						}
 					} else if (event.type === 'error' && event.content) {
 						hadError = true;
 						accumulatedText += (accumulatedText ? '\n\n' : '') + vscode.l10n.t('[Error] {0}', event.content);
@@ -795,6 +802,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					taskProgress,
 					approvalGate: !wasCancelled && !hadError ? options?.nextApprovalGate : undefined,
 					elapsedMs,
+					totalTokens,
 					checkpointId,
 				});
 			}

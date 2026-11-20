@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath, spawnStreaming } from '../processRunner';
 import { buildEffectivePrompt } from '../promptBuilder';
 import { AgentAdapter, AgentEvent, AgentModelOption, AgentRunRequest, AgentStatus } from '../types';
+import { createAgyStreamParseState, parseAgyStreamLine } from './agyStreamParser';
 
 export class AgyAdapter implements AgentAdapter {
 	readonly id = 'agy' as const;
@@ -108,7 +109,7 @@ export class AgyAdapter implements AgentAdapter {
 		}
 		args.push(`--print=${prompt}`);
 
-		let emittedText = false;
+		const parseState = createAgyStreamParseState();
 		const stderrLines: string[] = [];
 
 		onEvent({ type: 'status', content: vscode.l10n.t('Running Antigravity CLI (agy)...') });
@@ -123,14 +124,15 @@ export class AgyAdapter implements AgentAdapter {
 					if (!trimmed) {
 						return;
 					}
-					if (this.handleStreamJsonLine(trimmed, onEvent)) {
-						emittedText = true;
+					if (trimmed.startsWith('{')) {
+						const parsedEvents = parseAgyStreamLine(trimmed, parseState);
+						for (const ev of parsedEvents) {
+							onEvent(ev);
+						}
 						return;
 					}
-					if (!trimmed.startsWith('{')) {
-						emittedText = true;
-						onEvent({ type: 'text', content: `${line}\n` });
-					}
+					parseState.emittedText = true;
+					onEvent({ type: 'text', content: `${line}\n` });
 				},
 				onStderrLine: line => {
 					if (line.trim()) {
@@ -141,7 +143,7 @@ export class AgyAdapter implements AgentAdapter {
 
 			if (token.isCancellationRequested) {
 				onEvent({ type: 'status', content: vscode.l10n.t('Execution cancelled.') });
-			} else if (exitCode !== 0 && !emittedText) {
+			} else if (exitCode !== 0 && !parseState.emittedText) {
 				onEvent({
 					type: 'error',
 					content: stderrLines.join('\n') || vscode.l10n.t('agy exited with code {0}.', exitCode ?? vscode.l10n.t('unknown')),
@@ -151,60 +153,6 @@ export class AgyAdapter implements AgentAdapter {
 			onEvent({ type: 'error', content: err instanceof Error ? err.message : String(err) });
 		} finally {
 			onEvent({ type: 'done' });
-		}
-	}
-
-	private handleStreamJsonLine(line: string, onEvent: (event: AgentEvent) => void): boolean {
-		if (!line.startsWith('{')) {
-			return false;
-		}
-		try {
-			const payload = JSON.parse(line) as Record<string, unknown>;
-			const type = typeof payload.type === 'string' ? payload.type : '';
-
-			if (type === 'assistant') {
-				const message = payload.message as { content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
-				let produced = false;
-				for (const block of message?.content ?? []) {
-					if (block.type === 'text' && block.text) {
-						onEvent({ type: 'text', content: block.text });
-						produced = true;
-					} else if (block.type === 'tool_use' && block.name) {
-						onEvent({ type: 'tool_start', toolName: block.name });
-					}
-				}
-				return produced;
-			}
-
-			if (typeof payload.delta === 'string' && payload.delta.length > 0) {
-				onEvent({ type: 'text', content: payload.delta });
-				return true;
-			}
-
-			if (typeof payload.text === 'string' && payload.text.length > 0) {
-				onEvent({ type: 'text', content: payload.text });
-				return true;
-			}
-
-			if (type === 'tool_use' || type === 'tool_call') {
-				const toolName = typeof payload.name === 'string' ? payload.name : (typeof payload.tool === 'string' ? payload.tool : 'tool');
-				onEvent({ type: 'tool_start', toolName });
-				return false;
-			}
-
-			if (type === 'error' && typeof payload.error === 'string') {
-				onEvent({ type: 'error', content: payload.error });
-				return true;
-			}
-
-			if (type === 'result' && typeof payload.result === 'string' && payload.result.length > 0) {
-				onEvent({ type: 'text', content: payload.result });
-				return true;
-			}
-
-			return false;
-		} catch {
-			return false;
 		}
 	}
 }

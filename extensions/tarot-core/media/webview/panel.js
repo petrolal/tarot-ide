@@ -669,12 +669,22 @@
 				wrapper.appendChild(gateEl);
 			}
 
-			if (msg.role === 'assistant' && (msg.elapsedMs || msg.checkpointId)) {
+			if (msg.role === 'assistant' && (msg.elapsedMs || msg.checkpointId || msg.totalTokens)) {
 				const footer = document.createElement('div');
 				footer.className = 'msg-footer';
 
 				const elapsed = document.createElement('span');
-				elapsed.textContent = msg.elapsedMs ? t('elapsedTime', formatElapsed(msg.elapsedMs)) : '';
+				const parts = [];
+				if (msg.elapsedMs) {
+					parts.push(t('elapsedTime', formatElapsed(msg.elapsedMs)));
+				}
+				if (typeof msg.totalTokens === 'number' && msg.totalTokens > 0) {
+					const fmtTokens = msg.totalTokens >= 1000
+						? `${(msg.totalTokens / 1000).toFixed(1)}k tokens`
+						: `${msg.totalTokens} tokens`;
+					parts.push(fmtTokens);
+				}
+				elapsed.textContent = parts.join(' · ');
 				footer.appendChild(elapsed);
 
 				if (msg.checkpointId) {

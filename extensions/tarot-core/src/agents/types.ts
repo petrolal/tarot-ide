@@ -110,6 +110,7 @@ export interface SessionMessage {
 	readonly taskProgress?: TaskProgressCard;
 	readonly approvalGate?: SpecApprovalGate;
 	readonly elapsedMs?: number;
+	readonly totalTokens?: number;
 	readonly checkpointId?: string;
 	readonly timestamp: string;
 }
