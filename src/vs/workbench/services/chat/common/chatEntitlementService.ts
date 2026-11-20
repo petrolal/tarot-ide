@@ -394,7 +394,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -748,8 +748,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this.context.value.setForceHidden(hidden);
 		} else {
 			// No ChatEntitlementContext (e.g. no defaultChatAgent in product.json).
-			// Set the context key directly as a fallback.
-			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(hidden);
+			// Keep hidden when no defaultChatAgent is configured so accountPolicyGateContribution cannot unhide Copilot/Agents Window UI.
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(!this.productService.defaultChatAgent ? true : hidden);
 		}
 	}
 

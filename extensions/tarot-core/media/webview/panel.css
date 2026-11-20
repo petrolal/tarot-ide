@@ -935,3 +935,288 @@ html, body {
 	transform: translateX(13px);
 	background: #F5E08E;
 }
+
+/* Light Theme Adaptation (Tarot Arcana Light & Open VSX light themes) */
+body.vscode-light .session-tabbar {
+	background: var(--vscode-sideBarSectionHeader-background, #EFEAF8);
+	border-bottom-color: var(--vscode-sideBar-border, #DDD6EC);
+}
+
+body.vscode-light .tabbar-brand {
+	color: var(--vscode-focusBorder, #4B0082);
+	border-right-color: var(--vscode-sideBar-border, #DDD6EC);
+}
+
+body.vscode-light .session-tab {
+	color: var(--vscode-descriptionForeground, #5F5478);
+}
+
+body.vscode-light .session-tab:hover {
+	background: rgba(75, 0, 130, 0.08);
+	color: var(--vscode-foreground, #1D1135);
+}
+
+body.vscode-light .session-tab.active {
+	background: var(--vscode-editor-background, #FAF9FD);
+	color: var(--vscode-focusBorder, #4B0082);
+	border-color: rgba(75, 0, 130, 0.28);
+}
+
+body.vscode-light .tab-close {
+	color: #6E6288;
+}
+
+body.vscode-light .tabbar-add-btn {
+	color: #5F5478;
+}
+
+body.vscode-light .tabbar-add-btn:hover,
+body.vscode-light .tabbar-add-btn.active-focus {
+	background: rgba(75, 0, 130, 0.12);
+	color: #4B0082;
+}
+
+body.vscode-light .empty-sigil {
+	color: #8F6B0A;
+}
+
+body.vscode-light .empty-head h3 {
+	color: #4B0082;
+}
+
+body.vscode-light .empty-head p {
+	color: #5F5478;
+}
+
+body.vscode-light .mode-card {
+	background: var(--vscode-editor-background, #FAF9FD);
+	border-color: var(--vscode-widget-border, #D4CBE8);
+	color: var(--vscode-foreground, #1D1135);
+}
+
+body.vscode-light .mode-card:hover,
+body.vscode-light .mode-card.active {
+	border-color: #4B0082;
+	background: #EFEAF8;
+}
+
+body.vscode-light .mode-card-title {
+	color: #4B0082;
+}
+
+body.vscode-light .mode-card-desc {
+	color: #5F5478;
+}
+
+body.vscode-light .msg.user {
+	background: #EFEAF8;
+	border-color: rgba(75, 0, 130, 0.22);
+}
+
+body.vscode-light .msg-body {
+	color: var(--vscode-foreground, #1D1135);
+}
+
+body.vscode-light .msg-disclosure,
+body.vscode-light .msg-footer {
+	color: #5F5478;
+}
+
+body.vscode-light .msg-disclosure summary:hover {
+	color: #1D1135;
+}
+
+body.vscode-light .disclosure-body {
+	border-left-color: #CFC4E6;
+	color: #4A3E66;
+}
+
+body.vscode-light .tool-list-item,
+body.vscode-light .ctx-tag,
+body.vscode-light .status-text {
+	color: #0D7377;
+}
+
+body.vscode-light .inline-code {
+	background: #EAE3F6;
+	border-color: #D4CBE8;
+	color: #4B0082;
+}
+
+body.vscode-light .code-block {
+	background: #FFFFFF;
+	border-color: #D4CBE8;
+}
+
+body.vscode-light .code-block-header {
+	background: #EFEAF8;
+	border-bottom-color: #DDD6EC;
+	color: #5F5478;
+}
+
+body.vscode-light .code-copy-btn {
+	color: #4B0082;
+}
+
+body.vscode-light .code-block pre {
+	color: #1D1135;
+}
+
+body.vscode-light .checkpoint-btn {
+	border-color: #CFC4E6;
+	color: #5F5478;
+}
+
+body.vscode-light .checkpoint-btn:hover {
+	border-color: #4B0082;
+	color: #4B0082;
+}
+
+body.vscode-light .task-progress-card,
+body.vscode-light .review-bar,
+body.vscode-light .context-popup {
+	background: #FFFFFF;
+	border-color: #D4CBE8;
+}
+
+body.vscode-light .context-popup {
+	box-shadow: 0 8px 24px rgba(29, 17, 53, 0.14);
+}
+
+body.vscode-light .context-popup-header,
+body.vscode-light .task-progress-title {
+	color: #4B0082;
+}
+
+body.vscode-light .task-progress-count,
+body.vscode-light .review-toggle-btn {
+	color: #6D28D9;
+}
+
+body.vscode-light .review-toggle-btn:hover {
+	color: #4B0082;
+}
+
+body.vscode-light .task-progress-track {
+	background: #E7DFF5;
+}
+
+body.vscode-light .task-progress-item,
+body.vscode-light .ctx-desc,
+body.vscode-light .review-file-stats,
+body.vscode-light .review-mini-btn,
+body.vscode-light .review-revert-btn {
+	color: #5F5478;
+}
+
+body.vscode-light .task-progress-item.done,
+body.vscode-light .review-file-link {
+	color: #1D1135;
+}
+
+body.vscode-light .task-progress-item.done .task-item-icon,
+body.vscode-light .spec-gate-approved,
+body.vscode-light .review-status.status-a,
+body.vscode-light .review-status.status-u {
+	color: #0D7377;
+}
+
+body.vscode-light .review-status.status-m {
+	color: #9A7414;
+}
+
+body.vscode-light .review-status.status-d,
+body.vscode-light .msg-error {
+	color: #B91C1C;
+}
+
+body.vscode-light .msg-error {
+	background: rgba(185, 28, 28, 0.08);
+	border-color: rgba(185, 28, 28, 0.28);
+}
+
+body.vscode-light .context-menu-item:hover,
+body.vscode-light .slash-menu-item:hover,
+body.vscode-light .review-file-link:hover,
+body.vscode-light .review-mini-btn:hover {
+	background: #EFEAF8;
+	color: #1D1135;
+}
+
+body.vscode-light .review-file-list {
+	border-top-color: #E3DCF0;
+}
+
+body.vscode-light .composer-card {
+	background: var(--vscode-input-background, #FFFFFF);
+	border-color: var(--vscode-input-border, #CFC4E6);
+}
+
+body.vscode-light .composer-card:focus-within {
+	border-color: #4B0082;
+}
+
+body.vscode-light #prompt-input {
+	color: var(--vscode-input-foreground, #1D1135);
+}
+
+body.vscode-light #prompt-input::placeholder {
+	color: var(--vscode-input-placeholderForeground, #8B80A3);
+}
+
+body.vscode-light .attachment-chip {
+	background: rgba(13, 115, 119, 0.1);
+	border-color: rgba(13, 115, 119, 0.3);
+	color: #0D7377;
+}
+
+body.vscode-light .action-icon-btn {
+	background: #4B0082;
+	color: #FFFFFF;
+}
+
+body.vscode-light .action-icon-btn:hover:not(:disabled) {
+	background: #62149E;
+	color: #FFFFFF;
+}
+
+body.vscode-light .action-icon-btn:disabled {
+	background: #E7DFF5;
+	color: #8B80A3;
+}
+
+body.vscode-light .tool-icon-btn,
+body.vscode-light .inline-select,
+body.vscode-light .autopilot-label {
+	color: #5F5478;
+}
+
+body.vscode-light .tool-icon-btn:hover,
+body.vscode-light .inline-select:hover,
+body.vscode-light .inline-select:focus {
+	background: rgba(75, 0, 130, 0.09);
+	color: #4B0082;
+}
+
+body.vscode-light .inline-select option {
+	background: #FFFFFF;
+	color: #1D1135;
+}
+
+body.vscode-light .toggle-track {
+	background: #DDD6EC;
+	border-color: #C4B8DF;
+}
+
+body.vscode-light .toggle-thumb {
+	background: #FFFFFF;
+}
+
+body.vscode-light .autopilot-toggle input:checked + .toggle-track {
+	background: #4B0082;
+	border-color: #4B0082;
+}
+
+body.vscode-light .autopilot-toggle input:checked + .toggle-track .toggle-thumb {
+	background: #FFFFFF;
+}
