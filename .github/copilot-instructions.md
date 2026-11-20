@@ -1,5 +1,13 @@
 # VS Code Copilot Instructions
 
+> **⚠ Fork Override — Tarot IDE (`tarot-main`)**
+> Este repositório é o fork **Tarot IDE** do Code - OSS. **Antes de qualquer regra padrão abaixo**, leia e siga `AGENTS.md` (raiz) e `docs/PROJECT_CONTEXT.md`; em caso de conflito, **eles têm precedência** sobre este arquivo.
+> Principais invariantes: features novas em `extensions/tarot-core/` (Extension-First), `src/vs/` só se for impossível via Extension API (registrar em `docs/`), somente `pnpm`, Open VSX (nunca restaurar `defaultChatAgent`/telemetria Microsoft; nunca deletar `extensions/copilot/`), `spawn(..., { shell: false })`, Workspace Trust antes de carregar `.tarot/`, CSP com `nonce` e zero `innerHTML` com saída de LLMs/CLIs.
+> Plano e status: `docs/MIGRATION_PLAN.md` · Referência Kiro: `docs/KIRO_ARCHITECTURE_REFERENCE.md` · Contexto das pastas do Tarot: `.github/instructions/tarot-ide.instructions.md`.
+> Tudo o que **não** conflita (camadas `common/`/`browser/`/`node/`, injeção de dependência, estilo, testes) continua valendo **como abaixo** — o conteúdo original da Microsoft foi preservado.
+
+---
+
 ## Project Overview
 
 Visual Studio Code is built with a layered architecture using TypeScript, web APIs and Electron, combining web technologies with native app capabilities. The codebase is organized into key architectural layers:
