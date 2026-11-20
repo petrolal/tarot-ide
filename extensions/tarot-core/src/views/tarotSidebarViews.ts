@@ -15,6 +15,10 @@ function getWorkspaceRoot(): string | undefined {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
+function arcanaIcon(extensionUri: vscode.Uri, fileName: string): vscode.Uri {
+	return vscode.Uri.joinPath(extensionUri, 'icons', 'arcana', fileName);
+}
+
 class SimpleTreeItem extends vscode.TreeItem {
 	constructor(
 		label: string,
@@ -31,7 +35,10 @@ export class LocalAgentsTreeProvider implements vscode.TreeDataProvider<AgentSta
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private readonly disposables: vscode.Disposable[] = [];
 
-	constructor(private readonly runtimeManager: AgentRuntimeManager) {
+	constructor(
+		private readonly runtimeManager: AgentRuntimeManager,
+		private readonly extensionUri: vscode.Uri,
+	) {
 		this.disposables.push(
 			this._onDidChangeTreeData,
 			this.runtimeManager.onDidChangeAgents(() => this._onDidChangeTreeData.fire(undefined)),
@@ -49,7 +56,7 @@ export class LocalAgentsTreeProvider implements vscode.TreeDataProvider<AgentSta
 			? `${status.displayName}\n${vscode.l10n.t('Path: {0}', status.resolvedPath ?? status.binary)}\n${vscode.l10n.t('Version: {0}', status.version ?? 'ok')}`
 			: `${vscode.l10n.t('{0} not found on PATH.', status.displayName)}\n${status.installHint ?? ''}`;
 		item.iconPath = status.available
-			? new vscode.ThemeIcon(isActive ? 'sparkle' : 'check', new vscode.ThemeColor(isActive ? 'charts.yellow' : 'charts.green'))
+			? arcanaIcon(this.extensionUri, '01-the-magician.svg')
 			: new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('disabledForeground'));
 		item.command = {
 			command: 'tarot.agents.selectById',
@@ -78,6 +85,7 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 	constructor(
 		private readonly relativeDir: string,
 		private readonly kind: 'specs' | 'steering' | 'hooks',
+		private readonly extensionUri: vscode.Uri,
 	) {
 		const watcher = vscode.workspace.createFileSystemWatcher(`**/.tarot/${kind}/**`);
 		this.disposables.push(
@@ -149,7 +157,7 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 						children,
 					);
 					specItem.description = progressDesc;
-					specItem.iconPath = new vscode.ThemeIcon('book');
+					specItem.iconPath = arcanaIcon(this.extensionUri, '05-the-hierophant.svg');
 					specItems.push(specItem);
 				}
 				return specItems;
@@ -163,7 +171,10 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 			return files.map(file => {
 				const fullPath = path.join(targetDir, file.name);
 				const item = new SimpleTreeItem(file.name, vscode.TreeItemCollapsibleState.None, fullPath);
-				item.iconPath = new vscode.ThemeIcon(this.kind === 'steering' ? 'compass' : 'zap');
+				item.iconPath = arcanaIcon(
+					this.extensionUri,
+					this.kind === 'steering' ? '02-high-priestess.svg' : '10-wheel-of-fortune.svg',
+				);
 				item.command = {
 					command: 'vscode.open',
 					title: vscode.l10n.t('Open File'),
@@ -188,7 +199,10 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private readonly disposables: vscode.Disposable[] = [];
 
-	constructor(private readonly steeringService: TarotSteeringService) {
+	constructor(
+		private readonly steeringService: TarotSteeringService,
+		private readonly extensionUri: vscode.Uri,
+	) {
 		const steeringWatcher = vscode.workspace.createFileSystemWatcher('**/.tarot/steering/**/*.md');
 		const agentsMdWatcher = vscode.workspace.createFileSystemWatcher('**/AGENTS.md');
 		this.disposables.push(
@@ -218,14 +232,7 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 			? `fileMatch · ${doc.fileMatchPattern}`
 			: doc.inclusion;
 		item.description = badge;
-
-		const iconMap: Record<SteeringDocument['inclusion'], string> = {
-			always: 'compass',
-			fileMatch: 'file-code',
-			auto: 'sparkle',
-			manual: 'tag',
-		};
-		item.iconPath = new vscode.ThemeIcon(iconMap[doc.inclusion]);
+		item.iconPath = arcanaIcon(this.extensionUri, '02-high-priestess.svg');
 		item.tooltip = [
 			`${doc.fileName} (${doc.scope})`,
 			vscode.l10n.t('Inclusion: {0}', badge),
@@ -307,7 +314,10 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private readonly disposables: vscode.Disposable[] = [];
 
-	constructor(private readonly specService: TarotSpecService) {
+	constructor(
+		private readonly specService: TarotSpecService,
+		private readonly extensionUri: vscode.Uri,
+	) {
 		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/specs/**');
 		this.disposables.push(
 			this._onDidChangeTreeData,
@@ -362,7 +372,10 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 				? `${spec.taskSummary.done}/${spec.taskSummary.total} tasks`
 				: vscode.l10n.t('0 tasks');
 			item.description = `${spec.kind} · ${progress}`;
-			item.iconPath = new vscode.ThemeIcon(spec.kind === 'bugfix' ? 'bug' : 'book');
+			item.iconPath = arcanaIcon(
+				this.extensionUri,
+				spec.kind === 'bugfix' ? '16-the-tower.svg' : '05-the-hierophant.svg',
+			);
 			item.tooltip = `${vscode.l10n.t('Spec: {0}', spec.slug)}\n${vscode.l10n.t('Type: {0}', spec.kind)}\n${vscode.l10n.t('Progress: {0}', progress)}`;
 			return item;
 		});

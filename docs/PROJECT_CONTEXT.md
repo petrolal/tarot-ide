@@ -185,29 +185,31 @@ extensions/tarot-core/
 ├── esbuild.mts                         # Bundler de produção (gera dist/extension.js)
 ├── icons/
 │   ├── tarot-arcana-icon-theme.json    # Tema de ícones "Tarot Arcana Icons"
-│   └── svg/*.svg                       # 46 SVGs temáticos na paleta Arcana
+│   ├── svg/*.svg                       # 46 SVGs temáticos de pastas/arquivos (preservados intactos)
+│   └── arcana/*.svg                    # Adição complementar: 8 ícones vetoriais dos Arcanos Maiores (00..17) usados nos itens/comandos internos
 ├── media/
 │   ├── icon.png                        # Ícone 128x128 da extensão Tarot Core
 │   ├── logo.png                        # Logotipo "TAROT IDE — ARCANA CODE ENVIRONMENT"
 │   ├── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
-│   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar
+│   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar (preservado intacto)
+│   ├── arcana/{*.png,arcana-manifest.json} # Adição complementar: 8 cartas ilustradas dos Arcanos Maiores + manifesto
 │   └── webview/{panel.css,panel.js}    # UI do Painel Agêntico (CSP estrita + paleta Arcana)
 ├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.agents.*, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
-│   ├── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (UI + TextMate + Semantic)
+│   ├── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (base grafite-violeta neutra sem faixa em L + sintaxe Kiro)
 │   └── tarot-light-color-theme.json    # Tema oficial "Tarot Arcana Light" (UI + TextMate + Semantic)
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
     ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das views
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
-    │   ├── types.ts                    # Contratos AgentAdapter, AgentStatus, AgentEvent, AgentSession, AutonomyMode
+    │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort
     │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento
     │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, histórico, anexos #)
     │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json
-    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom) + Status Bar
-    │   └── adapters/                   # claudeAdapter, agyAdapter, codexAdapter, customAdapter
+    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>)
+    │   └── adapters/                   # claudeAdapter, agyAdapter (--print=<prompt> + agy models), codexAdapter, customAdapter (--model/--effort)
     ├── context/
     │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
     ├── checkpoints/
@@ -223,7 +225,7 @@ extensions/tarot-core/
     └── views/
         ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks, Steering agrupado, Local Agents)
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
-        └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar + ponte postMessage ↔ media/webview/panel.js
+        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js)
 ```
 
 > **Contrato Webview ↔ Extension Host**: toda troca de estado e ações do `Tarot Agent` passa pelo protocolo `postMessage` centralizado em `src/views/agentPanelView.ts` (handler `_handleMessage` + `_postState`) e `media/webview/panel.js` (`window.addEventListener('message', ...)`). O catálogo de strings viaja no HTML inicial em `window.__tarotL10n` (ver §3.5).

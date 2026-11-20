@@ -189,7 +189,8 @@
     "configurationDefaults": {
       "workbench.secondarySideBar.defaultVisibility": "visible",
       "window.commandCenter": true,
-      "window.menuBarVisibility": "compact"
+      "window.menuBarVisibility": "compact",
+      "editor.minimap.enabled": false
     },
     "configuration": {
       "title": "Tarot IDE",
@@ -346,7 +347,10 @@
         "command": "tarot.git.generateCommitMessage",
         "title": "%command.git.generateCommitMessage.title%",
         "category": "Tarot IDE",
-        "icon": "$(sparkle)"
+        "icon": {
+          "light": "icons/arcana/17-the-star.svg",
+          "dark": "icons/arcana/17-the-star.svg"
+        }
       },
       {
         "command": "tarot.agents.select",
@@ -369,7 +373,10 @@
         "command": "tarot.specs.create",
         "title": "%command.specs.create.title%",
         "category": "Tarot IDE",
-        "icon": "$(add)"
+        "icon": {
+          "light": "icons/arcana/05-the-hierophant.svg",
+          "dark": "icons/arcana/05-the-hierophant.svg"
+        }
       },
       {
         "command": "tarot.specs.runTask",
@@ -393,13 +400,19 @@
         "command": "tarot.steering.generate",
         "title": "%command.steering.generate.title%",
         "category": "Tarot IDE",
-        "icon": "$(sparkle)"
+        "icon": {
+          "light": "icons/arcana/02-high-priestess.svg",
+          "dark": "icons/arcana/02-high-priestess.svg"
+        }
       },
       {
         "command": "tarot.hooks.create",
         "title": "%command.hooks.create.title%",
         "category": "Tarot IDE",
-        "icon": "$(add)"
+        "icon": {
+          "light": "icons/arcana/10-wheel-of-fortune.svg",
+          "dark": "icons/arcana/10-wheel-of-fortune.svg"
+        }
       }
     ]
   },

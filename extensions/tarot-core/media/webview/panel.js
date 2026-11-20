@@ -18,8 +18,15 @@
 	const attachBtn = document.getElementById('btn-attach');
 	const contextRingEl = document.getElementById('context-ring');
 	const contextRingArc = document.getElementById('context-ring-arc');
-	const agentSelect = document.getElementById('agent-select');
-	const modeSelect = document.getElementById('mode-select');
+	const modelPickerBtn = document.getElementById('btn-model-picker');
+	const modelPickerLabel = document.getElementById('model-picker-label');
+	const modelMenuEl = document.getElementById('model-menu');
+	const modelAgentPillsEl = document.getElementById('model-agent-pills');
+	const modelOptionsListEl = document.getElementById('model-options-list');
+	const effortPillsEl = document.getElementById('effort-pills');
+	const modePickerBtn = document.getElementById('btn-mode-picker');
+	const modePickerLabel = document.getElementById('mode-picker-label');
+	const modeMenuEl = document.getElementById('mode-menu');
 	const autopilotCheckbox = document.getElementById('autopilot-checkbox');
 	const promptInput = document.getElementById('prompt-input');
 	const sendBtn = document.getElementById('btn-send');
@@ -138,26 +145,104 @@
 		}
 	}
 
-	function fitSelectWidth(selectEl) {
-		const opt = selectEl.options[selectEl.selectedIndex];
-		const len = opt ? opt.textContent.length : 4;
-		selectEl.style.width = `${Math.max(4, len + 2.6)}ch`;
+	const EFFORT_OPTIONS = [
+		{ id: 'auto', label: 'Auto' },
+		{ id: 'low', label: 'Low' },
+		{ id: 'medium', label: 'Med' },
+		{ id: 'high', label: 'High' },
+		{ id: 'xhigh', label: 'XHigh' },
+		{ id: 'max', label: 'Max' },
+	];
+
+	function toggleModelMenu(force) {
+		const show = typeof force === 'boolean' ? force : modelMenuEl.classList.contains('hidden');
+		modelMenuEl.classList.toggle('hidden', !show);
+		if (show) {
+			modeMenuEl.classList.add('hidden');
+			contextMenuEl.classList.add('hidden');
+			slashMenuEl.classList.add('hidden');
+		}
 	}
 
-	function renderAgents() {
-		agentSelect.textContent = '';
-		for (const agent of state.agents || []) {
-			const opt = document.createElement('option');
-			opt.value = agent.id;
-			opt.textContent = agent.available ? agent.id : `${agent.id} (off)`;
-			opt.disabled = !agent.available;
-			if (agent.id === state.activeAgentId) {
-				opt.selected = true;
-			}
-			agentSelect.appendChild(opt);
+	function toggleModeMenu(force) {
+		const show = typeof force === 'boolean' ? force : modeMenuEl.classList.contains('hidden');
+		modeMenuEl.classList.toggle('hidden', !show);
+		if (show) {
+			modelMenuEl.classList.add('hidden');
+			contextMenuEl.classList.add('hidden');
+			slashMenuEl.classList.add('hidden');
 		}
-		fitSelectWidth(agentSelect);
-		fitSelectWidth(modeSelect);
+	}
+
+	function renderModelAndModePickers() {
+		const activeAgent = state.activeAgentId || 'auto';
+		const selectedModel = state.selectedModel || 'auto';
+		const selectedEffort = state.selectedEffort || 'auto';
+		const models = Array.isArray(state.models) ? state.models : [];
+
+		// Compact trigger label: e.g. "agy · Auto" or "agy · Gemini 4 Neon"
+		const matchedModel = models.find(m => m.id === selectedModel);
+		const modelDisplay = selectedModel === 'auto' ? 'Auto' : (matchedModel ? matchedModel.label : selectedModel);
+		const effortSuffix = selectedEffort !== 'auto' ? ` · ${selectedEffort}` : '';
+		modelPickerLabel.textContent = `${activeAgent} · ${modelDisplay}${effortSuffix}`;
+
+		const modeMap = { vibe: 'Default', spec: 'Spec', plan: 'Plan' };
+		modePickerLabel.textContent = modeMap[state.mode] || 'Default';
+		for (const item of modeMenuEl.querySelectorAll('.mode-menu-item')) {
+			item.classList.toggle('active', item.dataset.mode === (state.mode || 'vibe'));
+		}
+
+		// Agent CLI pills
+		modelAgentPillsEl.textContent = '';
+		for (const agent of state.agents || []) {
+			const pill = document.createElement('button');
+			pill.type = 'button';
+			pill.className = 'popover-pill' + (agent.id === activeAgent ? ' active' : '');
+			pill.disabled = !agent.available;
+			pill.textContent = agent.available ? agent.id : `${agent.id} (off)`;
+			pill.title = agent.available ? `${agent.displayName}${agent.version ? ' · ' + agent.version : ''}` : (agent.installHint || agent.displayName);
+			pill.addEventListener('click', () => {
+				vscode.postMessage({ type: 'selectAgent', agentId: agent.id });
+			});
+			modelAgentPillsEl.appendChild(pill);
+		}
+
+		// Model list ("Auto" + dynamic CLI models)
+		modelOptionsListEl.textContent = '';
+		const allModels = [{ id: 'auto', label: 'Auto' }, ...models];
+		for (const m of allModels) {
+			const row = document.createElement('button');
+			row.type = 'button';
+			row.className = 'model-option-item' + (m.id === selectedModel ? ' active' : '');
+			const labelSpan = document.createElement('span');
+			labelSpan.className = 'model-option-label';
+			labelSpan.textContent = m.label;
+			row.appendChild(labelSpan);
+			if (m.id === selectedModel) {
+				const check = document.createElement('span');
+				check.className = 'model-option-check';
+				check.textContent = '✓';
+				row.appendChild(check);
+			}
+			row.addEventListener('click', () => {
+				vscode.postMessage({ type: 'setModel', model: m.id });
+				toggleModelMenu(false);
+			});
+			modelOptionsListEl.appendChild(row);
+		}
+
+		// Reasoning Effort pills
+		effortPillsEl.textContent = '';
+		for (const opt of EFFORT_OPTIONS) {
+			const pill = document.createElement('button');
+			pill.type = 'button';
+			pill.className = 'popover-pill' + (opt.id === selectedEffort ? ' active' : '');
+			pill.textContent = opt.label;
+			pill.addEventListener('click', () => {
+				vscode.postMessage({ type: 'setEffort', effort: opt.id });
+			});
+			effortPillsEl.appendChild(pill);
+		}
 	}
 
 	function renderContextRing() {
@@ -321,40 +406,82 @@
 			const cards = document.createElement('div');
 			cards.className = 'mode-cards';
 
-			const vibeCard = document.createElement('button');
-			vibeCard.type = 'button';
-			vibeCard.className = `mode-card${state.mode === 'vibe' ? ' active' : ''}`;
-			const vt = document.createElement('div');
-			vt.className = 'mode-card-title';
-			vt.textContent = t('modeVibeTitle');
-			const vd = document.createElement('div');
-			vd.className = 'mode-card-desc';
-			vd.textContent = t('modeVibeDesc');
-			vibeCard.appendChild(vt);
-			vibeCard.appendChild(vd);
-			vibeCard.addEventListener('click', () => {
-				vscode.postMessage({ type: 'setMode', mode: 'vibe' });
-				promptInput.focus();
-			});
+			const arcana = (window.__tarotArcana && window.__tarotArcana.art) || {};
+			const cardDefs = [
+				{
+					id: 'vibe',
+					title: t('modeVibeTitle'),
+					desc: t('modeVibeDesc'),
+					img: arcana.vibe,
+					active: state.mode === 'vibe',
+					onClick: () => {
+						vscode.postMessage({ type: 'setMode', mode: 'vibe' });
+						promptInput.focus();
+					},
+				},
+				{
+					id: 'spec',
+					title: t('modeSpecTitle'),
+					desc: t('modeSpecDesc'),
+					img: arcana.spec,
+					active: state.mode === 'spec',
+					onClick: () => {
+						vscode.postMessage({ type: 'setMode', mode: 'spec' });
+						promptInput.focus();
+					},
+				},
+				{
+					id: 'plan',
+					title: t('modePlanTitle'),
+					desc: t('modePlanDesc'),
+					img: arcana.plan,
+					active: state.mode === 'plan',
+					onClick: () => {
+						vscode.postMessage({ type: 'setMode', mode: 'plan' });
+						promptInput.focus();
+					},
+				},
+				{
+					id: 'bugfix',
+					title: t('modeBugfixTitle'),
+					desc: t('modeBugfixDesc'),
+					img: arcana.bugfix,
+					active: false,
+					onClick: () => {
+						vscode.postMessage({ type: 'runSlashCommand', slashCommand: '/bugfix' });
+					},
+				},
+			];
 
-			const specCard = document.createElement('button');
-			specCard.type = 'button';
-			specCard.className = `mode-card${state.mode === 'spec' ? ' active' : ''}`;
-			const st = document.createElement('div');
-			st.className = 'mode-card-title';
-			st.textContent = t('modeSpecTitle');
-			const sd = document.createElement('div');
-			sd.className = 'mode-card-desc';
-			sd.textContent = t('modeSpecDesc');
-			specCard.appendChild(st);
-			specCard.appendChild(sd);
-			specCard.addEventListener('click', () => {
-				vscode.postMessage({ type: 'setMode', mode: 'spec' });
-				promptInput.focus();
-			});
+			for (const def of cardDefs) {
+				const card = document.createElement('button');
+				card.type = 'button';
+				card.className = `mode-card${def.active ? ' active' : ''}`;
+				if (def.img) {
+					const thumbWrap = document.createElement('div');
+					thumbWrap.className = 'mode-card-art-wrap';
+					const img = document.createElement('img');
+					img.className = 'mode-card-art';
+					img.src = def.img;
+					img.alt = def.title;
+					thumbWrap.appendChild(img);
+					card.appendChild(thumbWrap);
+				}
+				const textWrap = document.createElement('div');
+				textWrap.className = 'mode-card-text';
+				const titleEl = document.createElement('div');
+				titleEl.className = 'mode-card-title';
+				titleEl.textContent = def.title;
+				const descEl = document.createElement('div');
+				descEl.className = 'mode-card-desc';
+				descEl.textContent = def.desc;
+				textWrap.appendChild(titleEl);
+				textWrap.appendChild(descEl);
+				card.appendChild(textWrap);
+				card.addEventListener('click', def.onClick);
+				cards.appendChild(card);
+			}
 
-			cards.appendChild(vibeCard);
-			cards.appendChild(specCard);
 			empty.appendChild(cards);
 
 			messagesEl.appendChild(empty);
@@ -366,6 +493,18 @@
 			wrapper.className = `msg ${msg.role}`;
 
 			if (msg.role === 'assistant') {
+				const authorRow = document.createElement('div');
+				authorRow.className = 'assistant-header';
+				const avatar = document.createElement('span');
+				avatar.className = 'assistant-avatar';
+				avatar.textContent = '✦';
+				const nameEl = document.createElement('span');
+				nameEl.className = 'assistant-name';
+				nameEl.textContent = 'Tarot';
+				authorRow.appendChild(avatar);
+				authorRow.appendChild(nameEl);
+				wrapper.appendChild(authorRow);
+
 				if (Array.isArray(msg.appliedSteering) && msg.appliedSteering.length > 0) {
 					const sLabel = msg.appliedSteering.length === 1
 						? t('steeringDoc')
@@ -593,7 +732,9 @@
 	focusModeBtn.addEventListener('click', () => vscode.postMessage({ type: 'toggleFocusMode' }));
 	attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'attachActiveFile' }));
 	hashBtn.addEventListener('click', () => toggleContextMenu());
-	slashBtn.addEventListener('click', () => toggleSlashMenu());
+	if (slashBtn) {
+		slashBtn.addEventListener('click', () => toggleSlashMenu());
+	}
 	reviewToggleBtn.addEventListener('click', () => {
 		reviewExpanded = !reviewExpanded;
 		renderReviewBar();
@@ -623,13 +764,25 @@
 		});
 	}
 
-	agentSelect.addEventListener('change', () => {
-		vscode.postMessage({ type: 'selectAgent', agentId: agentSelect.value });
+	modelPickerBtn.addEventListener('click', e => {
+		e.stopPropagation();
+		toggleModelMenu();
 	});
 
-	modeSelect.addEventListener('change', () => {
-		vscode.postMessage({ type: 'setMode', mode: modeSelect.value });
+	modePickerBtn.addEventListener('click', e => {
+		e.stopPropagation();
+		toggleModeMenu();
 	});
+
+	for (const item of modeMenuEl.querySelectorAll('.mode-menu-item')) {
+		item.addEventListener('click', () => {
+			const mode = item.dataset.mode;
+			toggleModeMenu(false);
+			if (mode) {
+				vscode.postMessage({ type: 'setMode', mode });
+			}
+		});
+	}
 
 	autopilotCheckbox.addEventListener('change', () => {
 		vscode.postMessage({
@@ -658,6 +811,8 @@
 		if (e.key === 'Escape') {
 			toggleContextMenu(false);
 			toggleSlashMenu(false);
+			toggleModelMenu(false);
+			toggleModeMenu(false);
 			return;
 		}
 		if (e.key === 'Tab' && e.shiftKey) {
@@ -674,11 +829,17 @@
 	});
 
 	document.addEventListener('click', e => {
-		if (!contextMenuEl.contains(e.target) && e.target !== hashBtn) {
+		if (!contextMenuEl.contains(e.target) && e.target !== hashBtn && !hashBtn.contains(e.target)) {
 			toggleContextMenu(false);
 		}
 		if (!slashMenuEl.contains(e.target) && e.target !== slashBtn) {
 			toggleSlashMenu(false);
+		}
+		if (!modelMenuEl.contains(e.target) && !modelPickerBtn.contains(e.target)) {
+			toggleModelMenu(false);
+		}
+		if (!modeMenuEl.contains(e.target) && !modePickerBtn.contains(e.target)) {
+			toggleModeMenu(false);
 		}
 	});
 
@@ -691,11 +852,10 @@
 		switch (msg.type) {
 			case 'state':
 				state = msg;
-				modeSelect.value = state.mode || 'vibe';
 				autopilotCheckbox.checked = state.autonomy !== 'supervised';
 				focusModeBtn.classList.toggle('active-focus', !!state.isFocusMode);
 				renderSessionTabs();
-				renderAgents();
+				renderModelAndModePickers();
 				renderContextRing();
 				renderAttachments();
 				renderReviewBar();

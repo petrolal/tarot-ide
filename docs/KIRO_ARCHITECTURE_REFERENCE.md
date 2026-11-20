@@ -132,8 +132,8 @@ Análise pixel-a-pixel dos 7 prints oficiais do Kiro IDE (layout 3 colunas, Comp
   - **Composer Exato do Kiro (Card Único)**:
     - **Área superior**: `<textarea>` sem borda/resize (`Ask a question or describe a task...`, `Enter` envia / `Shift+Enter` quebra linha) + **botão quadrado arredondado `↑` (ou `■` Stop)** no canto superior direito da caixa.
     - **Barra inferior interna**:
-      - *Esquerda*: ícone `#` (Context Providers), ícone `📎` (Anexar arquivo/imagem), anel indicador de uso de contexto (`○`), seletor do agente local (`Auto / claude / agy / codex ⌄`).
-      - *Direita*: seletor de perfil/modo (`Default / Vibe / Spec / Plan ⌄`) + label **`Autopilot`** com **toggle switch pill**.
+      - *Esquerda*: ícone `#` (SVG Context Providers), ícone clipe (SVG anexar arquivo), anel indicador de uso de contexto (`○` com arco teal), botão customizado **`<cli> · Auto ⌄`** (sem `<select>` nativo) abrindo o **Model & Effort Popover** (pills de CLI + lista dinâmica de modelos via `agy models`/presets + **Reasoning Effort** `Auto | Low | Med | High | XHigh | Max`).
+      - *Direita*: botão customizado **`Default ⌄`** abrindo o popover de modo (`Default / Spec / Plan`, `Shift+Tab`) + label **`Autopilot`** com **toggle switch pill**.
 
 ### 3.2 Workflows & Recipes Multi-Agente (`.tarot/workflows/*.workflow.{yaml,json}`)
 - **Recipes reutilizáveis** (inspiradas nas receitas nativas do Kiro: `autoresearch`, `feature-pipeline`, `goal`, `investigate`, `publish-pr`, `ralph`, `semantic-review-multi-model`):

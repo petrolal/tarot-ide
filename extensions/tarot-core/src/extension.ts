@@ -40,10 +40,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 
 	// Left Sidebar (Kiro-style) TreeViews
-	const specsProvider = new SpecsTreeProvider(specService);
-	const hooksProvider = new TarotWorkspaceFolderTreeProvider('.tarot/hooks', 'hooks');
-	const steeringProvider = new SteeringTreeProvider(steeringService);
-	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager);
+	const specsProvider = new SpecsTreeProvider(specService, context.extensionUri);
+	const hooksProvider = new TarotWorkspaceFolderTreeProvider('.tarot/hooks', 'hooks', context.extensionUri);
+	const steeringProvider = new SteeringTreeProvider(steeringService, context.extensionUri);
+	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager, context.extensionUri);
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
 	const agentPanelProvider = new TarotAgentPanelProvider(

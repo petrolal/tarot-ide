@@ -9,6 +9,12 @@ export type BuiltInAgentId = 'claude' | 'codex' | 'agy';
 export type AgentId = BuiltInAgentId | (string & {});
 export type AgentMode = 'vibe' | 'spec' | 'plan';
 export type AutonomyMode = 'autopilot' | 'supervised';
+export type ReasoningEffort = 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+export interface AgentModelOption {
+	readonly id: string;
+	readonly label: string;
+}
 
 export type ContextProviderKind = 'file' | 'folder' | 'spec' | 'problems' | 'gitDiff' | 'terminal' | 'codebase' | 'steering';
 
@@ -43,6 +49,8 @@ export interface AgentRunRequest {
 	readonly prompt: string;
 	readonly mode: AgentMode;
 	readonly autonomy: AutonomyMode;
+	readonly model?: string;
+	readonly effort?: ReasoningEffort;
 	readonly cwd: string;
 	readonly systemContext?: string;
 	readonly attachments?: readonly AttachedContext[];
@@ -65,6 +73,7 @@ export interface AgentAdapter {
 	readonly binary: string;
 	readonly installHint: string;
 	detect(): Promise<AgentStatus>;
+	listModels?(): Promise<readonly AgentModelOption[]>;
 	run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void>;
 }
 

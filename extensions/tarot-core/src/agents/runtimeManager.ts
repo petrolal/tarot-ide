@@ -9,7 +9,7 @@ import { AgyAdapter } from './adapters/agyAdapter';
 import { ClaudeCodeAdapter } from './adapters/claudeAdapter';
 import { CodexAdapter } from './adapters/codexAdapter';
 import { CustomCliAdapter } from './adapters/customAdapter';
-import { AgentAdapter, AgentId, AgentStatus } from './types';
+import { AgentAdapter, AgentId, AgentModelOption, AgentStatus } from './types';
 
 const ACTIVE_AGENT_STATE_KEY = 'tarot.activeAgentId';
 
@@ -21,6 +21,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 	readonly onDidChangeActiveAgent = this._onDidChangeActiveAgent.event;
 
 	private readonly adapters = new Map<AgentId, AgentAdapter>();
+	private readonly modelCache = new Map<AgentId, readonly AgentModelOption[]>();
 	private statuses: AgentStatus[] = [];
 	private activeAgentId: AgentId = 'claude';
 	private readonly statusBarItem: vscode.StatusBarItem;
@@ -67,6 +68,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 	}
 
 	async refresh(): Promise<readonly AgentStatus[]> {
+		this.modelCache.clear();
 		this.rebuildAdapters();
 		const detected = await Promise.all(Array.from(this.adapters.values()).map(a => a.detect()));
 		this.statuses = detected;
@@ -108,6 +110,20 @@ export class AgentRuntimeManager implements vscode.Disposable {
 
 	getAdapter(id: AgentId = this.activeAgentId): AgentAdapter | undefined {
 		return this.adapters.get(id);
+	}
+
+	async listModelsForAgent(id: AgentId = this.activeAgentId): Promise<readonly AgentModelOption[]> {
+		const cached = this.modelCache.get(id);
+		if (cached) {
+			return cached;
+		}
+		const adapter = this.adapters.get(id);
+		if (!adapter?.listModels) {
+			return [];
+		}
+		const models = await adapter.listModels();
+		this.modelCache.set(id, models);
+		return models;
 	}
 
 	async setActiveAgent(id: AgentId): Promise<void> {
@@ -155,7 +171,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 	private updateStatusBar(): void {
 		const current = this.statuses.find(s => s.id === this.activeAgentId);
 		if (current?.available) {
-			this.statusBarItem.text = `$(sparkle) Tarot: ${current.id}`;
+			this.statusBarItem.text = `Tarot · ${current.id}`;
 			this.statusBarItem.backgroundColor = undefined;
 		} else {
 			this.statusBarItem.text = `$(warning) Tarot: ${vscode.l10n.t('no agent')}`;

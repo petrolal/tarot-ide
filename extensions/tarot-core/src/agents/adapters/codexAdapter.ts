@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath, spawnStreaming } from '../processRunner';
 import { buildEffectivePrompt } from '../promptBuilder';
-import { AgentAdapter, AgentEvent, AgentRunRequest, AgentStatus } from '../types';
+import { AgentAdapter, AgentEvent, AgentModelOption, AgentRunRequest, AgentStatus } from '../types';
 
 export class CodexAdapter implements AgentAdapter {
 	readonly id = 'codex' as const;
@@ -54,6 +54,14 @@ export class CodexAdapter implements AgentAdapter {
 		}
 	}
 
+	async listModels(): Promise<readonly AgentModelOption[]> {
+		return [
+			{ id: 'gpt-5-codex', label: 'GPT-5 Codex' },
+			{ id: 'o3', label: 'OpenAI o3' },
+			{ id: 'o4-mini', label: 'OpenAI o4-mini' },
+		];
+	}
+
 	async run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void> {
 		const resolvedPath = await resolveBinaryPath(this.binary, this.getConfiguredPath());
 		if (!resolvedPath) {
@@ -63,7 +71,11 @@ export class CodexAdapter implements AgentAdapter {
 		}
 
 		const prompt = buildEffectivePrompt(request);
-		const args = ['exec', '--json', prompt];
+		const args = ['exec', '--json'];
+		if (request.model && request.model !== 'auto') {
+			args.push('-m', request.model);
+		}
+		args.push(prompt);
 		let emittedText = false;
 		const stderrLines: string[] = [];
 

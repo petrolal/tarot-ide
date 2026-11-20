@@ -11,9 +11,11 @@ import { TarotSessionStore } from '../agents/sessionStore';
 import {
 	AgentId,
 	AgentMode,
+	AgentModelOption,
 	AttachedContext,
 	AutonomyMode,
 	ContextProviderKind,
+	ReasoningEffort,
 	SpecApprovalGate,
 	TaskProgressCard,
 } from '../agents/types';
@@ -32,6 +34,8 @@ interface WebviewIncomingMessage {
 		| 'send'
 		| 'cancel'
 		| 'selectAgent'
+		| 'setModel'
+		| 'setEffort'
 		| 'setMode'
 		| 'setAutonomy'
 		| 'attachActiveFile'
@@ -51,6 +55,8 @@ interface WebviewIncomingMessage {
 		| 'refreshAgents';
 	readonly prompt?: string;
 	readonly agentId?: AgentId;
+	readonly model?: string;
+	readonly effort?: ReasoningEffort;
 	readonly mode?: AgentMode;
 	readonly autonomy?: AutonomyMode;
 	readonly kind?: ContextProviderKind;
@@ -71,6 +77,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private isFocusMode = false;
 	private mode: AgentMode = 'vibe';
 	private autonomy: AutonomyMode = 'autopilot';
+	private selectedModel = 'auto';
+	private selectedEffort: ReasoningEffort = 'auto';
+	private availableModels: readonly AgentModelOption[] = [];
 	private attachments: AttachedContext[] = [];
 	private changedFiles: ChangedFileInfo[] = [];
 	private activeCancellation: vscode.CancellationTokenSource | undefined;
@@ -289,16 +298,33 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		switch (msg.type) {
 			case 'ready':
 				await this.refreshChangedFiles();
+				await this.refreshAvailableModels();
 				this.postState();
 				break;
 			case 'refreshAgents':
 				await this.runtimeManager.refresh();
+				await this.refreshAvailableModels();
+				this.postState();
 				break;
 			case 'selectAgent':
 				if (msg.agentId) {
 					await this.runtimeManager.setActiveAgent(msg.agentId);
 					const session = this.sessionStore.getActiveSession(msg.agentId, this.mode, this.autonomy);
 					session.activeAgentId = msg.agentId;
+					this.selectedModel = 'auto';
+					await this.refreshAvailableModels();
+					this.postState();
+				}
+				break;
+			case 'setModel':
+				if (typeof msg.model === 'string' && msg.model.trim()) {
+					this.selectedModel = msg.model.trim();
+					this.postState();
+				}
+				break;
+			case 'setEffort':
+				if (msg.effort && ['auto', 'low', 'medium', 'high', 'xhigh', 'max'].includes(msg.effort)) {
+					this.selectedEffort = msg.effort;
 					this.postState();
 				}
 				break;
@@ -623,6 +649,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					prompt,
 					mode: this.mode,
 					autonomy: this.autonomy,
+					model: this.selectedModel,
+					effort: this.selectedEffort,
 					cwd,
 					systemContext: steeringContext,
 					attachments: requestAttachments,
@@ -701,6 +729,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		return Math.min(100, Math.round((chars / 120_000) * 100));
 	}
 
+	private async refreshAvailableModels(): Promise<void> {
+		this.availableModels = await this.runtimeManager.listModelsForAgent();
+	}
+
 	private postState(): void {
 		const activeAgentId = this.runtimeManager.getActiveAgentId();
 		const activeSession = this.sessionStore.getActiveSession(activeAgentId, this.mode, this.autonomy);
@@ -715,6 +747,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			type: 'state',
 			agents: this.runtimeManager.getStatuses(),
 			activeAgentId,
+			models: this.availableModels,
+			selectedModel: this.selectedModel,
+			selectedEffort: this.selectedEffort,
 			mode: this.mode,
 			autonomy: this.autonomy,
 			isFocusMode: this.isFocusMode,
@@ -741,6 +776,22 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'panel.css'));
 		const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'panel.js'));
+		const arcanaArt = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'arcana', file)).toString();
+		const arcanaSvg = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'icons', 'arcana', file)).toString();
+		const arcanaPayload = JSON.stringify({
+			art: {
+				vibe: arcanaArt('00-the-fool.png'),
+				spec: arcanaArt('05-the-hierophant.png'),
+				plan: arcanaArt('09-the-hermit.png'),
+				bugfix: arcanaArt('16-the-tower.png'),
+			},
+			icons: {
+				newSession: arcanaSvg('00-the-fool.svg'),
+				plan: arcanaSvg('09-the-hermit.svg'),
+				error: arcanaSvg('16-the-tower.svg'),
+				checkpoint: arcanaSvg('17-the-star.svg'),
+			},
+		}).replace(/</g, '\\u003c');
 		const s = getPanelStrings();
 		// Catalog consumed by media/webview/panel.js for strings it renders at runtime.
 		// `<` escaping keeps the JSON safe to embed inside a <script> element.
@@ -760,9 +811,15 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		<header class="session-tabbar">
 			<span class="tabbar-brand">TAROT</span>
 			<div id="session-tabs" class="session-tabs" role="tablist"></div>
-			<button id="btn-new-session" class="tabbar-add-btn" type="button" title="${s.newSession}">+</button>
-			<button id="btn-dock-editor" class="tabbar-add-btn" type="button" title="${s.dockEditorTab}">⤢</button>
-			<button id="btn-focus-mode" class="tabbar-add-btn" type="button" title="${s.toggleFocusMode}">⊞</button>
+			<button id="btn-new-session" class="tabbar-add-btn" type="button" title="${s.newSession}">
+				<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3.2v9.6M3.2 8h9.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+			</button>
+			<button id="btn-dock-editor" class="tabbar-add-btn tabbar-secondary-btn" type="button" title="${s.dockEditorTab}">
+				<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L8.5 7.5M6.5 13.5h-4v-4M2.5 13.5l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+			</button>
+			<button id="btn-focus-mode" class="tabbar-add-btn tabbar-secondary-btn" type="button" title="${s.toggleFocusMode}">
+				<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.5" width="12" height="11" rx="1.8" stroke="currentColor" stroke-width="1.4"/><path d="M6 2.5v11" stroke="currentColor" stroke-width="1.3"/></svg>
+			</button>
 		</header>
 
 		<main id="messages" class="tarot-messages" aria-live="polite"></main>
@@ -800,6 +857,28 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				<button class="slash-menu-item" type="button" data-cmd="/clear"><span class="ctx-tag">/clear</span><span class="ctx-desc">${s.slashClearDesc}</span></button>
 			</div>
 
+			<div id="model-menu" class="context-popup model-popover hidden" role="menu">
+				<div class="popover-section">
+					<div class="context-popup-header">Agent CLI</div>
+					<div id="model-agent-pills" class="pill-row"></div>
+				</div>
+				<div class="popover-section">
+					<div class="context-popup-header">Model</div>
+					<div id="model-options-list" class="model-options-list"></div>
+				</div>
+				<div class="popover-section">
+					<div class="context-popup-header">Reasoning Effort</div>
+					<div id="effort-pills" class="pill-row effort-row"></div>
+				</div>
+			</div>
+
+			<div id="mode-menu" class="context-popup mode-popover hidden" role="menu">
+				<div class="context-popup-header">Mode (Shift+Tab)</div>
+				<button class="mode-menu-item" type="button" data-mode="vibe"><span class="ctx-tag">Default</span><span class="ctx-desc">${s.modeVibeDesc}</span></button>
+				<button class="mode-menu-item" type="button" data-mode="spec"><span class="ctx-tag">Spec</span><span class="ctx-desc">${s.modeSpecDesc}</span></button>
+				<button class="mode-menu-item" type="button" data-mode="plan"><span class="ctx-tag">Plan</span><span class="ctx-desc">${s.slashPlanDesc}</span></button>
+			</div>
+
 			<div id="status-row" class="status-row hidden">
 				<span class="status-dot"></span>
 				<span id="status-indicator" class="status-text"></span>
@@ -826,26 +905,29 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 				<div class="composer-bottom">
 					<div class="composer-left">
-						<button id="btn-hash" class="tool-icon-btn" type="button" title="${s.contextProvidersHint}">#</button>
-						<button id="btn-slash" class="tool-icon-btn" type="button" title="${s.slashCommandsHint}">/</button>
+						<button id="btn-hash" class="tool-icon-btn" type="button" title="${s.contextProvidersHint}">
+							<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6.2 2.5L4.8 13.5M11.2 2.5L9.8 13.5M2.8 6h10.8M2.4 10h10.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+						</button>
 						<button id="btn-attach" class="tool-icon-btn" type="button" title="${s.attachActiveFile}">
 							<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10.5 4.5L5.8 9.2a1.75 1.75 0 1 0 2.48 2.48l5.3-5.3a3 3 0 0 0-4.24-4.24l-5.5 5.5a4.25 4.25 0 0 0 6.01 6.01l4.4-4.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
 						</button>
 						<span id="context-ring" class="context-ring">
 							<svg width="14" height="14" viewBox="0 0 16 16">
-								<circle cx="8" cy="8" r="5.5" fill="none" stroke="#35235C" stroke-width="1.8"/>
-								<circle id="context-ring-arc" cx="8" cy="8" r="5.5" fill="none" stroke="#D4AF37" stroke-width="1.8" stroke-dasharray="34.56" stroke-dashoffset="34.56" transform="rotate(-90 8 8)"/>
+								<circle class="context-ring-track" cx="8" cy="8" r="5.5" fill="none" stroke-width="1.7"/>
+								<circle id="context-ring-arc" class="context-ring-fill" cx="8" cy="8" r="5.5" fill="none" stroke-width="1.7" stroke-dasharray="34.56" stroke-dashoffset="34.56" stroke-linecap="round" transform="rotate(-90 8 8)"/>
 							</svg>
 						</span>
-						<select id="agent-select" class="inline-select" aria-label="${s.localAgentAria}"></select>
+						<button id="btn-model-picker" class="picker-trigger-btn" type="button" aria-label="${s.localAgentAria}">
+							<span id="model-picker-label">Auto</span>
+							<svg class="picker-chevron" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4.5 6.2L8 9.8l3.5-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</button>
 					</div>
 
 					<div class="composer-right">
-						<select id="mode-select" class="inline-select" aria-label="${s.modeAria}">
-							<option value="vibe">Vibe</option>
-							<option value="spec">Spec</option>
-							<option value="plan">Plan</option>
-						</select>
+						<button id="btn-mode-picker" class="picker-trigger-btn" type="button" aria-label="${s.modeAria}">
+							<span id="mode-picker-label">Default</span>
+							<svg class="picker-chevron" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4.5 6.2L8 9.8l3.5-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</button>
 						<label class="autopilot-toggle" title="${s.autopilotHint}">
 							<span class="autopilot-label">Autopilot</span>
 							<input id="autopilot-checkbox" type="checkbox" checked />
@@ -856,7 +938,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			</div>
 		</footer>
 	</div>
-	<script nonce="${nonce}">window.__tarotL10n = ${l10nPayload};</script>
+	<script nonce="${nonce}">window.__tarotL10n = ${l10nPayload};window.__tarotArcana = ${arcanaPayload};</script>
 	<script nonce="${nonce}" src="${jsUri}"></script>
 </body>
 </html>`;

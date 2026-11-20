@@ -41,7 +41,7 @@ Convenções: TypeScript `strict`; módulos de lógica pura (parsers, grafos, po
 | Sucesso/links/info | Mystic Teal | `#4FD1C5` / `#008080` |
 | Erro/alerta/destrutivo | Arcana Red | `#8B0000` |
 
-Regra: **prefira os tokens CSS `--vscode-*`** (ex.: `--vscode-editor-background`, `--vscode-foreground`, `--vscode-button-background`, `--vscode-focusBorder`) para respeitar temas (`Tarot Arcana Dark`, `Tarot Arcana Light` ou temas do Open VSX); use os hex acima apenas em `themes/tarot-{dark,light}-color-theme.json`, SVGs de marca e como fallback `var(--vscode-x, #hex)`. Nunca apague `extensions/theme-*` do upstream.
+Regra: **prefira os tokens CSS `--vscode-*`** (ex.: `--vscode-editor-background`, `--vscode-foreground`, `--vscode-button-background`, `--vscode-focusBorder`) para respeitar temas (`Tarot Arcana Dark`, `Tarot Arcana Light` ou temas do Open VSX); no `Tarot Arcana Dark`, mantenha superfícies neutras grafite-violeta (`#16141E` no editor/gutter/breadcrumb e `#100F17`/`#12111A` nas sidebars, sem moldura em L) reservando os acentos Arcana para foco, abas ativas e CTAs. Nunca apague `extensions/theme-*` do upstream.
 
 ## 3. Padrões BYOA
 

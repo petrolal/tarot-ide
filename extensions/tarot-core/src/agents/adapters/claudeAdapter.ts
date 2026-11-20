@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath, spawnStreaming } from '../processRunner';
 import { buildEffectivePrompt } from '../promptBuilder';
-import { AgentAdapter, AgentEvent, AgentRunRequest, AgentStatus } from '../types';
+import { AgentAdapter, AgentEvent, AgentModelOption, AgentRunRequest, AgentStatus } from '../types';
 
 export class ClaudeCodeAdapter implements AgentAdapter {
 	readonly id = 'claude' as const;
@@ -54,6 +54,14 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 		}
 	}
 
+	async listModels(): Promise<readonly AgentModelOption[]> {
+		return [
+			{ id: 'sonnet', label: 'Claude Sonnet' },
+			{ id: 'opus', label: 'Claude Opus' },
+			{ id: 'haiku', label: 'Claude Haiku' },
+		];
+	}
+
 	async run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void> {
 		const resolvedPath = await resolveBinaryPath(this.binary, this.getConfiguredPath());
 		if (!resolvedPath) {
@@ -64,6 +72,13 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
 		const prompt = buildEffectivePrompt(request);
 		const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
+		if (request.model && request.model !== 'auto') {
+			args.push('--model', request.model);
+		}
+		if (request.effort && request.effort !== 'auto') {
+			const claudeEffort = request.effort === 'xhigh' ? 'high' : request.effort;
+			args.push('--effort', claudeEffort);
+		}
 		let emittedText = false;
 		const stderrLines: string[] = [];
 

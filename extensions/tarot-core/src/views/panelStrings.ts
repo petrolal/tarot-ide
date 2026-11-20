@@ -57,6 +57,10 @@ export interface TarotPanelStrings {
 	readonly modeVibeDesc: string;
 	readonly modeSpecTitle: string;
 	readonly modeSpecDesc: string;
+	readonly modePlanTitle: string;
+	readonly modePlanDesc: string;
+	readonly modeBugfixTitle: string;
+	readonly modeBugfixDesc: string;
 	readonly steeringDoc: string;
 	readonly steeringDocs: string;
 	readonly thoughtComplete: string;
@@ -101,7 +105,7 @@ export function getPanelStrings(): TarotPanelStrings {
 		slashClearDesc: vscode.l10n.t('Start a clean new session'),
 		send: vscode.l10n.t('Send (Enter)'),
 		stopExecution: vscode.l10n.t('Stop Execution'),
-		promptPlaceholder: vscode.l10n.t('Ask a question, type / for commands or # for context...'),
+		promptPlaceholder: vscode.l10n.t('Ask a question or describe a task...'),
 		contextProvidersHint: vscode.l10n.t('Context Providers (#)'),
 		slashCommandsHint: vscode.l10n.t('Slash Commands (/)'),
 		attachActiveFile: vscode.l10n.t('Attach Active File (Ctrl+L)'),
@@ -109,12 +113,16 @@ export function getPanelStrings(): TarotPanelStrings {
 		localAgentAria: vscode.l10n.t('Local agent'),
 		modeAria: vscode.l10n.t('Mode (Shift+Tab)'),
 		autopilotHint: vscode.l10n.t('Autopilot applies edits directly; disabled enables Supervised mode'),
-		emptyTitle: vscode.l10n.t('Tarot Agent — BYOA'),
+		emptyTitle: vscode.l10n.t('Tarot'),
 		emptySubtitle: vscode.l10n.t('Choose a workflow or type # to attach context.'),
 		modeVibeTitle: vscode.l10n.t('Vibe'),
 		modeVibeDesc: vscode.l10n.t('Quick chat to explore, edit and debug code.'),
 		modeSpecTitle: vscode.l10n.t('Spec'),
 		modeSpecDesc: vscode.l10n.t('Plan requirements (EARS), design and tasks before coding.'),
+		modePlanTitle: vscode.l10n.t('Plan'),
+		modePlanDesc: vscode.l10n.t('Read-only investigation and architecture planning.'),
+		modeBugfixTitle: vscode.l10n.t('Bug Fix'),
+		modeBugfixDesc: vscode.l10n.t('Capture defect, root cause and regression checks.'),
 		steeringDoc: vscode.l10n.t('1 steering doc'),
 		steeringDocs: vscode.l10n.t('{0} steering docs'),
 		thoughtComplete: vscode.l10n.t('Thought complete'),

@@ -1,0 +1,69 @@
+{
+  "version": "1.1.0",
+  "palette": {
+    "midnightCosmic": "#0A0A16",
+    "deepIndigo": "#1D1135",
+    "royalPurple": "#4B0082",
+    "starlightGold": "#D4AF37",
+    "mysticTeal": "#4FD1C5",
+    "arcanaRed": "#8B0000"
+  },
+  "cards": [
+    {
+      "id": "00-the-fool",
+      "arcana": "0 - O Louco",
+      "svg": "icons/arcana/00-the-fool.svg",
+      "art": "media/arcana/00-the-fool.png",
+      "placements": ["New Session (+ New)", "Vibe Mode / Sandbox", "Walkthrough Step 1"]
+    },
+    {
+      "id": "01-the-magician",
+      "arcana": "I - O Mago",
+      "svg": "icons/arcana/01-the-magician.svg",
+      "art": "media/arcana/01-the-magician.png",
+      "placements": ["Tarot Agent Panel", "Local Agents (BYOA)", "Tool Execution Cards"]
+    },
+    {
+      "id": "02-high-priestess",
+      "arcana": "II - A Sacerdotisa",
+      "svg": "icons/arcana/02-high-priestess.svg",
+      "art": "media/arcana/02-high-priestess.png",
+      "placements": ["Agent Steering TreeView", "AGENTS.md & Docs Context", "Skills / Powers"]
+    },
+    {
+      "id": "05-the-hierophant",
+      "arcana": "V - O Hierofante",
+      "svg": "icons/arcana/05-the-hierophant.svg",
+      "art": "media/arcana/05-the-hierophant.png",
+      "placements": ["Specs TreeView (Feature EARS)", "Permissions (permissions.yaml)", "Approval Gates"]
+    },
+    {
+      "id": "09-the-hermit",
+      "arcana": "IX - O Eremita",
+      "svg": "icons/arcana/09-the-hermit.svg",
+      "art": "media/arcana/09-the-hermit.png",
+      "placements": ["Plan Mode (Read-Only)", "Investigate Recipe", "#Codebase / Deep Search"]
+    },
+    {
+      "id": "10-wheel-of-fortune",
+      "arcana": "X - A Roda da Fortuna",
+      "svg": "icons/arcana/10-wheel-of-fortune.svg",
+      "art": "media/arcana/10-wheel-of-fortune.png",
+      "placements": ["Workflows & Recipes View", "Agent Hooks TreeView", "Loop / Repeat Nodes"]
+    },
+    {
+      "id": "16-the-tower",
+      "arcana": "XVI - A Torre",
+      "svg": "icons/arcana/16-the-tower.svg",
+      "art": "media/arcana/16-the-tower.png",
+      "placements": ["Bugfix Specs (bugfix.md)", "#Problems & PBT Counter-examples", "Breaking / Error Alerts"]
+    },
+    {
+      "id": "17-the-star",
+      "arcana": "XVII - A Estrela",
+      "svg": "icons/arcana/17-the-star.svg",
+      "art": "media/arcana/17-the-star.png",
+      "placements": ["AI Commit Message (✦)", "Checkpoints & Restore", "Publish PR Recipe"]
+    }
+  ]
+}

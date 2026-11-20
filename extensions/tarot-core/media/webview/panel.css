@@ -22,32 +22,34 @@ html, body {
 	height: 100vh;
 }
 
-/* Kiro-style Top Session Tab Bar */
+/* Kiro-style Top Session Tab Bar (Clean, borderless tabs with 2px top accent) */
 .session-tabbar {
 	display: flex;
-	align-items: center;
-	height: 34px;
-	padding: 0 6px 0 10px;
-	gap: 6px;
-	border-bottom: 1px solid #241642;
-	background: #0A0A16;
+	align-items: stretch;
+	height: 35px;
+	padding: 0 6px 0 12px;
+	gap: 4px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	background: var(--vscode-editorGroupHeader-tabsBackground, #0E0B1A);
 	flex-shrink: 0;
 }
 
 .tabbar-brand {
+	display: inline-flex;
+	align-items: center;
 	font-size: 11px;
 	font-weight: 700;
-	letter-spacing: 0.08em;
-	color: #D4AF37;
-	padding-right: 6px;
-	border-right: 1px solid #261844;
+	letter-spacing: 0.09em;
+	color: #9A90B0;
+	padding-right: 10px;
+	margin-right: 2px;
 	flex-shrink: 0;
 }
 
 .session-tabs {
 	display: flex;
-	align-items: center;
-	gap: 2px;
+	align-items: stretch;
+	gap: 0;
 	flex: 1;
 	min-width: 0;
 	overflow-x: auto;
@@ -61,29 +63,30 @@ html, body {
 .session-tab {
 	display: inline-flex;
 	align-items: center;
-	gap: 5px;
-	max-width: 155px;
-	height: 26px;
-	padding: 0 8px;
-	border-radius: 5px;
+	gap: 6px;
+	max-width: 165px;
+	height: 100%;
+	padding: 0 11px;
+	border-radius: 0;
 	border: none;
+	border-top: 2px solid transparent;
 	background: transparent;
 	color: #8E84A3;
-	font-size: 11.5px;
+	font-size: 12px;
 	cursor: pointer;
 	flex-shrink: 0;
 	transition: background 0.12s ease, color 0.12s ease;
 }
 
 .session-tab:hover {
-	background: rgba(255, 255, 255, 0.05);
+	background: rgba(255, 255, 255, 0.04);
 	color: #E2D9F3;
 }
 
 .session-tab.active {
-	background: #1D1135;
-	color: #F5E08E;
-	border: 1px solid rgba(212, 175, 55, 0.25);
+	background: var(--vscode-sideBar-background, #120D21);
+	color: #F2EFE9;
+	border-top-color: #8B5CF6;
 }
 
 .tab-dot {
@@ -122,15 +125,24 @@ html, body {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	align-self: center;
 	width: 24px;
 	height: 24px;
 	border: none;
 	border-radius: 5px;
 	background: transparent;
 	color: #9A90B0;
-	font-size: 15px;
+	font-size: 14px;
 	cursor: pointer;
 	flex-shrink: 0;
+}
+
+.tabbar-secondary-btn {
+	opacity: 0.65;
+}
+
+.tabbar-secondary-btn:hover {
+	opacity: 1;
 }
 
 .tabbar-add-btn:hover {
@@ -187,20 +199,45 @@ html, body {
 }
 
 .mode-card {
+	display: flex;
+	align-items: center;
+	gap: 9px;
 	text-align: left;
-	padding: 10px;
+	padding: 8px 9px;
 	border-radius: 9px;
-	background: #120D24;
-	border: 1px solid #2E1F52;
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid rgba(255, 255, 255, 0.09);
 	color: #F2EFE9;
 	cursor: pointer;
-	transition: border-color 0.15s ease, background 0.15s ease;
+	transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
 }
 
 .mode-card:hover,
 .mode-card.active {
-	border-color: #D4AF37;
-	background: #1D1135;
+	border-color: rgba(212, 175, 55, 0.65);
+	background: rgba(139, 92, 246, 0.12);
+}
+
+.mode-card-art-wrap {
+	width: 38px;
+	height: 54px;
+	border-radius: 5px;
+	overflow: hidden;
+	flex-shrink: 0;
+	border: 1px solid rgba(212, 175, 55, 0.35);
+	background: #0A0A16;
+}
+
+.mode-card-art {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.mode-card-text {
+	min-width: 0;
+	flex: 1;
 }
 
 .mode-card-title {
@@ -226,14 +263,40 @@ html, body {
 }
 
 .msg.user {
-	padding: 9px 11px;
-	border-radius: 9px;
-	background: #1D1135;
-	border: 1px solid rgba(183, 148, 244, 0.25);
+	padding: 10px 12px;
+	border-radius: 8px;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .msg.assistant {
 	padding: 2px 2px;
+}
+
+.assistant-header {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	margin-bottom: 2px;
+}
+
+.assistant-avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: #4B0082;
+	color: #F5E08E;
+	font-size: 11px;
+	flex-shrink: 0;
+}
+
+.assistant-name {
+	font-size: 12.5px;
+	font-weight: 600;
+	color: var(--vscode-foreground, #F2EFE9);
 }
 
 .msg-disclosure {
@@ -297,9 +360,9 @@ html, body {
 	font-size: 11.5px;
 	padding: 1px 5px;
 	border-radius: 4px;
-	background: #1B1233;
-	border: 1px solid #312054;
-	color: #F5E08E;
+	background: rgba(255, 255, 255, 0.08);
+	border: none;
+	color: #E2D9F3;
 }
 
 .code-block {
@@ -711,20 +774,20 @@ html, body {
 	white-space: nowrap;
 }
 
-/* Exact Kiro Print-1 Composer Card */
+/* Exact Kiro Print-1/3/4 Composer Card */
 .composer-card {
 	display: flex;
 	flex-direction: column;
-	background: #130E26;
-	border: 1px solid #35235C;
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid rgba(255, 255, 255, 0.11);
 	border-radius: 10px;
-	padding: 8px 10px 7px;
-	gap: 6px;
+	padding: 10px 12px 8px;
+	gap: 8px;
 	transition: border-color 0.15s ease;
 }
 
 .composer-card:focus-within {
-	border-color: rgba(212, 175, 55, 0.75);
+	border-color: rgba(139, 92, 246, 0.65);
 }
 
 .attachments-bar {
@@ -831,7 +894,7 @@ html, body {
 .composer-right {
 	display: flex;
 	align-items: center;
-	gap: 5px;
+	gap: 8px;
 	min-width: 0;
 }
 
@@ -863,15 +926,53 @@ html, body {
 	height: 18px;
 }
 
+.context-ring-track {
+	stroke: rgba(255, 255, 255, 0.18);
+}
+
+.context-ring-fill {
+	stroke: #4FD1C5;
+}
+
+body.vscode-light .context-ring-track {
+	stroke: rgba(29, 17, 53, 0.18);
+}
+
+body.vscode-light .context-ring-fill {
+	stroke: #0D7377;
+}
+
+body.vscode-light .session-tabbar {
+	background: var(--vscode-editorGroupHeader-tabsBackground, #F1EDF8);
+	border-bottom-color: rgba(29, 17, 53, 0.08);
+}
+
+body.vscode-light .session-tab.active {
+	background: var(--vscode-sideBar-background, #F8F6FC);
+	color: #1D1135;
+	border-top-color: #4B0082;
+}
+
+body.vscode-light .msg.user {
+	background: rgba(75, 0, 130, 0.06);
+	border-color: rgba(75, 0, 130, 0.1);
+}
+
+body.vscode-light .assistant-avatar {
+	background: #4B0082;
+	color: #FFFFFF;
+}
+
 .inline-select {
 	background: transparent;
 	color: #B8AECB;
 	border: none;
 	border-radius: 5px;
-	padding: 2px 4px;
-	font-size: 11px;
+	padding: 3px 6px;
+	font-size: 11.5px;
+	line-height: 1.3;
 	cursor: pointer;
-	max-width: 120px;
+	max-width: 130px;
 }
 
 .inline-select:hover,
@@ -884,6 +985,173 @@ html, body {
 .inline-select option {
 	background: #120D24;
 	color: #F2EFE9;
+}
+
+/* Custom Kiro-style Picker Buttons & Popovers (Model / CLI / Effort / Mode) */
+.picker-trigger-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	background: transparent;
+	border: none;
+	border-radius: 5px;
+	padding: 3px 6px;
+	color: #B8AECB;
+	font-size: 11.5px;
+	font-family: inherit;
+	line-height: 1.3;
+	cursor: pointer;
+	max-width: 195px;
+	white-space: nowrap;
+	transition: background 0.12s ease, color 0.12s ease;
+}
+
+.picker-trigger-btn span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.picker-trigger-btn:hover,
+.picker-trigger-btn:focus-visible {
+	outline: none;
+	background: rgba(255, 255, 255, 0.06);
+	color: #F2EFE9;
+}
+
+.picker-chevron {
+	flex-shrink: 0;
+	opacity: 0.75;
+}
+
+.model-popover {
+	gap: 8px;
+	padding: 8px;
+}
+
+.popover-section {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.pill-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 0 4px;
+}
+
+.popover-pill {
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: rgba(255, 255, 255, 0.03);
+	color: #B8AECB;
+	border-radius: 6px;
+	padding: 3px 8px;
+	font-size: 11px;
+	font-family: inherit;
+	cursor: pointer;
+	transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.popover-pill:hover:not(:disabled) {
+	background: rgba(139, 92, 246, 0.18);
+	color: #F2EFE9;
+}
+
+.popover-pill.active {
+	background: #4B0082;
+	border-color: #8B5CF6;
+	color: #FFFFFF;
+	font-weight: 600;
+}
+
+.popover-pill:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.model-options-list {
+	max-height: 170px;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.model-option-item,
+.mode-menu-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	width: 100%;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: #D8D2E1;
+	padding: 5px 8px;
+	font-size: 11.5px;
+	font-family: inherit;
+	cursor: pointer;
+	text-align: left;
+}
+
+.model-option-item:hover,
+.mode-menu-item:hover,
+.model-option-item.active,
+.mode-menu-item.active {
+	background: rgba(139, 92, 246, 0.18);
+	color: #FFFFFF;
+}
+
+.model-option-check {
+	color: #4FD1C5;
+	font-weight: 700;
+	font-size: 11px;
+}
+
+body.vscode-light .picker-trigger-btn {
+	color: #5F5478;
+}
+
+body.vscode-light .picker-trigger-btn:hover,
+body.vscode-light .picker-trigger-btn:focus-visible {
+	background: rgba(75, 0, 130, 0.08);
+	color: #1D1135;
+}
+
+body.vscode-light .popover-pill {
+	border-color: #D4CBE8;
+	background: #F4F1FA;
+	color: #5F5478;
+}
+
+body.vscode-light .popover-pill:hover:not(:disabled) {
+	background: #E7DFF5;
+	color: #1D1135;
+}
+
+body.vscode-light .popover-pill.active {
+	background: #4B0082;
+	border-color: #4B0082;
+	color: #FFFFFF;
+}
+
+body.vscode-light .model-option-item,
+body.vscode-light .mode-menu-item {
+	color: #1D1135;
+}
+
+body.vscode-light .model-option-item:hover,
+body.vscode-light .mode-menu-item:hover,
+body.vscode-light .model-option-item.active,
+body.vscode-light .mode-menu-item.active {
+	background: #EFEAF8;
+	color: #4B0082;
+}
+
+body.vscode-light .model-option-check {
+	color: #0D7377;
 }
 
 /* Kiro Autopilot Pill Switch */

@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath, spawnStreaming } from '../processRunner';
 import { buildEffectivePrompt } from '../promptBuilder';
-import { AgentAdapter, AgentEvent, AgentRunRequest, AgentStatus } from '../types';
+import { AgentAdapter, AgentEvent, AgentModelOption, AgentRunRequest, AgentStatus } from '../types';
 
 export class AgyAdapter implements AgentAdapter {
 	readonly id = 'agy' as const;
@@ -54,6 +54,37 @@ export class AgyAdapter implements AgentAdapter {
 		}
 	}
 
+	async listModels(): Promise<readonly AgentModelOption[]> {
+		const resolvedPath = await resolveBinaryPath(this.binary, this.getConfiguredPath());
+		if (!resolvedPath) {
+			return [];
+		}
+		try {
+			const res = await execSimple(resolvedPath, ['models'], 10_000);
+			if (res.exitCode !== 0) {
+				return [];
+			}
+			const models: AgentModelOption[] = [];
+			for (const rawLine of res.stdout.split('\n')) {
+				const line = rawLine.trim();
+				if (!line || line.toLowerCase().startsWith('fetching')) {
+					continue;
+				}
+				const tabIdx = line.indexOf('\t');
+				if (tabIdx > 0) {
+					const id = line.slice(0, tabIdx).trim();
+					const label = line.slice(tabIdx + 1).trim();
+					if (id && label) {
+						models.push({ id, label });
+					}
+				}
+			}
+			return models;
+		} catch {
+			return [];
+		}
+	}
+
 	async run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void> {
 		const resolvedPath = await resolveBinaryPath(this.binary, this.getConfiguredPath());
 		if (!resolvedPath) {
@@ -64,6 +95,12 @@ export class AgyAdapter implements AgentAdapter {
 
 		const prompt = buildEffectivePrompt(request);
 		const args = ['--output-format', 'stream-json'];
+		if (request.model && request.model !== 'auto') {
+			args.push('--model', request.model);
+		}
+		if (request.effort && request.effort !== 'auto') {
+			args.push('--effort', request.effort);
+		}
 		if (request.mode === 'plan' || request.mode === 'spec') {
 			args.push('--mode', 'plan');
 		} else if (request.autonomy === 'autopilot') {
