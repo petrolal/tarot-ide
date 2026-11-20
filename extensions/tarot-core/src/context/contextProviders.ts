@@ -8,8 +8,10 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AttachedContext, ContextProviderKind } from '../agents/types';
+import { TarotSteeringService } from '../steering/steeringService';
 
 const MAX_CONTENT_CHARS = 12_000;
+const steeringService = new TarotSteeringService();
 
 function truncate(text: string, max = MAX_CONTENT_CHARS): string {
 	if (text.length <= max) {
@@ -151,35 +153,33 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 		}
 
 		case 'steering': {
-			if (!root) {
+			const docs = await steeringService.discover(root);
+			if (docs.length === 0) {
+				vscode.window.showInformationMessage('Nenhum arquivo de Steering encontrado em .tarot/steering/, ~/.tarot/steering/ ou AGENTS.md.');
 				return undefined;
 			}
-			const steeringDir = path.join(root, '.tarot', 'steering');
-			try {
-				const entries = await fs.readdir(steeringDir, { withFileTypes: true });
-				const mdFiles = entries.filter(e => e.isFile() && e.name.endsWith('.md')).map(e => e.name).sort();
-				if (mdFiles.length === 0) {
-					vscode.window.showInformationMessage('Nenhum arquivo em .tarot/steering/.');
-					return undefined;
-				}
-				const picked = await vscode.window.showQuickPick(mdFiles, {
+			const picked = await vscode.window.showQuickPick(
+				docs.map(doc => ({
+					label: doc.fileName,
+					description: `${doc.scope} · ${doc.inclusion}${doc.fileMatchPattern ? ` (${doc.fileMatchPattern})` : ''}`,
+					detail: doc.description,
+					doc,
+				})),
+				{
 					title: '#Steering — Selecionar arquivo de Steering',
-				});
-				if (!picked) {
-					return undefined;
-				}
-				const full = path.join(steeringDir, picked);
-				const content = await fs.readFile(full, 'utf8');
-				return {
-					kind: 'steering',
-					label: `steering/${picked}`,
-					path: full,
-					content: truncate(content),
-				};
-			} catch {
-				vscode.window.showInformationMessage('Nenhum arquivo em .tarot/steering/.');
+					matchOnDescription: true,
+					matchOnDetail: true,
+				},
+			);
+			if (!picked) {
 				return undefined;
 			}
+			return {
+				kind: 'steering',
+				label: `steering/${picked.doc.fileName}`,
+				path: picked.doc.filePath,
+				content: truncate(picked.doc.body || picked.doc.raw),
+			};
 		}
 	}
 }

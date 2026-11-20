@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.4 ✅ · próximo: M3.5 → M3.9)** | **Sim — iniciar por M3.5** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.5 ✅ · próximo: M3.6 → M3.9)** | **Sim — iniciar por M3.6** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -147,22 +147,22 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.5 — Agent Steering Completo (`product.md`, `tech.md`, `structure.md`, `AGENTS.md`, 4 Modos) (UC-04)
+### Marco M3.5 — Agent Steering Completo (`product.md`, `tech.md`, `structure.md`, `AGENTS.md`, 4 Modos) (UC-04) — ✅ Concluído
 - **Objetivo**: implementar o sistema completo de Steering do Kiro (workspace + global + `AGENTS.md`) injetado em todos os agentes locais.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/steering/steeringService.ts`
-  - Integração com `tarotSidebarViews.ts`, `agentPanelView.ts` e `promptBuilder.ts`
+  - Integração com `tarotSidebarViews.ts` (`SteeringTreeProvider`), `contextProviders.ts`, `agentPanelView.ts`, `panel.js` e `extension.ts`
 - **Especificação**:
   - Hierarquia de descoberta: `AGENTS.md` (raiz do repo) + `~/.tarot/steering/*.md` (global) + `.tarot/steering/*.md` (workspace).
   - Parser de frontmatter YAML suportando os **4 modos oficiais do Kiro**:
     - `inclusion: always` *(padrão)*
     - `inclusion: fileMatch` + `fileMatchPattern` (glob casado contra editor ativo e `#File` anexados)
     - `inclusion: auto` + `description` (incluído quando relevante ao prompt)
-    - `inclusion: manual` (injetado apenas quando referenciado via `#steering-name`)
-  - Comando **`Tarot IDE: Generate Project Steering Documents`** criando `product.md`, `tech.md` e `structure.md` via agente ativo.
+    - `inclusion: manual` (injetado apenas quando referenciado via `#steering-name` ou `#Steering`)
+  - Comando **`Tarot IDE: Generate Project Steering Documents`** (`tarot.steering.generate`) criando `product.md`, `tech.md` e `structure.md` com opção de preenchimento via agente ativo.
 - **Critérios de Aceite (DoD)**:
-  - [ ] TreeView **Agent Steering** exibe grupo *Workspace*, *Global* e `AGENTS.md` com badge do modo de inclusão.
-  - [ ] Todos os 4 modos de inclusão funcionam de forma determinística e são visíveis nos metadados do turno.
+  - [x] TreeView **Agent Steering** exibe grupo *Workspace*, *Global* e `AGENTS.md` com badge do modo de inclusão.
+  - [x] Todos os 4 modos de inclusão funcionam de forma determinística e são visíveis nos metadados do turno (`> N steering docs`).
 
 ---
 
@@ -176,10 +176,11 @@ extensions/tarot-core/
   - **Feature Spec**: `.tarot/specs/<slug>/{requirements.md,design.md,tasks.md}` usando notação **EARS** (`WHEN ... THE SYSTEM SHALL ...`), suportando entrada *Requirements-First* e *Design-First* + seção de *Correctness / Property-Based Testing* em `design.md`.
   - **Bugfix Spec**: `.tarot/specs/<slug>/{bugfix.md,design.md,tasks.md}` com os 3 blocos EARS (*Current Behavior*, *Expected Behavior*, *Unchanged Behavior*).
   - **Portões de aprovação humana** entre fases (Requirements/Bugfix → Design → Tasks) no painel agêntico.
+  - **Card `Updated task list`** no transcript do painel direito com barra de progresso contínua (`done/total`) e checklist com ícones `✓` (paridade com Print 3 do Kiro).
   - **CodeLens em `tasks.md`** sobre cada `- [ ]`: **`▶ Run Task`** (agente ativo) e **`▶ Run Task with...`** (`claude` / `agy` / `codex`), marcando `- [x]` após conclusão.
 - **Critérios de Aceite (DoD)**:
   - [ ] Comando `Tarot: New Spec` permite escolher **Feature (Requirements-First)**, **Feature (Design-First)** ou **Bugfix**.
-  - [ ] CodeLens em `tasks.md` dispara o agente escolhido com o contexto completo da Spec + Steering e atualiza progresso (`done/total tasks`) na TreeView.
+  - [ ] CodeLens em `tasks.md` dispara o agente escolhido com o contexto completo da Spec + Steering e atualiza progresso (`done/total tasks`) na TreeView e no card `Updated task list` do painel direito.
 
 ---
 
@@ -223,14 +224,14 @@ extensions/tarot-core/
   - `extensions/tarot-core/src/permissions/permissionsService.ts`
   - `extensions/tarot-core/src/powers/powersService.ts`
 - **Especificação**:
-  - **MCP**: leitura hierárquica `.tarot/settings/mcp.json` → `~/.tarot/settings/mcp.json` com nova TreeView **MCP Servers** na barra lateral Tarot e sincronização de flags/configs com `claude`, `agy` e `codex`.
+  - **MCP**: leitura hierárquica `.tarot/settings/mcp.json` → `~/.tarot/settings/mcp.json` com nova TreeView **MCP Servers** na barra lateral Tarot, provedor **`#MCP`** no popup `#` do composer e sincronização de flags/configs com `claude`, `agy` e `codex`.
   - **Plan Subagent (`Shift+Tab` ou `/plan`)**: alterna para modo somente-leitura de exploração/planejamento sem alterar arquivos.
   - **Powers**: pacotes sob demanda (`.tarot/powers/`) que ativam instruções + MCP apenas quando palavras-chave relevantes aparecem no prompt.
-  - **Permissões (`.tarot/permissions.yaml`)**: regras declarativas para `shell`, `fs_read`, `fs_write`, `network` e `mcp` (`allow` / `deny` / `ask`).
+  - **Permissões (`.tarot/permissions.yaml`) & UX `Supervised`**: regras declarativas para `shell`, `fs_read`, `fs_write`, `network` e `mcp` (`allow` / `deny` / `ask`), card de aprovação (*Accept / Reject*) no transcript quando em modo **Supervised** e links clicáveis (`> Edited file.ts`) abrindo `vscode.diff`.
 - **Critérios de Aceite (DoD)**:
-  - [ ] TreeView lista servidores MCP configurados no workspace e no usuário.
+  - [ ] TreeView lista servidores MCP configurados no workspace e no usuário e `#MCP` funciona no menu `#`.
   - [ ] `Shift+Tab` no composer alterna entre `Vibe` / `Plan` / `Spec`.
-  - [ ] `.tarot/permissions.yaml` é avaliado antes de comandos `command` em Hooks e ações supervisionadas.
+  - [ ] `.tarot/permissions.yaml` é avaliado antes de comandos `command` em Hooks e ações supervisionadas, com card de aprovação e abertura de `vscode.diff`.
 
 ---
 
@@ -244,10 +245,11 @@ extensions/tarot-core/
 - **Especificação (fiel aos prints oficiais do Kiro)**:
   - Receitas declarativas em `.tarot/workflows/*.yaml` (e globais `~/.tarot/workflows/*.yaml`) definindo `steps` com `agent` (`claude` | `agy` | `codex` | `default`), `loop`, `parallel`, `gate` (`validate-gate` com testes/typecheck) e aprovação humana (`Approved`).
   - Editor visual central mostrando status `Running · step X of Y`, badges `loop ×N` e `parallel`, sub-passos expansíveis e logs ao vivo.
-  - View **Sessions** com campo `Search sessions...`, status (`needs approval`, `done`, `running`) e `Older Sessions`.
+  - View **Sessions** com campo `Search sessions...`, botão `+ New ⌄`, status (`needs approval`, `done`, `running`), seção `Older Sessions >` e disclosures de sub-agentes (`> Spawned 1 sub-agent ...`) no transcript.
 - **Critérios de Aceite (DoD)**:
   - [ ] Receitas built-in (`feature-pipeline`, `investigate`, `semantic-review-multi-model`) listadas em `RECIPES` com botão Play `▷`.
   - [ ] Executar uma Recipe abre o painel visual de steps no editor central, respeita `validate-gate` e registra o histórico em `WORKFLOW RUNS`.
+  - [ ] View **Sessions** filtra sessões via `Search sessions...`, exibe badges de aprovação e mostra sub-agentes nos disclosures.
 
 ---
 

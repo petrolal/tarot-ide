@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'node:crypto';
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { TarotSessionStore } from '../agents/sessionStore';
@@ -13,6 +11,7 @@ import { AgentId, AgentMode, AttachedContext, AutonomyMode, ContextProviderKind 
 import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
 import { resolveContextProvider } from '../context/contextProviders';
+import { TarotSteeringService } from '../steering/steeringService';
 
 interface WebviewIncomingMessage {
 	readonly type:
@@ -56,6 +55,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly runtimeManager: AgentRuntimeManager,
 		private readonly sessionStore: TarotSessionStore,
 		private readonly checkpointService: TarotCheckpointService,
+		private readonly steeringService: TarotSteeringService,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.disposables.push(
@@ -87,6 +87,14 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
 		session.mode = mode;
 		this.postState();
+	}
+
+	async runExternalPrompt(prompt: string, mode?: AgentMode): Promise<void> {
+		if (mode) {
+			await this.setMode(mode);
+		}
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		await this.runPrompt(prompt);
 	}
 
 	private async handleMessage(msg: WebviewIncomingMessage): Promise<void> {
@@ -221,36 +229,18 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 	}
 
-	private async loadAlwaysSteeringContext(cwd: string): Promise<string | undefined> {
-		const blocks: string[] = [];
-
-		// 1. Root AGENTS.md (Kiro convention)
-		try {
-			const agentsMd = await fs.readFile(path.join(cwd, 'AGENTS.md'), 'utf8');
-			if (agentsMd.trim().length > 0) {
-				blocks.push(`### AGENTS.md\n${agentsMd.trim()}`);
-			}
-		} catch {
-			// Optional
+	private collectActiveFilePaths(attachments: readonly AttachedContext[]): string[] {
+		const files = new Set<string>();
+		const activeEditor = vscode.window.activeTextEditor;
+		if (activeEditor && activeEditor.document.uri.scheme === 'file') {
+			files.add(activeEditor.document.uri.fsPath);
 		}
-
-		// 2. Workspace .tarot/steering/*.md (always inclusion)
-		const steeringDir = path.join(cwd, '.tarot', 'steering');
-		try {
-			const entries = await fs.readdir(steeringDir, { withFileTypes: true });
-			const mdFiles = entries.filter(e => e.isFile() && e.name.endsWith('.md')).sort((a, b) => a.name.localeCompare(b.name));
-			for (const f of mdFiles) {
-				const raw = await fs.readFile(path.join(steeringDir, f.name), 'utf8');
-				if (/^---[\s\S]*?inclusion:\s*(?:manual|fileMatch)/m.test(raw)) {
-					continue;
-				}
-				blocks.push(`### ${f.name}\n${raw.trim()}`);
+		for (const att of attachments) {
+			if (att.kind === 'file' && att.path) {
+				files.add(att.path);
 			}
-		} catch {
-			// Optional
 		}
-
-		return blocks.length > 0 ? blocks.join('\n\n') : undefined;
+		return [...files];
 	}
 
 	private async runPrompt(prompt: string): Promise<void> {
@@ -292,12 +282,22 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postState();
 		this.postMessage({ type: 'streamStart', agentId, agentName: adapter.displayName, sessionId: session.id });
 
-		const steeringContext = await this.loadAlwaysSteeringContext(cwd);
+		const steeringResolution = await this.steeringService.resolveForTurn({
+			workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+			prompt,
+			activeFiles: this.collectActiveFilePaths(requestAttachments),
+			attachments: requestAttachments,
+		});
+		const steeringContext = steeringResolution.formattedContext;
+		const appliedSteering = steeringResolution.applied.map(item => item.label);
 		let accumulatedText = '';
 		let accumulatedThought = '';
 		const usedTools: string[] = [];
 
-		this.outputChannel.appendLine(`[AgentPanel] Running ${adapter.id} (${this.mode}/${this.autonomy}) in ${cwd}`);
+		this.outputChannel.appendLine(
+			`[AgentPanel] Running ${adapter.id} (${this.mode}/${this.autonomy}) in ${cwd}` +
+			(appliedSteering.length > 0 ? ` | steering: ${appliedSteering.join(', ')}` : '')
+		);
 
 		try {
 			await adapter.run(
@@ -346,6 +346,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					content: accumulatedText || '(Execução concluída sem texto adicional.)',
 					thought: accumulatedThought || undefined,
 					tools: usedTools.length > 0 ? usedTools : undefined,
+					appliedSteering: appliedSteering.length > 0 ? appliedSteering : undefined,
 					elapsedMs,
 					checkpointId,
 				});

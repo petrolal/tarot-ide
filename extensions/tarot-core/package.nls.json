@@ -16,6 +16,7 @@
 	"command.agents.refresh.title": "Refresh Local Agents",
 	"command.specs.create.title": "New Spec",
 	"command.steering.create.title": "New Steering File",
+	"command.steering.generate.title": "Generate Project Steering Documents",
 	"command.hooks.create.title": "New Agent Hook",
 	"config.agents.default.description": "Default local AI agent CLI for Tarot IDE ('auto' selects the first available installed CLI).",
 	"config.agents.paths.claude.description": "Optional custom executable path for Claude Code CLI ('claude').",

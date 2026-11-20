@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { AgentStatus } from '../agents/types';
+import { SteeringDocument, TarotSteeringService } from '../steering/steeringService';
 
 function getWorkspaceRoot(): string | undefined {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -172,6 +173,125 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 		} catch {
 			return [];
 		}
+	}
+
+	dispose(): void {
+		for (const d of this.disposables) {
+			d.dispose();
+		}
+	}
+}
+
+export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+	private readonly disposables: vscode.Disposable[] = [];
+
+	constructor(private readonly steeringService: TarotSteeringService) {
+		const steeringWatcher = vscode.workspace.createFileSystemWatcher('**/.tarot/steering/**/*.md');
+		const agentsMdWatcher = vscode.workspace.createFileSystemWatcher('**/AGENTS.md');
+		this.disposables.push(
+			this._onDidChangeTreeData,
+			steeringWatcher,
+			agentsMdWatcher,
+			steeringWatcher.onDidCreate(() => this.refresh()),
+			steeringWatcher.onDidChange(() => this.refresh()),
+			steeringWatcher.onDidDelete(() => this.refresh()),
+			agentsMdWatcher.onDidCreate(() => this.refresh()),
+			agentsMdWatcher.onDidChange(() => this.refresh()),
+			agentsMdWatcher.onDidDelete(() => this.refresh()),
+		);
+	}
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
+		return element;
+	}
+
+	private toDocItem(doc: SteeringDocument): SimpleTreeItem {
+		const item = new SimpleTreeItem(doc.fileName, vscode.TreeItemCollapsibleState.None, doc.filePath);
+		const badge = doc.inclusion === 'fileMatch' && doc.fileMatchPattern
+			? `fileMatch · ${doc.fileMatchPattern}`
+			: doc.inclusion;
+		item.description = badge;
+
+		const iconMap: Record<SteeringDocument['inclusion'], string> = {
+			always: 'compass',
+			fileMatch: 'file-code',
+			auto: 'sparkle',
+			manual: 'tag',
+		};
+		item.iconPath = new vscode.ThemeIcon(iconMap[doc.inclusion]);
+		item.tooltip = [
+			`${doc.fileName} (${doc.scope})`,
+			`Inclusão: ${badge}`,
+			doc.description ? `Descrição: ${doc.description}` : undefined,
+			`Caminho: ${doc.filePath}`,
+		].filter(Boolean).join('\n');
+		item.command = {
+			command: 'vscode.open',
+			title: 'Abrir Steering',
+			arguments: [vscode.Uri.file(doc.filePath)],
+		};
+		return item;
+	}
+
+	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
+		if (element?.children) {
+			return element.children;
+		}
+		const root = getWorkspaceRoot();
+		const docs = await this.steeringService.discover(root);
+		if (docs.length === 0) {
+			return [];
+		}
+
+		const agentsDocs = docs.filter(d => d.scope === 'agentsMd');
+		const workspaceDocs = docs.filter(d => d.scope === 'workspace');
+		const globalDocs = docs.filter(d => d.scope === 'global');
+
+		const groups: SimpleTreeItem[] = [];
+
+		if (agentsDocs.length > 0) {
+			const group = new SimpleTreeItem(
+				'AGENTS.md',
+				vscode.TreeItemCollapsibleState.Expanded,
+				undefined,
+				agentsDocs.map(d => this.toDocItem(d)),
+			);
+			group.description = 'root';
+			group.iconPath = new vscode.ThemeIcon('root-folder');
+			groups.push(group);
+		}
+
+		if (workspaceDocs.length > 0) {
+			const group = new SimpleTreeItem(
+				'Workspace',
+				vscode.TreeItemCollapsibleState.Expanded,
+				undefined,
+				workspaceDocs.map(d => this.toDocItem(d)),
+			);
+			group.description = `.tarot/steering (${workspaceDocs.length})`;
+			group.iconPath = new vscode.ThemeIcon('folder');
+			groups.push(group);
+		}
+
+		if (globalDocs.length > 0) {
+			const group = new SimpleTreeItem(
+				'Global',
+				vscode.TreeItemCollapsibleState.Expanded,
+				undefined,
+				globalDocs.map(d => this.toDocItem(d)),
+			);
+			group.description = `~/.tarot/steering (${globalDocs.length})`;
+			group.iconPath = new vscode.ThemeIcon('globe');
+			groups.push(group);
+		}
+
+		return groups;
 	}
 
 	dispose(): void {

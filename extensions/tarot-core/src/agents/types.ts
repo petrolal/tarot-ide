@@ -77,6 +77,7 @@ export interface SessionMessage {
 	readonly thought?: string;
 	readonly tools?: readonly string[];
 	readonly attachments?: readonly AttachedContext[];
+	readonly appliedSteering?: readonly string[];
 	readonly elapsedMs?: number;
 	readonly checkpointId?: string;
 	readonly timestamp: string;

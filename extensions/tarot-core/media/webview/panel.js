@@ -333,6 +333,12 @@
 			wrapper.className = `msg ${msg.role}`;
 
 			if (msg.role === 'assistant') {
+				if (Array.isArray(msg.appliedSteering) && msg.appliedSteering.length > 0) {
+					const sLabel = msg.appliedSteering.length === 1
+						? '1 steering doc'
+						: `${msg.appliedSteering.length} steering docs`;
+					wrapper.appendChild(createDisclosure(sLabel, msg.appliedSteering).details);
+				}
 				if (msg.thought) {
 					wrapper.appendChild(createDisclosure('Thought complete', msg.thought).details);
 				}

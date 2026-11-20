@@ -183,8 +183,10 @@ extensions/tarot-core/
     │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering)
     ├── checkpoints/
     │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/ e rollback 1-clique
+    ├── steering/
+    │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
     └── views/
-        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs, Hooks, Steering, Local Agents)
+        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs, Hooks, Steering agrupado com badges, Local Agents)
         └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar (abas, disclosures, composer #, Autopilot, checkpoints)
 ```
 

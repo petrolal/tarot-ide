@@ -10,8 +10,9 @@ import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
+import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
-import { LocalAgentsTreeProvider, TarotWorkspaceFolderTreeProvider } from './views/tarotSidebarViews';
+import { LocalAgentsTreeProvider, SteeringTreeProvider, TarotWorkspaceFolderTreeProvider } from './views/tarotSidebarViews';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -30,11 +31,12 @@ export function activate(context: vscode.ExtensionContext): void {
 	const runtimeManager = new AgentRuntimeManager(context, outputChannel);
 	const sessionStore = new TarotSessionStore();
 	const checkpointService = new TarotCheckpointService();
+	const steeringService = new TarotSteeringService();
 
 	// Left Sidebar (Kiro-style) TreeViews
 	const specsProvider = new TarotWorkspaceFolderTreeProvider('.tarot/specs', 'specs');
 	const hooksProvider = new TarotWorkspaceFolderTreeProvider('.tarot/hooks', 'hooks');
-	const steeringProvider = new TarotWorkspaceFolderTreeProvider('.tarot/steering', 'steering');
+	const steeringProvider = new SteeringTreeProvider(steeringService);
 	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager);
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
@@ -43,6 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		runtimeManager,
 		sessionStore,
 		checkpointService,
+		steeringService,
 		outputChannel,
 	);
 
@@ -127,26 +130,110 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 
 		vscode.commands.registerCommand('tarot.steering.create', async () => {
-			const root = await ensureWorkspaceFolder();
-			if (!root) {
+			const scopePick = await vscode.window.showQuickPick(
+				[
+					{ label: 'Workspace (.tarot/steering/)', description: 'Regras versionadas neste repositório', scope: 'workspace' as const },
+					{ label: 'Global (~/.tarot/steering/)', description: 'Regras pessoais aplicadas em todos os seus projetos', scope: 'global' as const },
+				],
+				{ title: 'Tarot IDE — Escopo do Steering' },
+			);
+			if (!scopePick) {
 				return;
 			}
+
+			let targetDir: string;
+			if (scopePick.scope === 'workspace') {
+				const root = await ensureWorkspaceFolder();
+				if (!root) {
+					return;
+				}
+				targetDir = steeringService.getWorkspaceSteeringDir(root);
+			} else {
+				targetDir = steeringService.getGlobalSteeringDir();
+			}
+
 			const rawName = await vscode.window.showInputBox({
 				title: 'Tarot IDE — Novo Steering',
-				prompt: 'Nome do arquivo de regras (ex.: product, tech, style)',
+				prompt: 'Nome do arquivo de regras (ex.: product, tech, structure, api-style)',
 				placeHolder: 'tech',
 			});
 			if (!rawName) {
 				return;
 			}
+
+			const inclusionPick = await vscode.window.showQuickPick(
+				[
+					{ label: 'always', description: 'Incluído em todos os turnos (padrão Kiro)', value: 'always' as SteeringInclusion },
+					{ label: 'fileMatch', description: 'Incluído quando o editor ativo ou #File casar com um glob', value: 'fileMatch' as SteeringInclusion },
+					{ label: 'auto', description: 'Incluído automaticamente quando relevante ao prompt', value: 'auto' as SteeringInclusion },
+					{ label: 'manual', description: 'Incluído apenas quando citado como #nome ou via #Steering', value: 'manual' as SteeringInclusion },
+				],
+				{ title: 'Tarot IDE — Modo de Inclusão' },
+			);
+			if (!inclusionPick) {
+				return;
+			}
+
+			let fileMatchPattern: string | undefined;
+			if (inclusionPick.value === 'fileMatch') {
+				fileMatchPattern = await vscode.window.showInputBox({
+					title: 'Tarot IDE — Glob fileMatchPattern',
+					prompt: 'Padrão glob (ex.: src/**/*.ts, *.tsx)',
+					value: 'src/**/*.ts',
+				});
+				if (!fileMatchPattern) {
+					return;
+				}
+			}
+
 			const fileName = rawName.trim().endsWith('.md') ? rawName.trim() : `${rawName.trim()}.md`;
-			const dir = path.join(root, '.tarot', 'steering');
-			await fs.mkdir(dir, { recursive: true });
-			const filePath = path.join(dir, fileName);
-			await fs.writeFile(filePath, `---\ninclusion: always\n---\n\n# Steering — ${fileName.replace(/\.md$/, '')}\n\nDescreva as convenções e regras que todos os agentes (claude, agy, codex) devem seguir neste projeto.\n`, 'utf8');
+			const stem = fileName.replace(/\.md$/i, '');
+			const frontmatterLines = [`inclusion: ${inclusionPick.value}`];
+			if (fileMatchPattern) {
+				frontmatterLines.push(`fileMatchPattern: "${fileMatchPattern.trim()}"`);
+			}
+			frontmatterLines.push(`description: "Regras de ${stem} para agentes locais"`);
+
+			await fs.mkdir(targetDir, { recursive: true });
+			const filePath = path.join(targetDir, fileName);
+			await fs.writeFile(
+				filePath,
+				`---\n${frontmatterLines.join('\n')}\n---\n\n# Steering — ${stem}\n\nDescreva as convenções e regras que todos os agentes (claude, agy, codex) devem seguir.\n`,
+				'utf8',
+			);
 			steeringProvider.refresh();
 			const doc = await vscode.workspace.openTextDocument(filePath);
 			await vscode.window.showTextDocument(doc);
+		}),
+
+		vscode.commands.registerCommand('tarot.steering.generate', async () => {
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			await steeringService.ensureFoundationalTemplates(root);
+			steeringProvider.refresh();
+
+			const available = runtimeManager.getStatuses().filter(s => s.available);
+			if (available.length === 0) {
+				vscode.window.showInformationMessage(
+					'Templates product.md, tech.md e structure.md criados em .tarot/steering/. Instale um CLI local (claude, agy ou codex) para preenchimento automático.'
+				);
+				return;
+			}
+
+			const confirm = await vscode.window.showInformationMessage(
+				'Templates criados em .tarot/steering/ (product.md, tech.md, structure.md). Deseja que o agente ativo analise o workspace e preencha automaticamente?',
+				'Preencher com Agente',
+				'Editar Manualmente',
+			);
+			if (confirm === 'Preencher com Agente') {
+				const prompt = steeringService.buildGenerateSteeringPrompt(root);
+				await agentPanelProvider.runExternalPrompt(prompt, 'vibe');
+			} else if (confirm === 'Editar Manualmente') {
+				const doc = await vscode.workspace.openTextDocument(path.join(root, '.tarot', 'steering', 'product.md'));
+				await vscode.window.showTextDocument(doc);
+			}
 		}),
 
 		vscode.commands.registerCommand('tarot.hooks.create', async () => {

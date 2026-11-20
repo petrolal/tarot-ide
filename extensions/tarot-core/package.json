@@ -104,7 +104,7 @@
       },
       {
         "view": "tarot.views.steering",
-        "contents": "Nenhuma regra de Steering em `.tarot/steering/`.\n[Novo Steering](command:tarot.steering.create)"
+        "contents": "Nenhuma regra de Steering encontrada em `.tarot/steering/`, `~/.tarot/steering/` ou `AGENTS.md`.\n[Gerar Steering do Projeto](command:tarot.steering.generate)\n[Novo Steering](command:tarot.steering.create)"
       }
     ],
     "menus": {
@@ -117,6 +117,11 @@
         {
           "command": "tarot.hooks.create",
           "when": "view == tarot.views.hooks",
+          "group": "navigation"
+        },
+        {
+          "command": "tarot.steering.generate",
+          "when": "view == tarot.views.steering",
           "group": "navigation"
         },
         {
@@ -277,6 +282,12 @@
         "title": "%command.steering.create.title%",
         "category": "Tarot IDE",
         "icon": "$(add)"
+      },
+      {
+        "command": "tarot.steering.generate",
+        "title": "%command.steering.generate.title%",
+        "category": "Tarot IDE",
+        "icon": "$(sparkle)"
       },
       {
         "command": "tarot.hooks.create",
