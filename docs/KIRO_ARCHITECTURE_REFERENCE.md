@@ -17,9 +17,9 @@
 | **Checkpoints** | Auto-save por turno no chat com rollback de arquivos em 1 clique preservando conversa | Snapshots leves por turno em `.tarot/checkpoints/` (ou `git stash/tree` seguro) com botão **Restore Checkpoint** em cada turno |
 | **Specs** | `.kiro/specs/<slug>/` — Feature (`requirements.md` em **EARS**, `design.md`, `tasks.md`) e Bugfix (`bugfix.md` → `design.md` → `tasks.md`); fluxos *Requirements-First* e *Design-First*; *Spec Correctness* (PBT) | `.tarot/specs/<slug>/` com templates Feature & Bugfix (notação EARS), aprovação entre fases e CodeLens **Run Task** em `tasks.md` escolhendo qual CLI local executa cada item |
 | **Steering** | `.kiro/steering/*.md` (`product.md`, `tech.md`, `structure.md`), `AGENTS.md` na raiz e `~/.kiro/steering/`; 4 modos de inclusão (`always`, `fileMatch`, `auto`, `manual`) | `.tarot/steering/*.md` + `AGENTS.md` + `~/.tarot/steering/`; suporte aos 4 modos de inclusão injetados em qualquer agente (`claude`, `agy`, `codex`) |
-| **Agent Hooks** | `.kiro/hooks/*.json` + `~/.kiro/hooks/*.json` (schema `v1`); triggers `PostFileCreate`, `PostFileSave`, `PostFileDelete`, `Stop`, `SessionStart`, `SessionEnd`, `Manual`; ações `command` e `agent` | `.tarot/hooks/*.json` + `~/.tarot/hooks/*.json` compatível com o schema `v1` (respeitando `vscode.workspace.isTrusted`) |
+| **Agent Hooks** | `.kiro/hooks/*.json` + `~/.kiro/hooks/*.json` (schema `v1`); triggers de arquivo (`PostFile*`), ferramenta (`Pre/PostToolUse`, `PermissionRequest`), prompt/turno (`PromptSubmit`, `Stop`/`AgentStop`), ciclo de vida (`SessionStart/End`, `Pre/PostCompaction`, `Pre/PostTaskExecution`); ações `command` e `agent` | `.tarot/hooks/*.json` + `~/.tarot/hooks/*.json` compatível com o schema `v1` (respeitando `vscode.workspace.isTrusted`); sob demanda manual = steering `manual` via `/nome` |
 | **MCP & Powers** | `.kiro/settings/mcp.json` + `~/.kiro/settings/mcp.json` e **Powers** (pacotes MCP + boas práticas ativados sob demanda por keywords, evitando *MCP sprawl*) | `.tarot/settings/mcp.json` + `~/.tarot/settings/mcp.json` sincronizável com os CLIs locais + catálogo leve de **Powers** sob demanda |
-| **Permissões** | Evolução de `trustedCommands` (0.x) para **Capability-Based Permissions** (`permissions.yaml`: `shell`, `fs_read`, `fs_write`, `network`, `mcp` com `allow`/`deny`/`ask`/`evaluate`) | `.tarot/permissions.yaml` governando execução de Hooks, comandos shell e nível de autonomia dos agentes locais |
+| **Permissões** | **Capability-Based Permissions** (`permissions.yaml`: 12 capabilities, prioridade `deny > ask > allow > evaluate`, 6 escopos, presets; workspace permissions **fora** do repo) | `~/.tarot/settings/permissions.yaml` (user) + `~/.tarot-ide/workspace-roots/<hash>/permissions.yaml` (workspace, **fora do repo**) governando Hooks, shell, MCP e flags nativas dos CLIs (*enforced* vs *advisory*) |
 
 ---
 
@@ -87,35 +87,29 @@ Armazenados em `.tarot/hooks/*.json` (workspace) e `~/.tarot/hooks/*.json` (glob
 ```
 - **Gatilhos suportados**:
   - Arquivos (filtrados por regex `matcher`): `PostFileCreate`, `PostFileSave`, `PostFileDelete`
-  - Guardrails e ciclo de vida: `PreToolUse` (pode bloquear execução se pré-condição falhar), `UserPromptSubmit`, `Stop` (fim de turno do agente), `SessionStart`, `SessionEnd`
-  - Sob demanda: `Manual` (botão *Play* na TreeView Agent Hooks)
-- **Ações**: `type: "command"` (shell/linter/testes rápidos) ou `type: "agent"` (envia `prompt` para `claude`, `agy` ou `codex`).
+  - Guardrails, ferramenta e ciclo de vida: `PreToolUse` (exit `2` bloqueia), `PostToolUse`, `PermissionRequest`, `PromptSubmit` (`UserPromptSubmit`), `Stop`/`AgentStop`, `SessionStart`, `SessionEnd`, `PreCompaction`, `PostCompaction`, `PreTaskExecution`, `PostTaskExecution`
+  - Sob demanda manual: o fluxo oficial atual usa **steering `manual`** invocado por `/nome` (hook `Manual` é legado, mantido apenas como botão Play na TreeView).
+- **Ações**: `type: "command"` (STDIN JSON; `exit 0` ⇒ stdout ao contexto; `exit 2` ⇒ bloqueia/cancela) ou `type: "agent"` (envia `prompt` para `claude`, `agy` ou `codex`).
 
 ---
 
-### 2.4 Chat Context Providers (`#`), Autonomia e Checkpoints
+### 2.4 Chat Context Providers (`#`), Modos de Permissão e Checkpoints
 - **Menu `#` empilhável no composer** (ex.: `#git diff #problems revise minhas alterações`):
-  - `#File` — conteúdo de um arquivo específico do workspace
-  - `#Folder` — listagem/resumo de um diretório
-  - `#Codebase` — busca/índice amplo no repositório
-  - `#Problems` — erros e warnings ativos do painel *Problems* (`vscode.languages.getDiagnostics`)
-  - `#Terminal` — saída recente do terminal integrado
-  - `#Git Diff` — diff atual (working tree / staged) via `git diff`
-  - `#Steering` — arquivos de steering em modo `manual`
-  - `#MCP` — recursos expostos por servidores MCP configurados
-- **Autopilot vs. Supervised**:
-  - **Autopilot**: aplica alterações diretamente no workspace com mínima interrupção.
-  - **Supervised**: pausa para revisão/aprovação incremental antes de confirmar edições ou comandos.
+  - `#File`, `#Folder`, `#Codebase`, `#Problems` (`vscode.languages.getDiagnostics`), `#Terminal`, `#Git Diff`, `#Steering`, `#Spec`, `#MCP` (ampliado em M3.8c com `#url`, `#code`, `#repository`, `#current`, `#docs`).
+- **Modos de Permissão (IDE 1.x — substituem o binário Autopilot/Supervised 0.x)**:
+  - **Supervised**: pausa para aprovação por turno com edições (hunks aceitar/rejeitar/discutir).
+  - **Accept file changes**: aplica edições de arquivo diretamente (o switch *Autopilot* no composer atua como atalho para este modo).
+  - **Approve for me**: delega aprovação com base em política/classificador (`evaluate`).
 - **Checkpoints**:
-  - Marcação automática antes de cada turno com escrita de arquivos, permitindo **Restore Checkpoint** em 1 clique sem perder a conversa.
+  - Marcação automática a cada prompt; **Restore** reverte arquivos + contexto, **Revert** desfaz o último turno e **Fork conversation** cria nova sessão sem alterar arquivos.
 
 ---
 
 ### 2.5 MCP, Powers, Plan Subagent & Permissões (`permissions.yaml`)
 - **MCP**: hierarquia `Agent Config → .tarot/settings/mcp.json → ~/.tarot/settings/mcp.json`.
-- **Powers**: bundles sob demanda (MCP + instruções) ativados por palavras-chave no prompt para evitar estourar a janela de contexto (*MCP sprawl*).
+- **Powers**: bundles sob demanda (*Agent Plugins*: `plugin.json` + `skills/` + `mcp.json`) ativados por palavras-chave para evitar *MCP sprawl*.
 - **Plan Subagent (`Shift+Tab` ou `/plan`)**: modo somente-leitura para explorar a codebase e desenhar planos sem alterar arquivos.
-- **Permissões baseadas em capacidades (`.tarot/permissions.yaml`)**: regras declarativas para `shell`, `fs_read`, `fs_write`, `network` e `mcp` com efeitos `allow` | `deny` | `ask`.
+- **Permissões baseadas em capacidades (`permissions.yaml`)**: 12 capabilities com prioridade **`deny > ask > allow > evaluate`** (mais restritivo vence entre escopos). **Permissões de workspace ficam fora do repositório** (`~/.tarot-ide/workspace-roots/<hash>/permissions.yaml`) e user em `~/.tarot/settings/permissions.yaml` para impedir injeção por repos clonados.
 
 ---
 
@@ -156,19 +150,11 @@ Análise pixel-a-pixel dos 7 prints oficiais do Kiro IDE (layout 3 colunas, Comp
 
 > Fontes lidas por HTTP: `blog/introducing-kiro`, `crew`, `docs/specs/*` (feature, bugfix, quick-spec, analyze-requirements, correctness, best-practices), `docs/workflows/*` (overview, authoring, manage, patterns), `docs/hooks` (+ `types`, `actions`), `docs/steering`, `docs/permissions`, `docs/custom-agents` (+ `subagents`), `docs/skills`, `docs/powers`, `docs/mcp`, `docs/checkpoints`, `docs/compaction`, `docs/ide/chat`, `docs/ide/whats-new-v1`, `docs/crew/*`. A página `specs/plan-mode` não existe (404); Plan é um modo de sessão descrito em `ide/chat`.
 
-### 4.1 Correções às seções anteriores
-| Item | Antes | Correto (doc oficial) |
-| --- | --- | --- |
-| Autonomia | Toggle Autopilot/Supervised | Modos **Supervised / Accept file changes / Approve for me**; `trustedCommands` substituído por `permissions.yaml` |
-| Permissões | 5 capabilities, efeitos `allow/deny/ask` | 12 capabilities, meta-capabilities, efeito `evaluate`, prioridade `deny > ask > allow > evaluate`, 6 escopos, presets, workspace permissions **fora do repo** |
-| Workflows `repeat` | `stop` / `onMaxIterations` | Campos `stopCondition` (`containsText`/`completionSignal`/`fileCheck`) ou `stopWhen`; `maxIterations` obrigatório; `repeat` roda ao menos 1 vez |
-| Workflows `watch` | "polling genérico" | Handlers `github-pr` e `command` com contrato STDIN/STDOUT e cursor persistido |
-| Recipes bundled | 7 recipes | Doc confirma **3** (`investigate`, `feature-pipeline`, `publish-pr`); `autoresearch`, `goal`, `ralph`, `semantic-review-multi-model` só aparecem no Print 2 |
-| Steering manual | `#nome` | Também aparece como comando `/nome`; `auto` exige `name` + `description` |
-| Hooks manuais | Trigger `Manual` | Fluxo novo = steering `manual` via `/nome`; hook manual é legado |
-| Hooks `Stop` | só `Stop` | Doc usa `Stop` no JSON e rotula "Agent Stop"; aceitar `AgentStop` como alias |
-| Inline chat | — | **Retirado**; `Ctrl+L` envia seleção ao chat, `Ctrl+Shift+L` abre nova sessão |
-| Crew | "parte do IDE" | **Produto separado** (open source, Apache-2.0, sobre Kiro CLI + ACP); Sessions do Print 3/4 é a UI do Crew, reaproveitada no Agent Focus Mode do IDE |
+### 4.1 Notas críticas da validação (Seções 1–3 já sincronizadas)
+- **Inline chat**: **retirado** no Kiro IDE 1.x (`Ctrl+L` envia seleção ao chat atual; `Ctrl+Shift+L` abre nova sessão).
+- **Recipes bundled**: a doc confirma **3** (`investigate`, `feature-pipeline`, `publish-pr`); `autoresearch`, `goal`, `ralph` e `semantic-review-multi-model` aparecem no Print 2 e são tratadas como recipes do Tarot.
+- **Workflows `repeat` & `watch`**: `repeat` usa `stopCondition` (`containsText`/`completionSignal`/`fileCheck`) ou `stopWhen`, com `maxIterations` obrigatório (roda ≥ 1 vez); `watch` usa handlers `github-pr` e `command` (STDIN/STDOUT JSON + cursor persistido).
+- **Kiro Crew**: **produto separado** (open source Apache-2.0, sobre Kiro CLI + ACP); a UI de Sessions dos Prints 3/4 é reaproveitada no Agent Focus Mode do IDE.
 
 ### 4.2 Specs (resumo validado)
 - Superfícies: Feature, Bugfix, Quick Spec, execução paralela de tasks (todas); Analyze Requirements (IDE/CLI); **Correctness/PBT só no IDE**.
@@ -203,3 +189,11 @@ Análise pixel-a-pixel dos 7 prints oficiais do Kiro IDE (layout 3 colunas, Comp
 - **Print 1 (Specs)**: stepper `coupon-codes 1 Requirements > 2 Design > 3 Task list`; `tasks.md` com `✓ Task completed | ↺ View changes`, gutter verde, `_Requirements: 1.1_`, tarefa PBT com `Property 1` e `Validates`; transcript com `7 tool calls`, `Counter-example`/`Error`, cards `Replace in File`/`Write File`, regra salva em steering.
 - **Print 2 (Workflows)**: `WORKFLOW RUNS` (runs com idade e sub-itens) e `RECIPES` (Global) com `▷`; aba `feature-pipeline · 6 steps · review-loop max 2 · ✓ Completed`; steps com papel (`wf-coder`, `wf-design`, `wf-design-reviewer`, `wf-planner`, `semantic_reviewer`, `wf-review-aggregator`); badges `loop ×2`, `pass 2 of 2`, `parallel`, `Approved`, `Passed`.
 - **Prints 3/4 (Sessions/Crew)**: `Sessions` com busca, filtros, `+ New ⌄`; cards `perfil · repo` + hora; `🔒 1 sub-agent needs approval`; `Weekly digest · Posted to #team`; transcript com `2 steps`, `Spawned 1 sub-agent`, `Ran ... × 20 · 3 failed`, `Edited ...`; composer `(/command · @file · $skill)`.
+
+### 4.8 Frontier Engineering (leitura direta de `kiro.dev/topics/frontier-engineering/*`)
+Síntese dos 10 princípios operacionais do Kiro e como cada um se traduz em primitivas concretas no **Tarot IDE (BYOA)**:
+- **Arquitetura, Direção e Código Descartável** (*Princípios 1, 5, 6*): investir em intenção clara (Specs EARS), prototipar 2 designs em paralelo quando houver dúvida e tratar implementação/testes unitários acoplados como descartáveis — preservando **testes de fronteira/contrato** (integração, E2E, PBT de invariantes) como contrato imutável em `design.md`/`tasks.md` (M3.6.6/M3.6.7).
+- **Paralelismo Real & Autonomia** (*Princípio 2*): isolar sessões e ondas paralelas de tasks com **Git Worktrees gerenciados** (`git/worktreeManager.ts`, M3.6.7/M3.8c/M3.9a) para rodar agentes sem conflito de arquivos e comparar abordagens lado a lado.
+- **Fast Feedback Loop & AI Reviewer Pré-PR** (*Princípios 3, 4, 7*): módulos de lógica pura testáveis em milissegundos (`node --test`, sem `vscode`), documentação de decisões como memória persistente entre sessões e ação **Pre-PR Review (BYOA)** na *Review Queue* usando um CLI diferente do autor + **Evidence Summary** (testes, lint, PBT, diff) antes da revisão humana (M3.8c/M3.9a).
+- **Confiar nas Fronteiras, Não no Agente** (*Princípio 8*): além de `permissions.yaml`, presets built-in de **guardrails determinísticos** via Hooks (*secret/credential scanning*, lint/typecheck) e distinção visual entre ações reversíveis e irreversíveis nos cartões de aprovação (M3.7/M3.8a).
+- **Ajuste Contínuo do Setup** (*Princípios 9, 10*): compartilhar o mesmo steering/tools em tarefas além de código e oferecer **Audit / Prune Steering** (M3.10) para podar regras/workarounds obsoletos quando o usuário troca de modelo ou CLI.

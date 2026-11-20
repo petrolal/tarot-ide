@@ -18,7 +18,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Binário / CLI (`applicationName`)** | `tarot` |
 | **Protocolo de URL (`urlProtocol`)** | `tarot://` |
 | **Diretório de Dados do Usuário** | `.tarot-ide` (`~/.tarot-ide`) / compartilhado: `.tarot-ide-shared` |
-| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `workflows/`, `sessions/`, `checkpoints/`, `settings/mcp.json`, `permissions.yaml`) + `AGENTS.md` na raiz |
+| **Diretório de Artefatos do Workspace** | `.tarot/` (`specs/`, `steering/`, `hooks/`, `workflows/`, `sessions/`, `checkpoints/`, `settings/mcp.json`) + `AGENTS.md` na raiz *(permissões de workspace ficam fora do repo em `~/.tarot-ide/workspace-roots/<hash>/permissions.yaml`)* |
 | **Servidor / Túnel** | `tarot-server` (`.tarot-ide-server`) / `tarot-tunnel` |
 | **Bundle IDs** | macOS: `com.tarot.ide` · Linux: `com.tarot.ide` (`tarot-ide`) · Windows: `Tarot.TarotIDE` |
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
@@ -82,6 +82,13 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 12. **`tarot-core` não vai em `product.json -> builtInExtensions`**: aquele campo é apenas para extensões externas baixadas via GitHub/Marketplace; extensões locais em `extensions/` são registradas em `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml` e `build/npm/dirs.ts`.
 13. **Workspace Trust amplo**: nada em `.tarot/` (agents, steering, skills, MCP, workflows, hooks) é carregado/executado em workspace não confiável; permissões do workspace ficam **fora do repositório** e o agente nunca escreve nos próprios arquivos de permissões/settings (ver M3.8a).
 
+### 3.5 Regras de Idioma e Localização
+
+14. **Divisão de idioma (decidido)**: o *chrome* da UI (títulos de comando, mensagens de aviso/erro, placeholders, tooltips, rótulos de TreeView, texto do painel agêntico) é **em Inglês** e **sempre externalizado** com `vscode.l10n.t()`; já os **prompts enviados aos agentes** e os **templates de documentos gerados** (`.tarot/specs/**`, `.tarot/steering/**`, hooks criados por `tarot.hooks.create`) permanecem **em PT-BR**. Docs em PT-BR; identificadores e comentários técnicos em Inglês (ver `AGENTS.md` §2e).
+15. **Mecanismo único**: use `vscode.l10n.t()` (e `package.nls.json` para strings de manifesto) — convenção das extensões built-in deste repositório. **Não** introduza `vscode-nls`.
+16. **Webviews**: o host renderiza o HTML estático com o catálogo de `views/panelStrings.ts` e injeta o mesmo catálogo na webview como `window.__tarotL10n` (dentro de `<script nonce="...">`, com `<` escapado). `media/webview/panel.js` consome esse catálogo via helper `t(key, ...args)` — nunca duplique literais de UI no JS.
+17. **Traduções (`l10n/bundle.l10n.<locale>.json`)**: deliberadamente **não** versionadas ainda. `vscode.l10n.t()` faz fallback para a mensagem-fonte (Inglês), que é o idioma padrão escolhido; a extração/geração de bundles fica para a Fase 4 (empacotamento), junto da decisão de publicar locales adicionais.
+
 ---
 
 ## 4. Casos de Uso Principais (Workflow Kiro + BYOA)
@@ -93,7 +100,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 
 ### UC-02 — Vibe Mode, Context Providers (`#`), Autonomia e Checkpoints
 - **Ator**: Desenvolvedor querendo implementar, depurar ou revisar código rapidamente.
-- **Fluxo**: No **Painel Agêntico** (Secondary Side Bar, à direita — layout Kiro), o usuário escolhe o agente (`claude`, `agy` ou `codex`), alterna entre **Vibe / Spec / Plan (`Shift+Tab`)**, define autonomia (**Autopilot** vs **Supervised**), digita `#` para empilhar provedores de contexto (`#File`, `#Folder`, `#Problems`, `#Terminal`, `#Git Diff`, `#Codebase`, `#Steering`, `#MCP`) e envia com `Enter` (`Shift+Enter` quebra linha).
+- **Fluxo**: No **Painel Agêntico** (Secondary Side Bar, à direita — layout Kiro), o usuário escolhe o agente (`claude`, `agy` ou `codex`), alterna entre **Vibe / Spec / Plan (`Shift+Tab`)**, define o modo de permissão (**Supervised / Accept file changes / Approve for me**, com o switch *Autopilot* como atalho para *Accept file changes*), digita `#` para empilhar provedores de contexto (`#File`, `#Folder`, `#Problems`, `#Terminal`, `#Git Diff`, `#Codebase`, `#Steering`, `#Spec`, `#MCP`) e envia com `Enter` (`Shift+Enter` quebra linha).
 - **Resultado**: O adaptador executa o CLI local com contexto + Steering, transmite a resposta em tempo real e registra **Checkpoints** automáticos por turno permitindo rollback de arquivos em 1 clique preservando o histórico do chat.
 
 ### UC-03 — Spec-Driven Development (Feature & Bugfix Specs com Notação EARS)
@@ -111,8 +118,8 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 
 ### UC-05 — Agent Hooks v1 (`.tarot/hooks/*.json` e `~/.tarot/hooks/*.json`)
 - **Ator**: Desenvolvedor automatizando lint, testes, revisões ou geração de boilerplate por eventos.
-- **Fluxo**: Hooks no schema `v1` suportam gatilhos de arquivo (`PostFileCreate`, `PostFileSave`, `PostFileDelete` com regex `matcher`), ciclo de vida (`Stop`, `SessionStart`, `SessionEnd`) e `Manual` (botão Play), executando tanto comandos shell (`type: "command"`) quanto prompts em agentes (`type: "agent"`).
-- **Resultado**: Automações determinísticas e agênticas respeitando `vscode.workspace.isTrusted` e `.tarot/permissions.yaml`.
+- **Fluxo**: Hooks no schema `v1` suportam gatilhos de arquivo (`PostFileCreate`, `PostFileSave`, `PostFileDelete` com regex `matcher`), ferramenta (`PreToolUse`, `PostToolUse`, `PermissionRequest`), prompt/turno (`PromptSubmit`, `Stop`/`AgentStop`), ciclo de vida (`SessionStart`, `SessionEnd`, `Pre/PostCompaction`, `Pre/PostTaskExecution`) e presets determinísticos (*secret scan*, lint/typecheck), executando comandos shell (`type: "command"`) ou prompts em agentes (`type: "agent"`). Execuções sob demanda manuais usam steering `manual` via `/nome`.
+- **Resultado**: Automações determinísticas e agênticas respeitando `vscode.workspace.isTrusted` e a política externa de `permissions.yaml`.
 
 ### UC-06 — Troca Dinâmica de Motor / Handoff + MCP / Powers
 - **Ator**: Desenvolvedor que planeja uma Spec com `claude`, executa tarefas com `agy`/`codex` e conecta ferramentas externas sem estourar tokens.
@@ -193,7 +200,7 @@ extensions/tarot-core/
     │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom) + Status Bar
     │   └── adapters/                   # claudeAdapter, agyAdapter, codexAdapter, customAdapter
     ├── context/
-    │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering)
+    │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
     ├── checkpoints/
     │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/ e rollback 1-clique
     ├── steering/
@@ -206,8 +213,11 @@ extensions/tarot-core/
     │   └── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     └── views/
         ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks, Steering agrupado, Local Agents)
-        └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar (abas, disclosures, task list, gates, composer #)
+        ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
+        └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar + ponte postMessage ↔ media/webview/panel.js
 ```
+
+> **Contrato Webview ↔ Extension Host**: toda troca de estado e ações do `Tarot Agent` passa pelo protocolo `postMessage` centralizado em `src/views/agentPanelView.ts` (handler `_handleMessage` + `_postState`) e `media/webview/panel.js` (`window.addEventListener('message', ...)`). O catálogo de strings viaja no HTML inicial em `window.__tarotL10n` (ver §3.5).
 
 ---
 
@@ -228,8 +238,9 @@ pnpm run watch-tarot-core
 
 # Validações pontuais (antes de commitar)
 pnpm exec gulp compile-extension:tarot-core
-node build/next/index.ts transpile
-pnpm run typecheck-client
+node --test "extensions/tarot-core/src/test/**/*.test.ts"   # Node 24 executa .ts puro (sem importar vscode)
+node build/next/index.ts transpile                          # somente se tocou em src/vs/
+pnpm run typecheck-client                                   # somente se tocou em src/vs/
 
 # Executar o Tarot IDE em modo desenvolvimento
 ./scripts/code.sh

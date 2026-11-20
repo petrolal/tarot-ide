@@ -24,9 +24,9 @@ Liste (curto) os arquivos a criar/alterar, os contratos novos e como cada item d
 - Registrar comandos/views/settings em `extensions/tarot-core/package.json` (e `package.nls.json`).
 - Respeitar as divergências Kiro × Tarot (permissões *enforced* vs *advisory*, `send_message`/resume por adaptador, etc.).
 
-## 4. Testes
+## 4. Testes (Fast Feedback Loop)
 - Crie/atualize testes unitários para a lógica pura do marco em `extensions/tarot-core/src/test/` (convenção: `*.test.ts`, executados com `node --test`; sem dependência de `vscode`). No M3.6.6 estabeleça a convenção e o comando de execução e documente-os em `docs/PROJECT_CONTEXT.md` (Seção 7).
-- Cubra casos felizes, bordas e falhas (parsers, grafos, políticas, validadores).
+- Separe **testes de contrato/fronteira** (invariantes, parsers, grafos, políticas, validadores — preserváveis em reescritas) de detalhes acoplados à implementação; cubra casos felizes, bordas e falhas.
 
 ## 5. Verificar
 ```bash
@@ -34,7 +34,7 @@ pnpm exec gulp compile-extension:tarot-core
 node --test extensions/tarot-core/src/test/   # quando existir suíte
 rg "innerHTML|shell:\s*true" extensions/tarot-core/src extensions/tarot-core/media
 ```
-Valide JSON/manifestos alterados. Se tocou `src/vs/`: `node build/next/index.ts transpile` + `pnpm run typecheck-client` e registre o diff em `docs/PROJECT_CONTEXT.md` (Seção 5) e na matriz de `docs/MIGRATION_PLAN.md`. Valide visualmente com `./scripts/code.sh` quando houver mudança de UI e o ambiente permitir.
+Valide JSON/manifestos alterados e faça uma **revisão adversarial** do diff contra o DoD do marco e as invariantes de `AGENTS.md` (idealmente com foco em segurança, regressão e aderência à Spec). Se tocou `src/vs/`: `node build/next/index.ts transpile` + `pnpm run typecheck-client` e registre o diff em `docs/PROJECT_CONTEXT.md` (Seção 5) e na matriz de `docs/MIGRATION_PLAN.md`. Valide visualmente com `./scripts/code.sh` quando houver mudança de UI e o ambiente permitir.
 
 ## 6. Fechar o marco
 1. Em `docs/MIGRATION_PLAN.md`: marque cada item do DoD (`- [x]`), adicione `— ✅ Concluído` ao título do marco e atualize a tabela *Mapa Geral de Fases* (marcos concluídos / próximo marco).

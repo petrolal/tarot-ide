@@ -3,7 +3,7 @@
 > **Guia de execução estruturado para agentes de IA e engenheiros.**
 > Cada etapa abaixo define: **Objetivo**, **Arquivos-Alvo**, **Contratos/Especificação**, **Critérios de Aceite (DoD)** e **Comandos de Verificação**.
 > Consulte `docs/PROJECT_CONTEXT.md` para regras obrigatórias, stack e casos de uso (`UC-01` a `UC-11`).
-> Os marcos M3.6.6 em diante foram validados contra a leitura direta de `kiro.dev` (specs, workflows, hooks, permissões, agentes, skills, chat, Crew) em 19/11/2026; ver `docs/KIRO_ARCHITECTURE_REFERENCE.md` Seção 4.
+> Os marcos M3.6.6 em diante foram validados contra a leitura direta de `kiro.dev` (specs, workflows, hooks, permissões, agentes, skills, chat, Crew e `topics/frontier-engineering/*`) em 19–20/11/2026; ver `docs/KIRO_ARCHITECTURE_REFERENCE.md` Seção 4.
 
 ---
 
@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.5 ✅ · próximo: M3.6.6 → M3.6.7 → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.6.6** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.5 ✅ + saneamento pré-M3.6.6 ✅ · próximo: M3.6.6 → M3.6.7 → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.6.6** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -73,141 +73,31 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.1 — Contratos & `AgentRuntimeManager` (UC-01) — ✅ Concluído
-- **Objetivo**: detectar automaticamente na máquina do usuário as CLIs `claude`, `codex` e `agy` (e binários customizados), expondo status, caminho e versão.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/config/tarotConfig.ts`
-  - `extensions/tarot-core/src/agents/types.ts`
-  - `extensions/tarot-core/src/agents/processRunner.ts`
-  - `extensions/tarot-core/src/agents/runtimeManager.ts`
-  - `extensions/tarot-core/package.json` (`contributes.configuration` com `tarot.agents.*`)
-- **Contratos obrigatórios (`types.ts`)**:
-  - `AgentId = 'claude' | 'codex' | 'agy' | string`
-  - `AgentStatus = { id: AgentId; displayName: string; binary: string; available: boolean; resolvedPath?: string; version?: string; error?: string }`
-  - `AgentEvent = { type: 'text' | 'tool_start' | 'tool_end' | 'diff' | 'error' | 'done'; content?: string; metadata?: Record<string, unknown> }`
-  - `AgentAdapter`: `detect(): Promise<AgentStatus>`, `run(req: AgentRunRequest, onEvent: (e: AgentEvent) => void, token: vscode.CancellationToken): Promise<void>`
-- **Critérios de Aceite (DoD)**:
-  - [x] Detecta `claude`, `codex` e `agy` sem usar `shell: true` (via resolução de `PATH` + `~/.local/bin` + `spawn(bin, ['--version'], { shell: false })`).
-  - [x] Comando `tarot.agents.refresh`, `tarot.agents.select` e item na Status Bar exibindo o agente ativo (`$(sparkle) Tarot: claude`).
-  - [x] Configurações `tarot.agents.default`, `tarot.agents.paths.{claude,codex,agy}`, `tarot.agents.timeoutMs` e `tarot.agents.custom` registradas no schema de Settings.
-- **Verificação**:
-  ```bash
-  pnpm exec gulp compile-extension:tarot-core
-  ```
+### Marcos Concluídos da Fase 3 (M3.1 – M3.6.5 + Saneamento Pré-M3.6.6 — ✅ Concluídos)
+
+| Marco | Escopo entregue em `extensions/tarot-core/` |
+| --- | --- |
+| **M3.1** (UC-01) | `tarotConfig`, `agents/{types,processRunner,runtimeManager}`: auto-detecção segura (`shell: false`) de `claude`, `codex`, `agy` + `tarot.agents.custom`, Status Bar e comandos `tarot.agents.*`. |
+| **M3.2** (UC-01, UC-02) | Layout Kiro: container esquerdo **Tarot** (4 TreeViews: Specs, Hooks, Steering, Local Agents) + **Tarot Agent** (`WebviewView`) na Secondary Side Bar com CSP estrita (`nonce`) e zero `innerHTML`. |
+| **M3.3** (UC-02, UC-06) | Adaptadores reais (`claude`, `agy`, `codex`, `custom`), `promptBuilder`, `sessionStore` agnóstico em `.tarot/sessions/<id>.json`, streaming, cancelamento `SIGTERM` e handoff entre agentes. |
+| **M3.4** (UC-02) | Paridade visual do painel Kiro: abas multi-sessão, disclosures (`Thought complete`, `tool calls`, `Elapsed time`), composer Kiro (`#`, `📎`, `○`, agente, modo, `Autopilot`), `contextProviders` (`#File`, `#Folder`, `#Codebase`, `#Problems`, `#Terminal`, `#Git Diff`, `#Steering`) e `checkpointService` (`Restore Checkpoint`). |
+| **M3.5** (UC-04) | `steeringService`: descoberta hierárquica (`AGENTS.md`, `~/.tarot/steering`, `.tarot/steering`), 4 modos de inclusão (`always`, `fileMatch`, `auto`, `manual`) e comando `tarot.steering.generate` (`product.md`, `tech.md`, `structure.md`). |
+| **M3.6** (UC-03) | `specs/{specService,taskParser,taskCodeLensProvider}`: Feature Spec (Requirements-First e Design-First em EARS), Bugfix Spec (`bugfix.md`), gates entre fases, card `Updated task list` e CodeLens `▶ Run Task` / `Run Task with...`. |
+| **M3.6.5** (UC-02, UC-03) | Boot Agent-First (Secondary Side Bar + Command Center visíveis), Review Queue (`git/gitReviewService.ts`, diff HEAD×working tree, revert), popup `/` de Slash Commands, `#Spec`, `Ctrl+L` (*Send Selection*), Dockable Chat Tab (`⤢`), Agent Focus Mode toggle e AI Commit Message (`✦`). |
+| **M3.6.5-bis** (saneamento pré-M3.6.6) | Consistência de idioma, manifesto e template de Hooks — sem novo marco funcional. Ver abaixo. |
 
 ---
 
-### Marco M3.2 — Layout Kiro: Activity Bar Esquerda + Painel Agêntico na Secondary Side Bar (UC-01, UC-02) — ✅ Concluído
-- **Objetivo**: criar a estrutura visual do **Kiro IDE** — container **Tarot** na barra lateral esquerda com 4 TreeViews (**Specs**, **Agent Hooks**, **Agent Steering**, **Local Agents**) e **Painel Agêntico** (`WebviewView`) ancorado na **Secondary Side Bar (direita)**.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/package.json` (`viewsContainers`, `views`, `menus`)
-  - `extensions/tarot-core/src/views/tarotSidebarViews.ts`
-  - `extensions/tarot-core/src/views/agentPanelView.ts`
-  - `extensions/tarot-core/media/webview/{panel.css,panel.js}`
-- **Critérios de Aceite (DoD)**:
-  - [x] Container esquerdo **Tarot** exibe as 4 seções (`Specs`, `Hooks`, `Steering`, `Local Agents`) com ícones coerentes e ações inline (`+`, refresh).
-  - [x] Painel direito (`WebviewView` em `viewsContainers.secondarySidebar`) exibe: seletor de agente (`claude` / `agy` / `codex`), toggle **Vibe / Spec**, lista de mensagens com streaming, botão de cancelar execução e chip de arquivos anexados do editor ativo.
-  - [x] CSP estrita com `nonce` gerada por renderização e sanitização de todo output de agente (DOM seguro com `textContent`, zero `innerHTML`).
-- **Verificação**:
-  ```bash
-  pnpm exec gulp compile-extension:tarot-core
-  ./scripts/code.sh # validar visualmente barras esquerda e direita
-  ```
+### Saneamento Pré-M3.6.6 (✅ Concluído)
 
----
+Três inconsistências encontradas na auditoria do fork, resolvidas antes de iniciar M3.6.6:
 
-### Marco M3.3 — Adaptadores dos Agentes Locais (`claude`, `codex`, `agy`) + Vibe Mode (UC-02, UC-06) — ✅ Concluído
-- **Objetivo**: conectar o Painel Agêntico aos executáveis reais da máquina com streaming em tempo real, cancelamento limpo (`SIGTERM`), envio de contexto (`#file`, `#selection`) e persistência agnóstica de sessão.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/agents/promptBuilder.ts`
-  - `extensions/tarot-core/src/agents/sessionStore.ts`
-  - `extensions/tarot-core/src/agents/adapters/{claudeAdapter,agyAdapter,codexAdapter,customAdapter}.ts`
-- **Critérios de Aceite (DoD)**:
-  - [x] Enviar prompt no Vibe Mode dispara o agente selecionado (`claude`, `agy`, `codex` ou custom), transmite resposta incremental no painel e permite cancelar a qualquer momento.
-  - [x] Trocar de agente no seletor preserva o histórico em `.tarot/sessions/<sessionId>.json` e injeta resumo de contexto no novo agente (`UC-06`).
-  - [ ] *(Aprimoramento futuro)* Ação dedicada no card de resposta para abrir diff de arquivos modificados via `vscode.diff`.
+1. **Template de Agent Hook desatualizado**: `tarot.hooks.create` gerava um JSON no formato legado (`trigger: "onSave"`, `glob`, `agent`, `prompt` no topo). Agora emite o **schema `v1`** (`.tarot/hooks/*.json`): `{ "version": "v1", "hooks": [{ name, description, enabled, trigger: "PostFileSave", matcher, timeout, action: { type, prompt } }] }`, alinhado à especificação de M3.7 e ao `KIRO_ARCHITECTURE_REFERENCE.md`. O *prompt* do hook continua em PT-BR (conteúdo dirigido ao agente).
+2. **Comandos registrados mas não declarados**: `tarot.agents.selectById`, `tarot.specs.runTask` e `tarot.specs.runTaskWith` existiam em runtime porém ausentes de `contributes.commands` — invisíveis na Command Palette e não vinculáveis a atalhos. Foram declarados com títulos em `package.nls.json` (`command.agents.selectById.title`, `command.specs.runTask.title`, `command.specs.runTaskWith.title`) e ocultados da Palette via `contributes.menus.commandPalette` com `"when": "false"` (são invocados com argumentos por *inline action* de TreeView e CodeLens).
+3. **UI bilíngue**: o manifesto, o walkthrough e o painel já eram em Inglês, enquanto as mensagens de código eram PT-BR hardcoded. Foi aplicada a divisão de idioma formalizada em `PROJECT_CONTEXT.md` §3.5: **chrome da UI em Inglês via `vscode.l10n.t()`** (novo catálogo `src/views/panelStrings.ts` injetado na webview como `window.__tarotL10n`, consumido por `t(key, ...)` em `media/webview/panel.js`) e **prompts/templates gerados em PT-BR**. Bundles de tradução ficam para a Fase 4.
 
----
-
-### Marco M3.4 — Paridade Visual do Painel Kiro (Abas de Sessão, Disclosures, Composer Exato, `#` Context Providers, `Autopilot` Toggle e Checkpoints) (UC-02) — ✅ Concluído
-- **Objetivo**: alinhar 100% a UX do `Tarot Agent` aos prints oficiais do Kiro IDE (ver `docs/KIRO_ARCHITECTURE_REFERENCE.md` Seção 3.1) e entregar `#` Context Providers + Autonomia + Checkpoints.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/context/contextProviders.ts`
-  - `extensions/tarot-core/src/checkpoints/checkpointService.ts`
-  - Atualizações em `agentPanelView.ts`, `panel.css`, `panel.js`, `sessionStore.ts`, `promptBuilder.ts`, `agyAdapter.ts` e `types.ts`
-- **Especificação (fiel aos prints oficiais do Kiro)**:
-  - **Abas horizontais de sessão no topo do painel direito**: `TAROT | [Sessão 1] [• Spec: ...] [+]` com alternância entre múltiplas sessões e fechamento individual.
-  - **Transcript estruturado**: seções recolhíveis `> Thought complete` e `> N tool calls`, rodapé **`Elapsed time: Xm Ys`** e ação **`↺ Restore Checkpoint`** por turno.
-  - **Composer exato do Kiro**: `<textarea>` no topo com botão quadrado `↑`/`■` no canto superior direito; barra inferior interna com `#` · `📎` · anel de contexto `○` · seletor do agente (`claude / agy / codex ⌄`) à esquerda, e seletor de modo (`Vibe / Spec / Plan ⌄`, `Shift+Tab`) + **`Autopilot` toggle switch** à direita.
-  - **Menu `#` empilhável**: `#File`, `#Folder`, `#Codebase`, `#Problems` (`vscode.languages.getDiagnostics`), `#Terminal`, `#Git Diff` (`git diff`) e `#Steering`.
-  - **Checkpoints**: snapshot automático por turno em `.tarot/checkpoints/<sessionId>/<turnId>/` com botão **Restore Checkpoint** em 1 clique preservando o histórico da conversa.
-- **Critérios de Aceite (DoD)**:
-  - [x] Painel direito exibe abas de múltiplas sessões + botão `+`, disclosures recolhíveis de tool calls e `Elapsed time`.
-  - [x] Composer segue o layout exato (botão `↑` no topo direito, `#` / `📎` / `○` / agente à esquerda e modo + switch `Autopilot` à direita).
-  - [x] Digitar `#` abre popup filtrável; `#Problems`, `#Git Diff`, `#File`, `#Folder`, `#Terminal`, `#Codebase` e `#Steering` injetam dados reais no prompt.
-  - [x] Clicar em **Restore Checkpoint** restaura arquivos do turno mantendo o histórico visível.
-
----
-
-### Marco M3.5 — Agent Steering Completo (`product.md`, `tech.md`, `structure.md`, `AGENTS.md`, 4 Modos) (UC-04) — ✅ Concluído
-- **Objetivo**: implementar o sistema completo de Steering do Kiro (workspace + global + `AGENTS.md`) injetado em todos os agentes locais.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/steering/steeringService.ts`
-  - Integração com `tarotSidebarViews.ts` (`SteeringTreeProvider`), `contextProviders.ts`, `agentPanelView.ts`, `panel.js` e `extension.ts`
-- **Especificação**:
-  - Hierarquia de descoberta: `AGENTS.md` (raiz do repo) + `~/.tarot/steering/*.md` (global) + `.tarot/steering/*.md` (workspace).
-  - Parser de frontmatter YAML suportando os **4 modos oficiais do Kiro**:
-    - `inclusion: always` *(padrão)*
-    - `inclusion: fileMatch` + `fileMatchPattern` (glob casado contra editor ativo e `#File` anexados)
-    - `inclusion: auto` + `description` (incluído quando relevante ao prompt)
-    - `inclusion: manual` (injetado apenas quando referenciado via `#steering-name` ou `#Steering`)
-  - Comando **`Tarot IDE: Generate Project Steering Documents`** (`tarot.steering.generate`) criando `product.md`, `tech.md` e `structure.md` com opção de preenchimento via agente ativo.
-- **Critérios de Aceite (DoD)**:
-  - [x] TreeView **Agent Steering** exibe grupo *Workspace*, *Global* e `AGENTS.md` com badge do modo de inclusão.
-  - [x] Todos os 4 modos de inclusão funcionam de forma determinística e são visíveis nos metadados do turno (`> N steering docs`).
-
----
-
-### Marco M3.6 — Spec-Driven Development Completo (Feature EARS, Bugfix `bugfix.md`, Run Task & PBT) (UC-03) — ✅ Concluído
-- **Objetivo**: implementar o ciclo completo de Specs do Kiro IDE, incluindo Feature Specs (*Requirements-First* e *Design-First*), Bugfix Specs e execução granular de tarefas por qualquer agente local.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/specs/specService.ts`
-  - `extensions/tarot-core/src/specs/taskParser.ts`
-  - `extensions/tarot-core/src/specs/taskCodeLensProvider.ts`
-  - Integração em `tarotSidebarViews.ts` (`SpecsTreeProvider`), `agentPanelView.ts`, `panel.js`, `panel.css` e `extension.ts`
-- **Especificação**:
-  - **Feature Spec**: `.tarot/specs/<slug>/{requirements.md,design.md,tasks.md}` usando notação **EARS** (`WHEN ... THE SYSTEM SHALL ...`), suportando entrada *Requirements-First* e *Design-First* + seção de *Correctness / Property-Based Testing* em `design.md`.
-  - **Bugfix Spec**: `.tarot/specs/<slug>/{bugfix.md,design.md,tasks.md}` com os 3 blocos EARS (*Current Behavior*, *Expected Behavior*, *Unchanged Behavior*).
-  - **Portões de aprovação humana** entre fases (Requirements/Bugfix → Design → Tasks) no painel agêntico.
-  - **Card `Updated task list`** no transcript do painel direito com barra de progresso contínua (`done/total`) e checklist com ícones `✓` (paridade com Print 3 do Kiro).
-  - **CodeLens em `tasks.md`** sobre cada `- [ ]`: **`▶ Run Task`** (agente ativo) e **`▶ Run Task with...`** (`claude` / `agy` / `codex`), marcando `- [x]` após conclusão.
-- **Critérios de Aceite (DoD)**:
-  - [x] Comando `Tarot: New Spec` permite escolher **Feature (Requirements-First)**, **Feature (Design-First)** ou **Bugfix**.
-  - [x] CodeLens em `tasks.md` dispara o agente escolhido com o contexto completo da Spec + Steering e atualiza progresso (`done/total tasks`) na TreeView e no card `Updated task list` do painel direito.
-
----
-
-### Marco M3.6.5 — Paridade Imediata de Look & Feel + UX Kiro (Boot Agent-First, Review Queue, `/`, `#Spec`, `Ctrl+L`, Dockable Tab & AI Commit) (UC-02, UC-03) — ✅ Concluído
-- **Objetivo**: eliminar a sensação de "VS Code com sidebar" e entregar o fluxo e aparência imediata do **Kiro IDE** no primeiro boot.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/package.json` (`keybindings`, `menus.editor/context`, `menus.editor/title`, `menus.scm/title`, `configurationDefaults`)
-  - `extensions/tarot-core/src/views/agentPanelView.ts` + `media/webview/{panel.js,panel.css}`
-  - `extensions/tarot-core/src/context/contextProviders.ts` (`#Spec`)
-  - `extensions/tarot-core/src/git/gitReviewService.ts` (Review Queue `git status/diff --numstat` + AI Commit Message)
-  - `extensions/tarot-core/src/extension.ts` (auto-focus Secondary Side Bar no boot, `Ctrl+L`, Dockable Chat Tab, Agent Focus Mode toggle, AI Commit)
-- **Especificação**:
-  1. **Boot Agent-First**: `Tarot Agent` na Secondary Side Bar aberto por padrão ao iniciar a IDE (`workbench.secondarySideBar.defaultVisibility: "visible"` + `window.commandCenter: true` via `configurationDefaults` e ativação automática da view) + botão **Agent Focus Mode** no canto superior direito (`editor/title` / `view/title`).
-  2. **Barra de Arquivos Alterados (Review Queue)** acima do composer: mostra `N files changed (+X -Y)` com lista expansível de arquivos, clique abrindo `vscode.diff` (HEAD vs working tree) e botão `↺ Revert File`.
-  3. **Popup de Slash Commands (`/`) no Composer**: `/spec`, `/bugfix`, `/plan`, `/steering`, `/review`, `/focus`, `/clear`, filtrável ao digitar `/`, além do novo provedor **`#Spec`** no menu `#`.
-  4. **Send Selection to Agent (`Ctrl+L`)**: comando + menu de contexto no editor enviando a seleção (com arquivo e intervalo de linhas) direto como chip no composer do `Tarot Agent`.
-  5. **Dockable Chat Tab**: botão `⤢` na barra de abas do painel direito abrindo a sessão ativa como aba full-width no editor central (`WebviewPanel`).
-  6. **AI Commit Message (`✦`)**: botão na barra do **Source Control** que lê `git diff --staged` (ou working tree) e gera mensagem Conventional Commit via agente local ativo (`claude`, `agy`, `codex`).
-- **Critérios de Aceite (DoD)**:
-  - [x] Ao abrir o Tarot IDE, a barra de busca central (`Command Center`) e o painel direito `Tarot Agent` já aparecem visíveis por padrão.
-  - [x] Digitar `/` no composer abre popup de Slash Commands; `#Spec` injeta uma Spec de `.tarot/specs/`.
-  - [x] `Ctrl+L` no editor anexa a seleção no composer e foca o `Tarot Agent`.
-  - [x] Barra de arquivos alterados acima do composer lista arquivos modificados no Git e abre `vscode.diff` em 1 clique.
-  - [x] Botão `⤢` destaca a sessão em aba no editor central; botão `✦` no Source Control gera commit message com o agente local.
+- **Arquivos-alvo**: `src/extension.ts`, `src/agents/{runtimeManager,sessionStore}.ts`, `src/agents/adapters/*.ts`, `src/checkpoints/checkpointService.ts`, `src/context/contextProviders.ts`, `src/git/gitReviewService.ts`, `src/specs/taskCodeLensProvider.ts`, `src/views/{agentPanelView,tarotSidebarViews,panelStrings}.ts`, `media/webview/panel.js`, `package.json`, `package.nls.json`.
+- **DoD**: `pnpm exec gulp compile-extension:tarot-core` com 0 erros; `package.json`/`package.nls.json` válidos; nenhuma ocorrência de `innerHTML`/`shell: true`; strings de UI externalizadas com `vscode.l10n.t()` (PT-BR remanescente apenas em prompts/templates).
 
 ---
 
@@ -227,20 +117,22 @@ extensions/tarot-core/
   - **Markdown Review**: botão flutuante **Review** em `requirements`/`design`/`bugfix` para comentar trechos exatos e enviar todos os comentários de uma vez ao agente.
   - **"Generate spec"** dentro de uma sessão Vibe pergunta se deve iniciar sessão Spec reaproveitando o contexto.
   - **Transcript**: tool calls em cards individuais (`Replace in File`, `Write File` com chip do arquivo e `✓`); falha de PBT exibe `Counter-example:` (input reduzido por *shrinking*) e `Error:`; ao corrigir, o agente pode salvar a regra aprendida em `.tarot/steering/`.
+  - **Testes de Fronteira vs Unitários nas Specs** (*Frontier Engineering*): templates de `design.md` e `tasks.md` separam explicitamente **testes de contrato/fronteira** (integração/E2E e PBT de invariantes, preserváveis em reescritas) de testes unitários acoplados à implementação; a suíte base em `src/test/` roda lógica pura via `node --test` (sem importar `vscode`) como *fast feedback loop* determinístico.
 - **Critérios de Aceite (DoD)**:
   - [ ] Abrir qualquer arquivo de Spec exibe o stepper clicável com a etapa ativa.
   - [ ] "Let's build" oferece Spec / Plan / Bug Fix / Quick Spec; Plan não escreve arquivos; Quick Spec gera os 3 artefatos sem gates.
   - [ ] **Analyze Requirements** e **Markdown Review** funcionam sobre `requirements.md`/`bugfix.md`/`design.md`.
   - [ ] `Counter-example:` e tool calls aparecem estruturados no transcript.
-  - [ ] Suíte unitária inicial executa e passa via CLI.
+  - [ ] Suíte unitária inicial (lógica pura sem `vscode`) executa e passa via CLI (`node --test`).
 
 ---
 
-### Marco M3.6.7 — Motor de Tarefas de Spec (Run All Tasks em Ondas, Opcionais `*`, Sync Files, Rastreabilidade, Per-Task Diff) (UC-03)
-- **Fonte**: `kiro.dev/docs/specs/` (Task Execution / Parallel tasks), Best Practices (Sync Files, import de requisitos) e Print 1.
-- **Arquivos-alvo**: `extensions/tarot-core/src/specs/{taskParser,taskGraph,taskRunner,taskCodeLensProvider,specSync}.ts`, `checkpointService.ts`.
+### Marco M3.6.7 — Motor de Tarefas de Spec (Run All Tasks em Ondas, Opcionais `*`, Sync Files, Rastreabilidade, Per-Task Diff & Worktrees) (UC-03)
+- **Fonte**: `kiro.dev/docs/specs/` (Task Execution / Parallel tasks), Best Practices (Sync Files, import de requisitos), `topics/frontier-engineering/` e Print 1.
+- **Arquivos-alvo**: `extensions/tarot-core/src/specs/{taskParser,taskGraph,taskRunner,taskCodeLensProvider,specSync}.ts`, `extensions/tarot-core/src/git/worktreeManager.ts`, `checkpointService.ts`.
 - **Especificação**:
-  - **Run all Tasks**: monta grafo de dependências de `tasks.md` e agrupa tarefas independentes em **ondas** (Wave 1 = sem dependências, Wave 2 = dependências satisfeitas pela Wave 1…); ondas em sequência, tarefas da mesma onda em paralelo. Executa só tarefas **incompletas e obrigatórias**. *(Em BYOA cada tarefa da onda roda como uma execução de CLI isolada; recomendar worktree por tarefa quando houver risco de conflito.)*
+  - **Run all Tasks**: monta grafo de dependências de `tasks.md` e agrupa tarefas independentes em **ondas** (Wave 1 = sem dependências, Wave 2 = dependências satisfeitas pela Wave 1…); ondas em sequência, tarefas da mesma onda em paralelo. Executa só tarefas **incompletas e obrigatórias**.
+  - **Git Worktrees Gerenciados (`git/worktreeManager.ts`)**: serviço leve (criar, listar, aplicar/cherry-pick ou descartar worktree isolado) usado opcionalmente por tarefas paralelas de uma onda (e reutilizado em M3.8c/M3.9a para sessões paralelas e prototipação comparativa de 2 designs lado a lado sem conflito de arquivos).
   - **Tarefas opcionais** marcadas com `*` (ex.: testes PBT, docs extras); escolha na criação: *manter opcionais (MVP rápido)* ou *tornar tudo obrigatório*. PBTs são opcionais por padrão.
   - **Rastreabilidade**: cada tarefa referencia `_Requirements: 1.1, 1.2_`; tarefas de PBT trazem `**Property N: ...**` e `**Validates: Requirements x.y**`; passar o mouse numa propriedade no `design.md` mostra requisito e tarefa ligados.
   - **Estados em tempo real**: `in progress` / `completed` na lista; CodeLens pós-conclusão `✓ Task completed | ↺ View changes` (diff **por tarefa**, exige checkpoint por tarefa) + gutter verde.
@@ -277,7 +169,7 @@ extensions/tarot-core/
 - **`matcher` de ferramenta**: ID da ferramenta, tag de categoria (`read`, `write`, `shell`), `@mcp`, `@<servidor>`, wildcard ou regex.
 - **Contrato do `command`**: contexto como JSON no **STDIN** (`hook_event_name`, `cwd`, `session_id`, arquivo/ferramenta); `exit 0` ⇒ STDOUT entra no contexto do agente; `exit 2` ⇒ bloqueia (PreToolUse/PromptSubmit) ou cancela (PreCompaction); outro código ⇒ STDERR vira aviso ao usuário/agente; `timeout` padrão 60 s (`0` desativa). Ação `agent` consome tokens (novo loop); `command` não.
 - **`confirm` em hooks `Stop` com `command`**: pergunta + opções (`id`, `label`, `run`), opcional `confirmCommand` que devolve `{ "skip": true }` ou pergunta/opções dinâmicas (fallback para a estática se falhar).
-- **Criação**: botão `+` → **Ask Tarot to create a hook** (linguagem natural gera o JSON); on-demand manual = *steering* `inclusion: manual` invocado por `/nome`.
+- **Criação**: botão `+` → **Ask Tarot to create a hook** (linguagem natural gera o JSON) + **presets built-in de guardrails determinísticos** (*secret/credential scan* em diff/output, lint/typecheck em `Stop`/`PreToolUse`); on-demand manual = *steering* `inclusion: manual` invocado por `/nome`. *(Pré-requisito já entregue no saneamento pré-M3.6.6: `tarot.hooks.create` grava o template no schema `v1` com ação `agent`.)*
 - **Segurança**: fila serial por hook, debounce, **nenhum hook roda em workspace não confiável**, escrita em `.tarot/hooks/` sempre pede confirmação (ver M3.8a).
 - **Critérios de Aceite (DoD)**:
   - [ ] Triggers de arquivo, `PromptSubmit`, `Stop`, `PreToolUse`/`PostToolUse` funcionam para `command` e `agent`, com toggle, `timeout` e Play.
@@ -300,7 +192,7 @@ extensions/tarot-core/
   - **Modos de permissão no composer** (substituem o toggle binário Autopilot): **Supervised** (aprova por turno com edições, hunks aceitar/rejeitar/discutir), **Accept file changes** (equivale ao antigo Autopilot) e **Approve for me**. O switch atual vira atalho para *Accept file changes*.
   - **Workspace Trust ampliado**: em workspace não confiável **não carregar** agentes, steering, skills, MCP e workflows do `.tarot/`; perguntar antes de **todo** shell/MCP/Power (inclusive com regra `allow`); decisão guardada fora do workspace.
   - **Sub-agentes**: cada chamada é avaliada contra a política da sessão pai **e** a do sub-agente; vence a mais estrita; regra `allow` do sub-agente nunca excede o pai; capability `subagent` só controla o *início*.
-  - **Cartões de aprovação** no transcript (*Allow / Deny / Always allow / Always deny* ou feedback) e estado *parked* (`🔒 N sub-agent needs approval`).
+  - **Cartões de aprovação** no transcript (*Allow / Deny / Always allow / Always deny* ou feedback), destacando visualmente **ações reversíveis vs irreversíveis** (ex.: escrita em workspace com checkpoint vs deploy/delete/rede externa), e estado *parked* (`🔒 N sub-agent needs approval`).
 - **⚠ Risco BYOA**: Tarot só **impõe** regras nas ações que passam por ele (hooks, git, checkpoints, ferramentas próprias). Para `claude`/`codex`/`agy` as regras são **traduzidas em flags nativas** (permission mode, sandbox, allow/deny lists) quando existirem e marcadas como **advisory** quando o CLI não suportar — a UI deve mostrar *enforced* vs *advisory*.
 - **Critérios de Aceite (DoD)**:
   - [ ] `permissions.yaml` (user + workspace externo) avaliado com deny-overrides, `match`/`exclude` e parser de shell composto.
@@ -335,7 +227,8 @@ extensions/tarot-core/
   - **Medidor de contexto real** (substitui o anel `○` decorativo) e **compaction automática** perto de 80%: resumo estruturado que **preserva** status de tarefas, arquivos modificados, decisões/restrições, próximos passos e intenção; comprime saída de tools, raciocínio intermediário e erros resolvidos; mantém as últimas mensagens literais; avisa o agente quais skills/steering foram descartados e recarrega os pedidos. Configurações `tarot.compaction.{autoThreshold,excludeMessages}`. É unidirecional (oferecer export antes).
   - **Checkpoints** a cada prompt: **Restore** reverte arquivos **e** o contexto; **Revert** desfaz só o último turno; **Fork conversation** cria nova sessão a partir de um turno antigo **sem tocar nos arquivos** (não carrega artefatos). Limitação: só edições do agente são rastreadas; em BYOA usar snapshot por *git tree* para cobrir edições feitas pelo CLI.
   - **Atalhos**: `Ctrl+L` traz a seleção para o chat atual, `Ctrl+Shift+L` abre **nova sessão** com a seleção, `Ctrl+Alt+B` alterna a Secondary Side Bar; menu *Ask Tarot* com ações rápidas (*Fix Grammar/Spelling*, *Write Comments*, *Optimize*). Inline chat não existe.
-  - **Sessões**: abas, `+`, **History** (buscar/restaurar/excluir), **Task list**, **Export Chat** (`.md` e zip `session.json` + `messages.jsonl`), detecção de intenção (pergunta ⇒ resposta; diretiva ⇒ ação). Chats paralelos podem editar o mesmo workspace: oferecer **git worktree por sessão** e aviso de conflito.
+  - **Sessões**: abas, `+`, **History** (buscar/restaurar/excluir), **Task list**, **Export Chat** (`.md` e zip `session.json` + `messages.jsonl`), detecção de intenção (pergunta ⇒ resposta; diretiva ⇒ ação). Chats paralelos podem editar o mesmo workspace: oferecer **git worktree por sessão** (via `git/worktreeManager.ts`) e aviso de conflito.
+  - **Pre-PR Review (BYOA) & Evidence Summary**: ação de 1 clique na *Review Queue* / Source Control que dispara um **agente local diferente do autor** (ex.: `claude` escreveu → `codex`/`agy` revisa corretude, segurança, testes e aderência à Spec) e exibe um cartão resumo de evidências (testes, lint, PBT, diff) pronto para revisão assíncrona.
   - **Dev Servers**: processos longos em background sem bloquear o chat. *(Prioridade baixa: voz, anexos de imagem/PDF/CSV/DOCX, seletor de modelo **Auto**, `/model`, `/context`.)*
 - **Critérios de Aceite (DoD)**:
   - [ ] Medidor reflete tokens reais; compaction preserva os itens obrigatórios.
@@ -405,10 +298,10 @@ extensions/tarot-core/
 ### Marco M3.10 *(opcional / novo)* — Agendamento, Digests e Lições Aprendidas (UC-09)
 - **Fonte**: `kiro.dev/crew`, `docs/crew/*` (Crew é produto à parte, open source Apache-2.0, sobre Kiro CLI + ACP).
 - **Escopo no IDE**: jobs **cron** com fuso, *timeout* por job, *jitter* e datas de exclusão, cada run em **sessão própria**, logada e com checkpoint; entrega de resultado como notificação/**digest**; jobs sem chamada de modelo não gastam tokens.
-- **Lições**: correções do usuário (`"use pnpm, not npm"`) viram **lições** em Markdown no formato de steering (inspecionáveis, editáveis, escopo por workspace); fluxos repetidos podem virar skills.
+- **Lições & Hygiene de Steering**: correções do usuário (`"use pnpm, not npm"`) viram **lições** em Markdown no formato de steering (inspecionáveis, editáveis, escopo por workspace); fluxos repetidos podem virar skills; comando **Audit / Prune Steering** ajuda a revisar e podar regras redundantes ou workarounds de modelos antigos ao trocar de CLI/modelo.
 - **Critérios de Aceite (DoD)**:
   - [ ] Job cron cria sessão própria, registra log e gera notificação/digest.
-  - [ ] Correção do usuário gera lição editável em `.tarot/steering/`.
+  - [ ] Correção do usuário gera lição editável em `.tarot/steering/` e **Audit / Prune Steering** identifica regras obsoletas/redundantes.
 
 ---
 
@@ -420,7 +313,7 @@ extensions/tarot-core/
 | Hooks `Manual` | Hook manual legado; novo fluxo = steering `manual` via `/nome` | Seguir o novo fluxo |
 | `send_message`, pause/resume | Nativos do harness | MCP próprio + *session resume* por adaptador (ver M3.9a) |
 | Créditos por step | Exibidos no card do run | Exibir tokens/tempo quando o CLI reportar |
-| Worktrees | Workflows não isolam; IDE usa a branch atual ou worktree | Oferecer worktree por run/sessão |
+| Worktrees | Workflows não isolam; IDE usa a branch atual ou worktree | `git/worktreeManager.ts` gerenciado por onda/sessão/run (M3.6.7+) |
 | Crew / bots / mensageria | Produto separado | Fase 5 opcional |
 
 ---
