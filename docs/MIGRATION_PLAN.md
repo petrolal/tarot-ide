@@ -2,7 +2,8 @@
 
 > **Guia de execução estruturado para agentes de IA e engenheiros.**
 > Cada etapa abaixo define: **Objetivo**, **Arquivos-Alvo**, **Contratos/Especificação**, **Critérios de Aceite (DoD)** e **Comandos de Verificação**.
-> Consulte `docs/PROJECT_CONTEXT.md` para regras obrigatórias, stack e casos de uso (`UC-01` a `UC-07`).
+> Consulte `docs/PROJECT_CONTEXT.md` para regras obrigatórias, stack e casos de uso (`UC-01` a `UC-11`).
+> Os marcos M3.6.6 em diante foram validados contra a leitura direta de `kiro.dev` (specs, workflows, hooks, permissões, agentes, skills, chat, Crew) em 19/11/2026; ver `docs/KIRO_ARCHITECTURE_REFERENCE.md` Seção 4.
 
 ---
 
@@ -12,8 +13,9 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.5 ✅ · próximo: M3.7 → M3.9)** | **Sim — iniciar por M3.7** |
-| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9 |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.5 ✅ · próximo: M3.6.6 → M3.6.7 → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.6.6** |
+| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
+| **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
 ---
@@ -209,74 +211,217 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.7 — Agent Hooks Engine `v1` (File + Lifecycle + Manual + Natural Language Creation) (UC-05)
-- **Objetivo**: implementar a engine de automações orientadas a eventos fiel ao schema `v1` do Kiro IDE.
+### Marco M3.6.6 — Specs: UX Kiro (Stepper, Modos de Sessão, Quick Spec, Analyze Requirements, Markdown Review, PBT no Transcript) + Testes Base (UC-03)
+- **Fonte**: `kiro.dev/docs/specs/*` (Feature, Bugfix, Quick Spec, Analyze Requirements, Correctness, Best Practices) + Print 1.
+- **Objetivo**: fechar a paridade de UX de Specs e iniciar a cobertura de testes unitários em `extensions/tarot-core/`.
 - **Arquivos-alvo**:
-  - `extensions/tarot-core/src/hooks/hookEngine.ts`
-  - Integração com `tarotSidebarViews.ts` e `agentPanelView.ts`
-- **Schema `v1` (`.tarot/hooks/*.json` e `~/.tarot/hooks/*.json`)**:
-  ```json
-  {
-    "version": "v1",
-    "hooks": [
-      {
-        "name": "Lint on save",
-        "enabled": true,
-        "trigger": "PostFileSave",
-        "matcher": "\\.(ts|tsx)$",
-        "action": {
-          "type": "command",
-          "command": "pnpm exec eslint --fix {{file}}"
-        }
-      }
-    ]
-  }
-  ```
+  - `extensions/tarot-core/src/specs/specStepper.ts` (barra/CodeLens `📋 <slug> [1 Requirements] > [2 Design] > [3 Task list]` no topo de `.tarot/specs/<slug>/*.md`)
+  - `extensions/tarot-core/src/specs/specService.ts` (modos Quick Spec, Plan, Analyze Requirements, "Generate spec" a partir de sessão Vibe)
+  - `extensions/tarot-core/src/specs/markdownReview.ts` (comentários por trecho enviados em lote ao agente)
+  - `extensions/tarot-core/src/views/agentPanelView.ts` + `media/webview/{panel.js,panel.css}` (tela **"Let's build"**, cards de tool calls, bloco de `Counter-example`)
+  - `extensions/tarot-core/src/test/**` (suíte unitária: `taskParser`, `steeringService`, `promptBuilder`, `gitReviewService`, `specService`)
 - **Especificação**:
-  - Triggers: `PostFileCreate`, `PostFileSave`, `PostFileDelete` (com `matcher` regex), `Stop` (fim de turno do agente), `SessionStart`, `SessionEnd` e `Manual` (botão Play na TreeView).
-  - Ações: `type: "command"` (execução direta segura sem shell injection) e `type: "agent"` (dispara prompt no agente escolhido).
-  - **Natural Language Hook Creation**: opção no botão `+` para descrever o hook em português/inglês e deixar o agente local gerar o JSON `v1` válido automaticamente.
-  - Debounce, fila serial por hook e **bloqueio obrigatório quando `!vscode.workspace.isTrusted`**.
+  - **Tela inicial "Let's build"** com seletor opcional de modo de sessão: **Spec**, **Plan** (somente plano, sem alterar arquivos), **Bug Fix**, **Quick Spec** (perguntas de esclarecimento → gera `requirements.md`/`design.md`/`tasks.md` sem portões de aprovação). Sem escolha = agente **Default**. Configuração `tarot.specs.defaultWorkflow` para pular a escolha.
+  - **Stepper** `1 Requirements > 2 Design > 3 Task list` (Bugfix usa `bugfix.md`); no Design-First a ordem é Design → Requirements → Tasks.
+  - **Analyze Requirements**: ação no menu **Continue** do editor (e no chat) que detecta inconsistências lógicas, ambiguidades, restrições conflitantes e lacunas antes do Design.
+  - **Markdown Review**: botão flutuante **Review** em `requirements`/`design`/`bugfix` para comentar trechos exatos e enviar todos os comentários de uma vez ao agente.
+  - **"Generate spec"** dentro de uma sessão Vibe pergunta se deve iniciar sessão Spec reaproveitando o contexto.
+  - **Transcript**: tool calls em cards individuais (`Replace in File`, `Write File` com chip do arquivo e `✓`); falha de PBT exibe `Counter-example:` (input reduzido por *shrinking*) e `Error:`; ao corrigir, o agente pode salvar a regra aprendida em `.tarot/steering/`.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Hooks `PostFileSave` e `Manual` funcionam para `command` e `agent`, com toggle habilitar/desabilitar e botão Play na TreeView.
+  - [ ] Abrir qualquer arquivo de Spec exibe o stepper clicável com a etapa ativa.
+  - [ ] "Let's build" oferece Spec / Plan / Bug Fix / Quick Spec; Plan não escreve arquivos; Quick Spec gera os 3 artefatos sem gates.
+  - [ ] **Analyze Requirements** e **Markdown Review** funcionam sobre `requirements.md`/`bugfix.md`/`design.md`.
+  - [ ] `Counter-example:` e tool calls aparecem estruturados no transcript.
+  - [ ] Suíte unitária inicial executa e passa via CLI.
+
+---
+
+### Marco M3.6.7 — Motor de Tarefas de Spec (Run All Tasks em Ondas, Opcionais `*`, Sync Files, Rastreabilidade, Per-Task Diff) (UC-03)
+- **Fonte**: `kiro.dev/docs/specs/` (Task Execution / Parallel tasks), Best Practices (Sync Files, import de requisitos) e Print 1.
+- **Arquivos-alvo**: `extensions/tarot-core/src/specs/{taskParser,taskGraph,taskRunner,taskCodeLensProvider,specSync}.ts`, `checkpointService.ts`.
+- **Especificação**:
+  - **Run all Tasks**: monta grafo de dependências de `tasks.md` e agrupa tarefas independentes em **ondas** (Wave 1 = sem dependências, Wave 2 = dependências satisfeitas pela Wave 1…); ondas em sequência, tarefas da mesma onda em paralelo. Executa só tarefas **incompletas e obrigatórias**. *(Em BYOA cada tarefa da onda roda como uma execução de CLI isolada; recomendar worktree por tarefa quando houver risco de conflito.)*
+  - **Tarefas opcionais** marcadas com `*` (ex.: testes PBT, docs extras); escolha na criação: *manter opcionais (MVP rápido)* ou *tornar tudo obrigatório*. PBTs são opcionais por padrão.
+  - **Rastreabilidade**: cada tarefa referencia `_Requirements: 1.1, 1.2_`; tarefas de PBT trazem `**Property N: ...**` e `**Validates: Requirements x.y**`; passar o mouse numa propriedade no `design.md` mostra requisito e tarefa ligados.
+  - **Estados em tempo real**: `in progress` / `completed` na lista; CodeLens pós-conclusão `✓ Task completed | ↺ View changes` (diff **por tarefa**, exige checkpoint por tarefa) + gutter verde.
+  - **Sync Files** em `tasks.md`: regera/atualiza tarefas após mudança em requirements/design (Requirements-First e Design-First); specs permanecem sincronizados com o código evolutivo.
+  - **Design-First com importação**: anexar PNG/JPG (draw.io, whiteboard), colar texto de design, `#arquivo.md Generate a spec from it`, ou importar via MCP (Jira/Confluence); Kiro formaliza `design.md` e deriva requisitos. Referência `#spec:nome implement task 2.1`.
+  - **PBT**: propriedades extraídas dos requisitos EARS na fase de Design; execução sob demanda; falha vira cartão com opções (corrigir implementação, ajustar teste ou refinar requisito). Bugfix gera PBTs para: bug reproduzível, fix correto e comportamento inalterado preservado.
+- **Critérios de Aceite (DoD)**:
+  - [ ] **Run all Tasks** executa em ondas respeitando dependências e ignora tarefas opcionais/concluídas.
+  - [ ] `*` e `_Requirements:_`/`Validates:` são parseados, preservados e exibidos.
+  - [ ] `View changes` abre o diff isolado de uma tarefa; **Sync Files** gera tarefas novas sem apagar as concluídas.
+
+---
+
+### Marco M3.7 — Agent Hooks Engine `v1` (Arquivo + Ferramenta + Prompt + Ciclo de Vida + Compaction + Task) (UC-05)
+- **Fonte**: `kiro.dev/docs/hooks/` (+ `hooks/types`, `hooks/actions`) e blog `introducing-kiro`.
+- **Arquivos-alvo**: `extensions/tarot-core/src/hooks/{hookEngine,hookTypes,hookRunner,hookMigration}.ts`; integração em `tarotSidebarViews.ts` e `agentPanelView.ts`.
+- **Schema `v1`** (`.tarot/hooks/*.json` e `~/.tarot/hooks/*.json`, vários hooks por arquivo; global e workspace rodam juntos):
+  ```json
+  { "version": "v1",
+    "hooks": [ {
+      "name": "Lint on save", "description": "opcional", "enabled": true,
+      "trigger": "PostFileSave", "matcher": "\\.(ts|tsx)$",
+      "timeout": 60,
+      "action": { "type": "command", "command": "npx eslint --fix" } } ] }
+  ```
+- **Triggers** (disponibilidade por superfície da doc; Tarot aceita aliases de nome):
+  - **Prompt/turno**: `PromptSubmit` (`UserPromptSubmit`; variável `USER_PROMPT`; em ação `agent` o prompt é *anexado* ao do usuário; pode **bloquear** o envio), `Stop`/`AgentStop` (fim do turno).
+  - **Sessão**: `SessionStart`, `SessionEnd`.
+  - **Compaction**: `PreCompaction` (exit `2` cancela a compaction), `PostCompaction` (saída volta ao contexto).
+  - **Ferramenta**: `PreToolUse` (exit ≠ 0 **bloqueia** a ferramenta), `PostToolUse`, `PermissionRequest` (responde `allow`/`deny` ao prompt de permissão via `hookSpecificOutput.decision`; nunca sobrepõe `deny` de política nem prompts protegidos).
+  - **Arquivo** (regex no caminho): `PostFileCreate`, `PostFileSave`, `PostFileDelete`.
+  - **Tarefa de Spec**: `PreTaskExecution`, `PostTaskExecution`.
+  - **Manual**: botão Play na TreeView.
+- **`matcher` de ferramenta**: ID da ferramenta, tag de categoria (`read`, `write`, `shell`), `@mcp`, `@<servidor>`, wildcard ou regex.
+- **Contrato do `command`**: contexto como JSON no **STDIN** (`hook_event_name`, `cwd`, `session_id`, arquivo/ferramenta); `exit 0` ⇒ STDOUT entra no contexto do agente; `exit 2` ⇒ bloqueia (PreToolUse/PromptSubmit) ou cancela (PreCompaction); outro código ⇒ STDERR vira aviso ao usuário/agente; `timeout` padrão 60 s (`0` desativa). Ação `agent` consome tokens (novo loop); `command` não.
+- **`confirm` em hooks `Stop` com `command`**: pergunta + opções (`id`, `label`, `run`), opcional `confirmCommand` que devolve `{ "skip": true }` ou pergunta/opções dinâmicas (fallback para a estática se falhar).
+- **Criação**: botão `+` → **Ask Tarot to create a hook** (linguagem natural gera o JSON); on-demand manual = *steering* `inclusion: manual` invocado por `/nome`.
+- **Segurança**: fila serial por hook, debounce, **nenhum hook roda em workspace não confiável**, escrita em `.tarot/hooks/` sempre pede confirmação (ver M3.8a).
+- **Critérios de Aceite (DoD)**:
+  - [ ] Triggers de arquivo, `PromptSubmit`, `Stop`, `PreToolUse`/`PostToolUse` funcionam para `command` e `agent`, com toggle, `timeout` e Play.
+  - [ ] `PreToolUse` com `exit 2` bloqueia a ferramenta; `PromptSubmit` pode bloquear o envio.
   - [ ] Nenhum hook executa automaticamente em workspaces não confiáveis.
 
 ---
 
-### Marco M3.8 — MCP (`mcp.json`), Powers, Plan Subagent (`Shift+Tab`) & Permissões (`permissions.yaml`) (UC-06)
-- **Objetivo**: fechar a paridade com os recursos avançados do Kiro IDE 1.0+.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/mcp/mcpConfigService.ts`
-  - `extensions/tarot-core/src/permissions/permissionsService.ts`
-  - `extensions/tarot-core/src/powers/powersService.ts`
+### Marco M3.8a — Permissões Baseadas em Capacidades (`permissions.yaml`), Modos de Permissão e Workspace Trust (UC-06)
+- **Fonte**: `kiro.dev/docs/permissions/`, `custom-agents/subagents`, `ide/chat`, `workflows` (Security and trust).
+- **Arquivos-alvo**: `extensions/tarot-core/src/permissions/{permissionsService,policyEngine,shellParser,presets,trustService}.ts`; UI de aprovação em `agentPanelView.ts`.
 - **Especificação**:
-  - **MCP**: leitura hierárquica `.tarot/settings/mcp.json` → `~/.tarot/settings/mcp.json` com nova TreeView **MCP Servers** na barra lateral Tarot, provedor **`#MCP`** no popup `#` do composer e sincronização de flags/configs com `claude`, `agy` e `codex`.
-  - **Plan Subagent (`Shift+Tab` ou `/plan`)**: alterna para modo somente-leitura de exploração/planejamento sem alterar arquivos.
-  - **Powers**: pacotes sob demanda (`.tarot/powers/`) que ativam instruções + MCP apenas quando palavras-chave relevantes aparecem no prompt.
-  - **Permissões (`.tarot/permissions.yaml`) & UX `Supervised`**: regras declarativas para `shell`, `fs_read`, `fs_write`, `network` e `mcp` (`allow` / `deny` / `ask`), card de aprovação (*Accept / Reject*) no transcript quando em modo **Supervised** e links clicáveis (`> Edited file.ts`) abrindo `vscode.diff`.
+  - **Capabilities**: `fs_read`, `fs_write`, `shell`, `web_fetch`, `web_search`, `mcp`, `subagent`, `skill`, `power`, `context`, `diagnostics`, `sandbox_network`; meta: `all` (exceto `sandbox_network`), `builtin`, `filesystem`.
+  - **Efeitos** e prioridade `deny > ask > allow > evaluate`; **sem precedência entre escopos** (o mais restritivo vence). Regras com `match` e `exclude` (globs: FS usa `*`/`**`/`{a,b}`; shell/web/MCP só `*`).
+  - **Escopos**: *Tarot* (invariantes fixas), *administration* (opcional), *user* (`~/.tarot/settings/permissions.yaml`), *workspace* (**armazenado fora do repositório**, ex. `~/.tarot-ide/workspace-roots/<hash>/permissions.yaml`, para que um repo clonado não injete regras), *agent* (campo `permissions` do agente), *session* (decisões da sessão).
+  - **Parser de shell**: comandos compostos (`;`, `&&`, `||`, `|`) são divididos e avaliados um a um; flags combinadas são analisadas; comandos não analisáveis são bloqueados com pedido de reescrita ao agente.
+  - **Invariantes**: o agente **nunca** escreve em arquivos de permissões/settings, `.tarotignore` ou estados internos; **sempre pergunta** para `.git/**`, `.vscode/**`, `*.code-workspace` e diretórios `agents/`, `hooks/`, `workflows/`, `powers/` do `.tarot`.
+  - **Presets**: `allow-all`, `edit-workspace`, `read-workspace`, `read-all`, `read-only-shell`, `dev-shell`, `approve-for-me` (`evaluate` depende de classificador; indisponível ⇒ sem regras).
+  - **Padrão sem configuração**: leitura do workspace e `git` somente-leitura permitidos; todo o resto pergunta. **Headless**: `ask` vira `deny`.
+  - **Modos de permissão no composer** (substituem o toggle binário Autopilot): **Supervised** (aprova por turno com edições, hunks aceitar/rejeitar/discutir), **Accept file changes** (equivale ao antigo Autopilot) e **Approve for me**. O switch atual vira atalho para *Accept file changes*.
+  - **Workspace Trust ampliado**: em workspace não confiável **não carregar** agentes, steering, skills, MCP e workflows do `.tarot/`; perguntar antes de **todo** shell/MCP/Power (inclusive com regra `allow`); decisão guardada fora do workspace.
+  - **Sub-agentes**: cada chamada é avaliada contra a política da sessão pai **e** a do sub-agente; vence a mais estrita; regra `allow` do sub-agente nunca excede o pai; capability `subagent` só controla o *início*.
+  - **Cartões de aprovação** no transcript (*Allow / Deny / Always allow / Always deny* ou feedback) e estado *parked* (`🔒 N sub-agent needs approval`).
+- **⚠ Risco BYOA**: Tarot só **impõe** regras nas ações que passam por ele (hooks, git, checkpoints, ferramentas próprias). Para `claude`/`codex`/`agy` as regras são **traduzidas em flags nativas** (permission mode, sandbox, allow/deny lists) quando existirem e marcadas como **advisory** quando o CLI não suportar — a UI deve mostrar *enforced* vs *advisory*.
 - **Critérios de Aceite (DoD)**:
-  - [ ] TreeView lista servidores MCP configurados no workspace e no usuário e `#MCP` funciona no menu `#`.
-  - [ ] `Shift+Tab` no composer alterna entre `Vibe` / `Plan` / `Spec`.
-  - [ ] `.tarot/permissions.yaml` é avaliado antes de comandos `command` em Hooks e ações supervisionadas, com card de aprovação e abertura de `vscode.diff`.
+  - [ ] `permissions.yaml` (user + workspace externo) avaliado com deny-overrides, `match`/`exclude` e parser de shell composto.
+  - [ ] Os 3 modos de permissão funcionam e o estado *enforced/advisory* é visível por agente.
+  - [ ] Workspace não confiável não carrega nada de `.tarot/` e pergunta antes de shell/MCP.
 
 ---
 
-### Marco M3.9 — Workflows & Recipes Multi-Agente + Agent Swarms / Sessions View (UC-07)
-- **Objetivo**: implementar o motor de **Workflows & Recipes** visto no Kiro (`feature-pipeline`, `investigate`, `goal`, `publish-pr`, `semantic-review-multi-model`) aproveitando os múltiplos agentes locais do usuário (`claude`, `agy`, `codex`) por step.
-- **Arquivos-alvo**:
-  - `extensions/tarot-core/src/workflows/workflowEngine.ts`
-  - `extensions/tarot-core/src/workflows/recipes.ts`
-  - `extensions/tarot-core/src/views/workflowRunEditor.ts` (WebviewPanel no editor central)
-  - Novas views na barra esquerda: `WORKFLOW RUNS` + `RECIPES` e painel `SESSIONS` com busca
-- **Especificação (fiel aos prints oficiais do Kiro)**:
-  - Receitas declarativas em `.tarot/workflows/*.yaml` (e globais `~/.tarot/workflows/*.yaml`) definindo `steps` com `agent` (`claude` | `agy` | `codex` | `default`), `loop`, `parallel`, `gate` (`validate-gate` com testes/typecheck) e aprovação humana (`Approved`).
-  - Editor visual central mostrando status `Running · step X of Y`, badges `loop ×N` e `parallel`, sub-passos expansíveis e logs ao vivo.
-  - View **Sessions** com campo `Search sessions...`, botão `+ New ⌄`, status (`needs approval`, `done`, `running`), seção `Older Sessions >` e disclosures de sub-agentes (`> Spawned 1 sub-agent ...`) no transcript.
-  - **Agent Focus Mode completo (3 painéis)**: alternância no canto superior direito entre Editor View e Agent Focus Mode (Sessions à esquerda | Chat expandido central | Painel auxiliar de Specs/Diffs à direita).
+### Marco M3.8b — Skills, Custom Agents, Sub-agentes, Powers e MCP (UC-06)
+- **Fonte**: `kiro.dev/docs/{skills,custom-agents,custom-agents/subagents,powers,mcp,steering}/`.
+- **Arquivos-alvo**: `extensions/tarot-core/src/{skills/skillsService,agents/customAgentService,agents/subagentManager,powers/powersService,mcp/mcpConfigService}.ts`; ajustes em `steeringService.ts`.
+- **Especificação**:
+  - **Skills** (padrão *Agent Skills*): pasta com `SKILL.md` (+ `scripts/`, `references/`) em `.tarot/skills/` e `~/.tarot/skills/`; *progressive disclosure* (só nome+descrição no início, instruções completas ao casar com o pedido ou via `/nome [args]` / `$nome`); workspace vence global; **Import skill** (URL de repo GitHub/GitLab apontando subpasta, ou pasta local); skill ≥ 30.000 caracteres carrega por inteiro se couber.
+  - **Custom agents**: `.tarot/agents/<nome>.{md,json}` e `~/.tarot/agents/` (subpastas ⇒ `team/planner`; workspace vence). Campos: `name`, `description`, `tools`, `excludedTools`, `includeMcpJson`, `includePowers`, `resources` (`file://`, `skill://`), `permissions`, `prompt`, `model`, `welcomeMessage`. **Seletor de agente** no composer agrupado em *Built-in* (Default, Spec, Quick Spec, Bug Fix, Plan) / *User* / *Workspace*; troca mantém histórico e permissões; desabilitado durante execução multi-passo.
+  - **Sub-agentes**: janela de contexto isolada, herdam steering, MCP, acesso a arquivos e permissões; **DAG** planejado de antemão e imutável; **review loops** (`target`, `trigger` ≥ 4 caracteres, `max_iterations` 1–10; sem loop em si mesmo nem mútuo); built-ins: *Context gathering*, *General purpose*, *Validation*; execução paralela; orquestrador precisa da tool `subagent`.
+  - **Powers** (formato *Agent Plugins*): `plugin.json` (keywords de ativação) + `skills/` + `mcp.json`; ativam sob demanda e desativam ao mudar de assunto; instalação por registry ou URL GitHub; Powers ⊃ Skills; Steering é contexto específico do Tarot.
+  - **MCP**: `.tarot/settings/mcp.json` + `~/.tarot/settings/mcp.json`, servidores locais (stdio) e remotos (URL + headers), TreeView **MCP Servers**, `#mcp`, sincronização com os CLIs.
+  - **Steering (complementos de M3.5)**: modo `auto` exige `name`+`description`; `fileMatchPattern` aceita array; referências vivas `#[[file:<caminho>]]`; `AGENTS.md` também em **subdiretórios**; steering `manual`/`auto` aparecem como comandos `/`.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Receitas built-in (`feature-pipeline`, `investigate`, `semantic-review-multi-model`) listadas em `RECIPES` com botão Play `▷`.
-  - [ ] Executar uma Recipe abre o painel visual de steps no editor central, respeita `validate-gate` e registra o histórico em `WORKFLOW RUNS`.
-  - [ ] View **Sessions** filtra sessões via `Search sessions...`, exibe badges de aprovação e mostra sub-agentes nos disclosures.
+  - [ ] Skills carregam por *progressive disclosure*, são invocáveis por `/` e importáveis por URL/pasta.
+  - [ ] Custom agents aparecem no seletor agrupados por origem e respeitam `tools`/`permissions`.
+  - [ ] Sub-agente herda a política do pai (mais estrita vence) e roda com contexto isolado.
+  - [ ] TreeView lista MCP; `#mcp` e ativação de Powers por keyword funcionam.
+
+---
+
+### Marco M3.8c — Chat, Contexto e Sessões (Medidor, Compaction, Fork, Checkpoints, Atalhos) (UC-02)
+- **Fonte**: `kiro.dev/docs/{ide/chat,checkpoints,compaction,ide/whats-new-v1}/`.
+- **Arquivos-alvo**: `extensions/tarot-core/src/{context/contextProviders,context/compactionService,checkpoints/checkpointService,agents/sessionStore}.ts`, `agentPanelView.ts`, `panel.js`.
+- **Especificação**:
+  - **Provedores `#` completos**: `#codebase`, `#file`, `#folder`, `#git diff`, `#terminal`, `#problems` (arquivo atual), `#url`, `#code`, `#repository`, `#current`, `#steering`, `#docs`, `#spec`, `#mcp`; combináveis. `@file` e `$skill` aceitos como aliases (composer Crew).
+  - **Medidor de contexto real** (substitui o anel `○` decorativo) e **compaction automática** perto de 80%: resumo estruturado que **preserva** status de tarefas, arquivos modificados, decisões/restrições, próximos passos e intenção; comprime saída de tools, raciocínio intermediário e erros resolvidos; mantém as últimas mensagens literais; avisa o agente quais skills/steering foram descartados e recarrega os pedidos. Configurações `tarot.compaction.{autoThreshold,excludeMessages}`. É unidirecional (oferecer export antes).
+  - **Checkpoints** a cada prompt: **Restore** reverte arquivos **e** o contexto; **Revert** desfaz só o último turno; **Fork conversation** cria nova sessão a partir de um turno antigo **sem tocar nos arquivos** (não carrega artefatos). Limitação: só edições do agente são rastreadas; em BYOA usar snapshot por *git tree* para cobrir edições feitas pelo CLI.
+  - **Atalhos**: `Ctrl+L` traz a seleção para o chat atual, `Ctrl+Shift+L` abre **nova sessão** com a seleção, `Ctrl+Alt+B` alterna a Secondary Side Bar; menu *Ask Tarot* com ações rápidas (*Fix Grammar/Spelling*, *Write Comments*, *Optimize*). Inline chat não existe.
+  - **Sessões**: abas, `+`, **History** (buscar/restaurar/excluir), **Task list**, **Export Chat** (`.md` e zip `session.json` + `messages.jsonl`), detecção de intenção (pergunta ⇒ resposta; diretiva ⇒ ação). Chats paralelos podem editar o mesmo workspace: oferecer **git worktree por sessão** e aviso de conflito.
+  - **Dev Servers**: processos longos em background sem bloquear o chat. *(Prioridade baixa: voz, anexos de imagem/PDF/CSV/DOCX, seletor de modelo **Auto**, `/model`, `/context`.)*
+- **Critérios de Aceite (DoD)**:
+  - [ ] Medidor reflete tokens reais; compaction preserva os itens obrigatórios.
+  - [ ] **Fork conversation** cria sessão sem alterar arquivos; **Restore** reverte arquivos + contexto.
+  - [ ] Todos os provedores `#` e os atalhos `Ctrl+L` / `Ctrl+Shift+L` funcionam.
+
+---
+
+### Marco M3.9a — Motor de Workflows & Recipes (schema oficial) (UC-07)
+- **Fonte**: `kiro.dev/docs/workflows/` (+ `authoring`, `manage`, `patterns`).
+- **Arquivos-alvo**: `extensions/tarot-core/src/workflows/{workflowEngine,recipeLoader,recipeValidator,templateResolver,watchHandlers,runStore}.ts`, `recipes/*.workflow.json` (bundled).
+- **Schema de Recipe** (`.tarot/workflows/*.workflow.{json,yaml,yml}`, global `~/.tarot/workflows/`):
+  - **Raiz**: `name`*, `description`, `inputs` (mapa nome→dica de tipo `prompt|file|string`; não impostos em runtime), `modelId`, `effortLevel`, `steps`* (sequência implícita).
+  - **Nós**: `step` (`id`,`agent`,`prompt`; opcionais `artifacts`, `captureOutput`, `completion`, `modelId`, `effortLevel`), `sequence`, `repeat` (`maxIterations`*, `onMaxIterations: abort|continue|pause`, `stopCondition` **ou** `stopWhen`), `parallel` (`branches`, `joinPolicy: all|allSettled|any`), `watch` (`handler`, `config`, `idleTimeoutSec` no nó).
+  - **`stopCondition`**: `containsText` | `completionSignal` (`success`/`need_input`/`error`) | `fileCheck{path,jsonPath,value}` (caminho pontilhado, `$.` opcional, sem `[` `]` `*` `..`; `value` array = qualquer-de). `stopWhen`: `"<watch-id>.terminal"` ou `"{{x.output}} contains TEXTO"`; nunca os dois no mesmo `repeat`. Um `repeat` roda **ao menos uma vez**.
+  - **Limites**: ≤ **50** steps estáticos, profundidade ≤ **8**, IDs únicos, `maxIterations` positivo.
+  - **Templates**: `{{input}}`, `{{previous.output}}` (proibido no 1º nó de um container e dentro de `parallel`), `{{step-id.output}}`, `{{artifacts.nome}}`; variável bare não declarada fica literal com *warning*; saída capturada é injetada com **delimitadores à prova de adulteração**.
+  - **Protocolo `send_message`** (injetado em todo step): severidade `success` ⇒ conclui e avança; `warning` ⇒ `need_input` (step e run pausam até a resposta); `error` ⇒ falha propaga; `info` ⇒ só progresso. Turno sem `send_message` e sem condição pendente conclui o step. Só o agente do step sinaliza (sub-agentes não).
+  - **Watch**: `github-pr` (`prRef`|`url`, `pollIntervalSec` ≥ 30, `includeOwnActivity`, `ignoreAuthors`; acorda por comentários, reviews, conflito de merge e checks falhos; `terminal-state` em MERGED/CLOSED) e `command` (programa rodado a cada poll com JSON no STDIN `{cursor,config,workspacePath}`; responde **um** JSON `{outcome: idle|new-activity|terminal-state, cursor, payload}`; exit `2`/`126`/`127` falham, outros ⇒ *idle*; `pollIntervalSec` ≥ 10; sem templates em `command`). Cursor persistido; entrega *at-least-once*.
+  - **Modelo/esforço por step**: override do step > default do workflow > sessão pai > default do agente; modelo desconhecido só gera *warning* e falha na 1ª chamada.
+  - **`validate_workflow`**: erro de schema/enum, IDs duplicados, limites, `stopWhen` malformado, `jsonPath` inválido, ordem de templates inválida, `fileCheck` fora do workspace, sub-agente embutido como agente de step.
+  - **Precedência**: projeto > usuário > conta sincronizada > bundled; recipe inválida de maior prioridade não esconde válida de menor; JSON e YAML com mesmo nome ⇒ JSON vence e conflito é reportado.
+  - **Agentes bundled** `wf-planner`, `wf-coder`, `wf-design`, `wf-design-reviewer`, `wf-review-aggregator`, `wf-pr-submitter`, `wf-pr-responder`, `wf-auto-researcher`, `semantic_reviewer` (+ `wf-workflow-creator` interno), disponíveis só com workflows ativos.
+  - **Execução**: cada step em **sessão própria com contexto novo**; handoff só por saída capturada/artefato; checkpoint em **fronteiras de nó** (status, saídas, artefatos, progresso de `repeat`, cursores de watch) para retomar após reinício; pause **cooperativa** (efetiva na próxima fronteira); stop não desfaz arquivos; tempo pausado não conta; reconexão tenta o mesmo step por até 24 h. **Revisar o plano restante** em execução (`update_workflow`) preservando nós concluídos, validado de novo; plano novo exige **cartão de aprovação** (*Allow/Deny/Always/feedback*).
+  - **Segurança**: workflows são *opt-in* (`tarot.workflows.enabled`); recipes do workspace **não carregam** sem trust; cada step e cada `command` watch passam pela política de permissões da sessão que lançou (mais restritiva vence); com *trust-all* a aprovação do plano é *Allow* de uso único e não salva regra; a recipe `publish-pr` entrega PR verde/aprovado e **não faz merge**.
+  - **Entrada**: pedir ao chat (gera workflow, com aprovação do plano), `/workflow-run` (seletor + formulário de inputs), `/workflow run <recipe> --task "..."`, ou delegação a agente único em background (`agent://<nome>`). Controle **Use workflows**: *Only when asked* (padrão) / *Only for large tasks* / *As much as possible*.
+- **⚠ Adaptação BYOA**: cada step = uma execução de CLI com contexto novo; `send_message` é exposto como **ferramenta MCP do Tarot** (ou marcador estruturado no stdout quando o CLI não suportar MCP); pause/resume/steer exigem *session resume* do CLI — registrar a capacidade por adaptador.
+- **Critérios de Aceite (DoD)**:
+  - [ ] `validate_workflow` reprova os casos listados e aprova as recipes bundled.
+  - [ ] `repeat`/`parallel`/`watch`/`completion` seguem a semântica acima, com checkpoint e retomada após reiniciar o IDE.
+  - [ ] Cada step pode usar um agente local diferente (`claude`/`agy`/`codex`) e respeita a política de permissões da sessão pai.
+
+---
+
+### Marco M3.9b — UI de Workflows (Runs, Recipes, Aba de Run, Controles) (UC-07)
+- **Fonte**: `kiro.dev/docs/workflows/manage` + Print 2.
+- **Arquivos-alvo**: `extensions/tarot-core/src/views/{workflowRunsView,recipesView,workflowRunEditor}.ts`, `media/webview/workflow.{js,css}`.
+- **Especificação**:
+  - **Sidebar** com `WORKFLOW RUNS` (execuções com timestamp e sub-itens `✓ validate`, **agrupadas por status com "Needs you" primeiro**, campo *Search workflows* por nome/status/duração) e `RECIPES` (grupos Global/Workspace, descrição e botão `▷`).
+  - **Aba "Workflow: <nome>"** no editor: árvore de steps dockada ao lado do transcript do step, cabeçalho com `Created by: <chat>` (link), **Go to active**, switch **Follow**, `Pause / Resume / Stop`, **Add loops** quando `onMaxIterations: pause`; cabeçalho de título `feature-pipeline · 6 steps · review-loop max 2` e pill `✓ Completed`/`Running · step X of Y`; badges `[loop ×2]`, `[parallel]`, `pass 1 of 2`, `Approved`/`Passed`; agente/papel ao lado de cada step (`wf-coder`, `wf-design-reviewer`, `semantic_reviewer`); *hover* mostra status, agente, modelo e esforço; campo **"Message this step's agent"**.
+  - **Estados**: `running`, `paused` (3 variantes: *needs input*, *at a boundary*, *iteration cap*), `completed`, `failed`, `aborted` (+ `pending`/`skipped`). IDE não expõe Retry (iniciar novo run); CLI do Tarot pode expor.
+  - **Card do run no chat pai**: nome, ID, tarefa, artefato, tempo decorrido, `Open run`, Pause/Stop; **linhas de notificação** de steps (`Info`/`Completed`/`Needs input`/`Failed` com ações `Open step session` / `Answer <step>`); resumo final (resultado, steps, arquivos, artefatos, validações, o que ficou sem verificar).
+  - **Orientação em duas vias**: responder direto na aba do step ou pedir ao chat pai que repasse; step ativo lê no próximo turno, pausado trata como a resposta esperada.
+  - **Recipes bundled**: `investigate`, `feature-pipeline`, `publish-pr` (**confirmadas na doc**) + `autoresearch`, `goal`, `ralph`, `semantic-review-multi-model` (**vistas no Print 2**, não listadas na doc; tratar como recipes do Tarot).
+  - **Concorrência**: runs não isolam branches/worktrees; sugerir `run_dir`/artefatos distintos e worktree por run.
+- **Critérios de Aceite (DoD)**:
+  - [ ] Runs agrupados por status com busca; aba de run com árvore, Follow, Go to active, Pause/Resume/Stop e Add loops.
+  - [ ] Responder a um step *needs input* retoma a mesma sessão; notificações aparecem no chat pai com ações.
+  - [ ] Recipes bundled listadas com `▷` e badges fiéis ao Print 2.
+
+---
+
+### Marco M3.9c — Sessions & Agent Focus Mode (UC-02, UC-07)
+- **Fonte**: `kiro.dev/docs/ide/chat` (Agent Focus Mode, experimental), Prints 3 e 4.
+- **Arquivos-alvo**: `extensions/tarot-core/src/views/{sessionsView,focusModeView}.ts`, `agentPanelView.ts`, `panel.js/css`.
+- **Especificação**:
+  - **Painel Sessions**: busca, ícones de lista/filtro, `+ New ⌄`, menu `⋮`, botão de recolher, cards `perfil · repositório` + horário + título + resumo (`Flaky tests fixed`, `Weekly digest — Posted to #team`), badge `🔒 1 sub-agent needs approval` (parked), `Older Sessions >`.
+  - **Transcript**: disclosures `> N steps`, `> Spawned 1 sub-agent <nome>`, `> Ran <spec> × 20 · 3 failed`, `> Edited <arquivo>`, resposta final; composer com `+`, histórico, microfone (opcional), ✦, placeholder `(/command · @file · $skill)`.
+  - **Agent Focus Mode (3 painéis)**: Sessions à esquerda | chat expandido ao centro | painel auxiliar de Specs/Diffs/Artefatos à direita; toggle no canto superior direito; Autopilot e Supervised disponíveis; sessões paralelas; seletor de workflow no início. *Não* oferece Fork nos painéis de step.
+  - **Concorrência segura**: chats Spec/Quick Spec/Bug Fix esperam um ao outro (`The agent is currently busy`); Plan e custom agents rodam em paralelo; aviso quando duas sessões podem editar os mesmos arquivos.
+- **Critérios de Aceite (DoD)**:
+  - [ ] Sessions filtra/pesquisa, mostra `perfil · repo` e badges *parked*.
+  - [ ] Focus Mode alterna com o Editor View e exibe os 3 painéis.
+
+---
+
+### Marco M3.10 *(opcional / novo)* — Agendamento, Digests e Lições Aprendidas (UC-09)
+- **Fonte**: `kiro.dev/crew`, `docs/crew/*` (Crew é produto à parte, open source Apache-2.0, sobre Kiro CLI + ACP).
+- **Escopo no IDE**: jobs **cron** com fuso, *timeout* por job, *jitter* e datas de exclusão, cada run em **sessão própria**, logada e com checkpoint; entrega de resultado como notificação/**digest**; jobs sem chamada de modelo não gastam tokens.
+- **Lições**: correções do usuário (`"use pnpm, not npm"`) viram **lições** em Markdown no formato de steering (inspecionáveis, editáveis, escopo por workspace); fluxos repetidos podem virar skills.
+- **Critérios de Aceite (DoD)**:
+  - [ ] Job cron cria sessão própria, registra log e gera notificação/digest.
+  - [ ] Correção do usuário gera lição editável em `.tarot/steering/`.
+
+---
+
+### Divergências conhecidas Kiro × Tarot (BYOA) a respeitar nos marcos acima
+| Tema | Kiro | Decisão no Tarot |
+| --- | --- | --- |
+| Autonomia | Modos *Supervised / Accept file changes / Approve for me* (o "Autopilot" 0.x foi substituído) | Mesmos 3 modos; switch Autopilot vira atalho |
+| Imposição de permissões | Harness próprio impõe tudo | Tarot impõe o que passa por ele; resto *advisory* (ver M3.8a) |
+| Hooks `Manual` | Hook manual legado; novo fluxo = steering `manual` via `/nome` | Seguir o novo fluxo |
+| `send_message`, pause/resume | Nativos do harness | MCP próprio + *session resume* por adaptador (ver M3.9a) |
+| Créditos por step | Exibidos no card do run | Exibir tokens/tempo quando o CLI reportar |
+| Worktrees | Workflows não isolam; IDE usa a branch atual ou worktree | Oferecer worktree por run/sessão |
+| Crew / bots / mensageria | Produto separado | Fase 5 opcional |
 
 ---
 
@@ -294,6 +439,12 @@ pnpm exec gulp vscode-linux-x64-build-rpm
 - [ ] Alvos Windows (`vscode-win32-x64-min` + Inno Setup) e macOS (`vscode-darwin-arm64-min`, `com.tarot.ide`).
 - [ ] GitHub Actions acionado por tags `v*` publicando artefatos em GitHub Releases.
 - [ ] *(Opcional)* Serviço leve de auto-update configurado via `updateUrl` em `product.json`.
+
+---
+
+## Fase 5 *(opcional)* — "Tarot Crew": Bots, Webhooks, Heartbeat, Apps e Gateways
+- **Referência**: Crew = workspace persistente com **bots** (agentes nomeados com memória, objetivos, check-ins e dashboard próprios), webhooks autenticados, *heartbeat* de PRs/deploys, **Apps SDK**, dashboards, base de conhecimento (embeddings + full-text), 8 camadas de defesa (sandbox de processo, aprovação de tools, bloqueio de caminhos sensíveis, comandos negados, validação MCP, redação de saída, auditoria assinada), superfícies Slack/Discord/Telegram/Teams/Webex e instâncias remotas por SSH.
+- **Decisão de produto**: fora do núcleo do IDE. Avaliar interoperar via **ACP (Agent Client Protocol)** como adaptador de agente adicional e, depois, gateways de mensagens.
 
 ---
 

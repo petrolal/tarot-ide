@@ -80,6 +80,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 ### 3.4 Regras de Build e Validação
 11. **Usar sempre `pnpm`** (nunca `npm`). Preferir os scripts leves `pnpm run watch-tarot`, `pnpm run watch-tarot-fast`, `pnpm run watch-tarot-core` e `pnpm run compile-tarot`.
 12. **`tarot-core` não vai em `product.json -> builtInExtensions`**: aquele campo é apenas para extensões externas baixadas via GitHub/Marketplace; extensões locais em `extensions/` são registradas em `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml` e `build/npm/dirs.ts`.
+13. **Workspace Trust amplo**: nada em `.tarot/` (agents, steering, skills, MCP, workflows, hooks) é carregado/executado em workspace não confiável; permissões do workspace ficam **fora do repositório** e o agente nunca escreve nos próprios arquivos de permissões/settings (ver M3.8a).
 
 ---
 
@@ -124,6 +125,18 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 ### UC-08 — Extensões Livres via Open VSX
 - **Ator**: Desenvolvedor instalando suporte a linguagens, linters e temas extras.
 - **Fluxo**: Busca e instalação transparentes na view Extensions conectada ao Open VSX Registry, sem dependência do Marketplace da Microsoft.
+
+### UC-09 — Skills, Custom Agents e Sub-agentes
+- **Ator**: Dev/time que quer especializar o comportamento por tarefa sem inflar o contexto.
+- **Fluxo**: skills em `.tarot/skills/` (progressive disclosure, `/nome`), agentes customizados em `.tarot/agents/` selecionáveis no composer, sub-agentes com contexto isolado herdando a política de permissões do pai (a mais estrita vence) e Powers ativados por keyword.
+
+### UC-10 — Permissões, Modos de Aprovação e Workspace Trust
+- **Ator**: Dev que quer controlar o que os agentes locais podem fazer.
+- **Fluxo**: `permissions.yaml` (capabilities × efeitos `deny > ask > allow > evaluate`), modos *Supervised / Accept file changes / Approve for me*, workspace permissions fora do repo e carregamento de `.tarot/` (agentes, steering, skills, MCP, workflows, hooks) somente em workspace confiável. Regras traduzidas para flags nativas dos CLIs; o que não puder ser imposto é sinalizado como *advisory*.
+
+### UC-11 — Sessões Paralelas, Agent Focus Mode e Agendamento
+- **Ator**: Dev que delega trabalho em background e acompanha várias sessões.
+- **Fluxo**: painel Sessions (busca, `perfil · repo`, badges *parked*), Agent Focus Mode de 3 painéis, worktree por sessão/run e, opcionalmente (M3.10), jobs cron com digest e lições aprendidas em `.tarot/steering/`.
 
 ---
 
