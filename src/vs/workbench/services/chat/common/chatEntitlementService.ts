@@ -461,6 +461,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		}
 
 		if (!productService.defaultChatAgent) {
+			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true);
 			return; // we need a default chat agent configured going forward from here
 		}
 

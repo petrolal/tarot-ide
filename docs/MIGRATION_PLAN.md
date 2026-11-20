@@ -332,7 +332,7 @@ git checkout tarot-main && git merge --no-ff sync/vscode-1.149.0
 | `package.json` & `scripts/code.{sh,bat}` | Muito baixo | Manter scripts `*-tarot*` e `--disable-extension=GitHub.copilot-chat`. |
 | `src/vs/nls.ts` | Muito baixo | Manter `_rebrandMessage` em `_format` antes da interpolação de `args`. |
 | `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Muito baixo | Manter `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'`. |
-| `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts` | Muito baixa | Manter defaults `chat.disableAIFeatures: true` e `copilotCliCommand`/`titleBar.signIn`/`welcomePage.signIn: false`. |
+| `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts` & `src/vs/workbench/services/chat/common/chatEntitlementService.ts` | Muito baixo | Manter defaults `chat.disableAIFeatures: true`, `copilotCliCommand`/`titleBar.signIn`/`welcomePage.signIn: false` e `ChatEntitlementContextKeys.Setup.hidden = true` quando `!productService.defaultChatAgent`. |
 | `onboardingVariationA.ts`, `defaultAccount.ts`, `extensionGalleryService.ts`, `extensionsWorkbenchService.ts`, `abstractExtensionManagementService.ts` | Muito baixo | Manter guards contra `defaultChatAgent === undefined`. |
 | `vs_code_editor_walkthrough.ts`, SVGs internos (`code-icon.svg`, `vscode-icon.svg`, `letterpress-*.svg`) e `resources/**` | Muito baixo | Manter versão Tarot (`git checkout --ours`). |
 | `extensions/tarot-core/**`, `resources/tarot/**`, `docs/**`, `LICENSE`, `LICENSE-VSCODE-MIT.txt`, `NOTICE.md` | **Nulo** | Arquivos exclusivos do Tarot IDE (em `LICENSE.txt`, manter versão GPL-3.0 do Tarot com `--ours`). |

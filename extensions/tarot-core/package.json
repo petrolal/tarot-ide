@@ -164,7 +164,8 @@
     ],
     "configurationDefaults": {
       "workbench.secondarySideBar.defaultVisibility": "visible",
-      "window.commandCenter": true
+      "window.commandCenter": true,
+      "window.menuBarVisibility": "compact"
     },
     "configuration": {
       "title": "Tarot IDE",

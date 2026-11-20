@@ -126,6 +126,12 @@
 		}
 	}
 
+	function fitSelectWidth(selectEl) {
+		const opt = selectEl.options[selectEl.selectedIndex];
+		const len = opt ? opt.textContent.length : 4;
+		selectEl.style.width = `${Math.max(4, len + 2.6)}ch`;
+	}
+
 	function renderAgents() {
 		agentSelect.textContent = '';
 		for (const agent of state.agents || []) {
@@ -138,6 +144,8 @@
 			}
 			agentSelect.appendChild(opt);
 		}
+		fitSelectWidth(agentSelect);
+		fitSelectWidth(modeSelect);
 	}
 
 	function renderContextRing() {
