@@ -198,6 +198,9 @@ export class ThemeRegistry<T extends IThemeData> implements IDisposable {
 			}
 			this.extensionThemes.length = 0;
 			for (const ext of extensions) {
+				if (ext.description.isBuiltin && ext.description.publisher === 'vscode' && (ext.description.name.startsWith('theme-') || ext.description.name === 'vscode-theme-seti')) {
+					continue; // Tarot IDE: hide upstream built-in VS Code themes while preserving extensions/theme-* for clean upstream merges
+				}
 				const extensionData = ExtensionData.fromName(ext.description.publisher, ext.description.name, ext.description.isBuiltin);
 				this.onThemes(extensionData, ext.description.extensionLocation, ext.value, this.extensionThemes, ext.collector);
 			}
