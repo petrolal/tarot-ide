@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'node:crypto';
+import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
@@ -52,8 +53,10 @@ interface WebviewIncomingMessage {
 		| 'revertFile'
 		| 'refreshChangedFiles'
 		| 'runSlashCommand'
+		| 'saveSteeringRule'
 		| 'refreshAgents';
 	readonly prompt?: string;
+	readonly ruleText?: string;
 	readonly agentId?: AgentId;
 	readonly model?: string;
 	readonly effort?: ReasoningEffort;
@@ -265,6 +268,77 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postState();
 	}
 
+	async runAnalyzeRequirements(specDir: string): Promise<void> {
+		const spec = await this.specService.loadSpecContext(specDir);
+		await this.setMode('spec');
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		await this.runPrompt(this.specService.buildAnalyzeRequirementsPrompt(spec), {
+			displayPrompt: vscode.l10n.t('🔍 Analyze Requirements · {0}', spec.slug),
+		});
+	}
+
+	async runQuickSpec(specDir: string, description: string): Promise<void> {
+		const spec = await this.specService.loadSpecContext(specDir);
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const session = this.sessionStore.createSession(activeAgent, 'spec', this.autonomy);
+		session.title = vscode.l10n.t('Quick Spec: {0}', spec.slug);
+		this.mode = 'spec';
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		this.postState();
+		await this.runPrompt(this.specService.buildQuickSpecPrompt(spec, description), {
+			displayPrompt: vscode.l10n.t('⚡ Quick Spec ({0}): {1}', spec.slug, description),
+		});
+	}
+
+	async runBatchPrompt(prompt: string, displayPrompt: string): Promise<void> {
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		await this.runPrompt(prompt, { displayPrompt });
+	}
+
+	async generateSpecFromActiveSession(): Promise<void> {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!root) {
+			vscode.window.showWarningMessage(vscode.l10n.t('Open a folder/workspace to generate a Spec.'));
+			return;
+		}
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+		const confirm = await vscode.window.showInformationMessage(
+			vscode.l10n.t('Start a new Spec session reusing the current conversation context?'),
+			{ modal: false },
+			vscode.l10n.t('Generate Spec'),
+		);
+		if (!confirm) {
+			return;
+		}
+		const rawSlug = await vscode.window.showInputBox({
+			title: vscode.l10n.t('Generate Spec from Session'),
+			prompt: vscode.l10n.t('Slug for the new Spec under .tarot/specs/'),
+			placeHolder: 'feature-from-chat',
+			validateInput: v => (/^[a-z0-9][a-z0-9-_]*$/i.test(v.trim()) ? null : vscode.l10n.t('Use only letters, numbers, hyphens, and underscores.')),
+		});
+		if (!rawSlug) {
+			return;
+		}
+		const slug = rawSlug.trim().toLowerCase();
+		const transcript = session.messages
+			.slice(-8)
+			.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content.slice(0, 1200)}`)
+			.join('\n\n') || vscode.l10n.t('(New session)');
+		const { entryFilePath } = await this.specService.createSpec(root, slug, 'feature-requirements-first');
+		const doc = await vscode.workspace.openTextDocument(entryFilePath);
+		await vscode.window.showTextDocument(doc, { preview: false });
+
+		const specSession = this.sessionStore.createSession(activeAgent, 'spec', this.autonomy);
+		specSession.title = vscode.l10n.t('Spec: {0}', slug);
+		this.mode = 'spec';
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		this.postState();
+		await this.runPrompt(this.specService.buildGenerateSpecFromChatPrompt(slug, transcript), {
+			displayPrompt: vscode.l10n.t('📋 Generate Spec: {0}', slug),
+		});
+	}
+
 	async runSpecTask(specDir: string, lineIndex: number, overrideAgentId?: AgentId): Promise<void> {
 		if (overrideAgentId) {
 			await this.runtimeManager.setActiveAgent(overrideAgentId);
@@ -434,6 +508,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					await this.handleSlashCommand(msg.slashCommand);
 				}
 				break;
+			case 'saveSteeringRule':
+				if (msg.ruleText && msg.ruleText.trim()) {
+					await this.saveLearnedSteeringRule(msg.ruleText.trim());
+				}
+				break;
 			case 'cancel':
 				this.cancelActiveRun();
 				break;
@@ -503,6 +582,12 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		switch (cmd) {
 			case '/spec':
 				await vscode.commands.executeCommand('tarot.specs.create');
+				break;
+			case '/quick-spec':
+				await vscode.commands.executeCommand('tarot.specs.quickSpec');
+				break;
+			case '/generate-spec':
+				await this.generateSpecFromActiveSession();
 				break;
 			case '/bugfix':
 				await vscode.commands.executeCommand('tarot.specs.create');
@@ -732,6 +817,29 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		return Math.min(100, Math.round((chars / 120_000) * 100));
 	}
 
+	private async saveLearnedSteeringRule(ruleText: string): Promise<void> {
+		if (!vscode.workspace.isTrusted) {
+			vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before writing rules to .tarot/steering/.'));
+			return;
+		}
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!root) {
+			return;
+		}
+		const steeringDir = path.join(root, '.tarot', 'steering');
+		const filePath = path.join(steeringDir, 'pbt-rules.md');
+		await fs.mkdir(steeringDir, { recursive: true });
+		let existing = '';
+		try {
+			existing = await fs.readFile(filePath, 'utf8');
+		} catch {
+			existing = `---\ninclusion: always\n---\n\n# Learned Correctness & PBT Rules\n\n`;
+		}
+		const entry = `- ${ruleText.replace(/\r?\n/g, ' ')}\n`;
+		await fs.writeFile(filePath, existing.endsWith('\n') ? `${existing}${entry}` : `${existing}\n${entry}`, 'utf8');
+		vscode.window.showInformationMessage(vscode.l10n.t('Saved learned rule to .tarot/steering/pbt-rules.md.'));
+	}
+
 	private async refreshAvailableModels(): Promise<void> {
 		this.availableModels = await this.runtimeManager.listModelsForAgent();
 	}
@@ -853,6 +961,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			<div id="slash-menu" class="context-popup hidden" role="menu">
 				<div class="context-popup-header">${s.slashCommandsTitle}</div>
 				<button class="slash-menu-item" type="button" data-cmd="/spec"><span class="ctx-tag">/spec</span><span class="ctx-desc">${s.slashSpecDesc}</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/quick-spec"><span class="ctx-tag">/quick-spec</span><span class="ctx-desc">${s.slashQuickSpecDesc}</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/generate-spec"><span class="ctx-tag">/generate-spec</span><span class="ctx-desc">${s.slashGenerateSpecDesc}</span></button>
 				<button class="slash-menu-item" type="button" data-cmd="/plan"><span class="ctx-tag">/plan</span><span class="ctx-desc">${s.slashPlanDesc}</span></button>
 				<button class="slash-menu-item" type="button" data-cmd="/steering"><span class="ctx-tag">/steering</span><span class="ctx-desc">${s.slashSteeringDesc}</span></button>
 				<button class="slash-menu-item" type="button" data-cmd="/review"><span class="ctx-tag">/review</span><span class="ctx-desc">${s.slashReviewDesc}</span></button>

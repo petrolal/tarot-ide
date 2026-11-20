@@ -7,9 +7,72 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { parseTasksMarkdown, SpecTask, SpecTaskSummary } from './taskParser';
 
-export type SpecCreationKind = 'feature-requirements-first' | 'feature-design-first' | 'bugfix';
+export type SpecCreationKind = 'feature-requirements-first' | 'feature-design-first' | 'bugfix' | 'quick-spec';
 export type SpecKind = 'feature' | 'bugfix';
 export type SpecPhase = 'requirements' | 'bugfix' | 'design' | 'tasks';
+
+export interface SpecStepperStep {
+	readonly index: number;
+	readonly phase: SpecPhase;
+	readonly fileName: string;
+	readonly label: string;
+	readonly active: boolean;
+}
+
+export interface PbtCounterExampleInfo {
+	readonly counterExample: string;
+	readonly error?: string;
+}
+
+/**
+ * Computes the ordered Kiro-style stepper phases for a Spec document.
+ * Pure helper (no `vscode` dependency) for unit testing.
+ */
+export function computeSpecStepperSteps(
+	activeFileName: string,
+	kind: SpecKind,
+	designFirst = false,
+): readonly SpecStepperStep[] {
+	const base: ReadonlyArray<{ phase: SpecPhase; fileName: string; label: string }> = kind === 'bugfix'
+		? [
+			{ phase: 'bugfix', fileName: 'bugfix.md', label: 'Bugfix' },
+			{ phase: 'design', fileName: 'design.md', label: 'Design' },
+			{ phase: 'tasks', fileName: 'tasks.md', label: 'Task list' },
+		]
+		: designFirst
+			? [
+				{ phase: 'design', fileName: 'design.md', label: 'Design' },
+				{ phase: 'requirements', fileName: 'requirements.md', label: 'Requirements' },
+				{ phase: 'tasks', fileName: 'tasks.md', label: 'Task list' },
+			]
+			: [
+				{ phase: 'requirements', fileName: 'requirements.md', label: 'Requirements' },
+				{ phase: 'design', fileName: 'design.md', label: 'Design' },
+				{ phase: 'tasks', fileName: 'tasks.md', label: 'Task list' },
+			];
+
+	return base.map((step, idx) => ({
+		...step,
+		index: idx + 1,
+		active: step.fileName === activeFileName,
+	}));
+}
+
+/**
+ * Extracts a Property-Based Testing (PBT) `Counter-example:` + optional `Error:` block
+ * from an agent transcript message. Pure helper for unit testing and UI rendering.
+ */
+export function parsePbtCounterExample(text: string): PbtCounterExampleInfo | undefined {
+	const ceMatch = text.match(/Counter-?example:\s*([^\n]+(?:\n(?!Error:|#|---|\n)[^\n]+)*)/i);
+	if (!ceMatch) {
+		return undefined;
+	}
+	const errMatch = text.match(/Error:\s*([^\n]+)/i);
+	return {
+		counterExample: ceMatch[1].trim(),
+		error: errMatch?.[1]?.trim(),
+	};
+}
 
 export interface SpecInfo {
 	readonly slug: string;
@@ -135,9 +198,11 @@ export class TarotSpecService {
 			`# Technical Design — ${slug}\n\n` +
 			`## Architecture & Data Flow\n- ...\n\n` +
 			`## Components & Interfaces\n- ...\n\n` +
-			`## Correctness & Property-Based Testing (PBT)\n` +
+			`## Boundary & Contract Tests (PBT / Integration — preserved across rewrites)\n` +
 			`- **Property 1**: ...\n` +
-			`- **Edge Cases**: ...\n`,
+			`- **Integration / Edge Cases**: ...\n\n` +
+			`## Implementation Unit Tests (disposable with implementation)\n` +
+			`- ...\n`,
 			'utf8',
 		);
 		await fs.writeFile(
@@ -145,7 +210,8 @@ export class TarotSpecService {
 			`# Tasks — ${slug}\n\n` +
 			`- [ ] 1. Definir contratos, tipos e estrutura base\n` +
 			`- [ ] 2. Implementar lógica principal e integração na UI/API\n` +
-			`- [ ] 3. Adicionar testes unitários / PBT e validar critérios EARS\n`,
+			`- [ ] 3. Adicionar testes de contrato/fronteira (PBT e integração) validando os critérios EARS\n` +
+			`- [ ] 4. *Adicionar testes unitários de detalhe e documentação complementar\n`,
 			'utf8',
 		);
 
@@ -225,6 +291,45 @@ export class TarotSpecService {
 			`[Tarot Spec Phase — Bugfix (EARS)]\n` +
 			`Refine \`${relDir}/bugfix.md\` with the 3 EARS sections (Current Behavior, Expected Behavior, Unchanged Behavior).\n\n` +
 			`${spec.contextText}`
+		);
+	}
+
+	buildAnalyzeRequirementsPrompt(spec: LoadedSpecContext): string {
+		const targetFile = spec.kind === 'bugfix' ? 'bugfix.md' : 'requirements.md';
+		return (
+			`[Tarot Spec — Analyze Requirements (${spec.slug})]\n` +
+			`Analise criticamente \`${targetFile}\` em \`.tarot/specs/${spec.slug}/\` ANTES de avançar para o Design.\n` +
+			`Identifique e liste de forma objetiva:\n` +
+			`1. Inconsistências lógicas ou restrições conflitantes;\n` +
+			`2. Ambiguidades nos critérios EARS (WHEN ... THE SYSTEM SHALL ...);\n` +
+			`3. Lacunas de borda, segurança, tratamento de erro ou regressão;\n` +
+			`4. Sugestões concretas de reescrita para cada ponto encontrado.\n\n` +
+			`${spec.contextText}`
+		);
+	}
+
+	buildQuickSpecPrompt(spec: LoadedSpecContext, description: string): string {
+		const relDir = `.tarot/specs/${spec.slug}`;
+		return (
+			`[Tarot Quick Spec — ${spec.slug}]\n` +
+			`Gere diretamente os 3 artefatos da Spec em \`${relDir}/\` sem aguardar portões de aprovação intermediários:\n` +
+			`1. \`${relDir}/requirements.md\` (User Stories + critérios de aceite em notação EARS);\n` +
+			`2. \`${relDir}/design.md\` (arquitetura, interfaces e seção separada de testes de contrato/fronteira PBT vs. testes unitários);\n` +
+			`3. \`${relDir}/tasks.md\` (checklist ordenada \`- [ ] 1. ...\` pronta para execução, marcando tarefas opcionais com \`*\`).\n\n` +
+			`Pedido do usuário:\n${description}\n\n` +
+			`${spec.contextText}`
+		);
+	}
+
+	buildGenerateSpecFromChatPrompt(slug: string, transcript: string): string {
+		const relDir = `.tarot/specs/${slug}`;
+		return (
+			`[Tarot Generate Spec from Session — ${slug}]\n` +
+			`Transforme o contexto da conversa abaixo em uma Spec formal em \`${relDir}/\`:\n` +
+			`- Preencha \`${relDir}/requirements.md\` em notação EARS (WHEN ... THE SYSTEM SHALL ...);\n` +
+			`- Preencha \`${relDir}/design.md\` separando testes de contrato/fronteira (PBT/integração) de testes unitários;\n` +
+			`- Preencha \`${relDir}/tasks.md\` com checklist executável.\n\n` +
+			`Contexto da sessão:\n${transcript}`
 		);
 	}
 }

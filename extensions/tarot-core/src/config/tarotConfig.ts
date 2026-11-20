@@ -12,11 +12,14 @@ export interface TarotAgentPathsConfig {
 	readonly agy: string;
 }
 
+export type DefaultSpecWorkflow = 'ask' | 'spec' | 'plan' | 'bugfix' | 'quick-spec';
+
 export interface TarotConfig {
 	readonly defaultAgent: AgentId | 'auto';
 	readonly agentPaths: TarotAgentPathsConfig;
 	readonly timeoutMs: number;
 	readonly customAgents: readonly CustomAgentConfig[];
+	readonly defaultSpecWorkflow: DefaultSpecWorkflow;
 }
 
 export function getTarotConfig(): TarotConfig {
@@ -33,5 +36,6 @@ export function getTarotConfig(): TarotConfig {
 		},
 		timeoutMs: Math.max(10_000, cfg.get<number>('agents.timeoutMs', 300_000)),
 		customAgents: Array.isArray(rawCustom) ? rawCustom.filter(c => Boolean(c && c.id && c.binary)) : [],
+		defaultSpecWorkflow: cfg.get<DefaultSpecWorkflow>('specs.defaultWorkflow', 'ask'),
 	};
 }

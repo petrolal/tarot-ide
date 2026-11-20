@@ -217,9 +217,13 @@ extensions/tarot-core/
     ├── steering/
     │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
     ├── specs/
-    │   ├── specService.ts              # Feature (Requirements/Design-First EARS) & Bugfix (bugfix.md) + prompts de fase/tarefa
+    │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, PBT parser & stepper logic
+    │   ├── specStepper.ts              # CodeLens stepper clicável (1 Requirements › 2 Design › 3 Task list) + Analyze + Review
+    │   ├── markdownReview.ts           # Formatação em lote de comentários inline em Specs Markdown
     │   ├── taskParser.ts               # Parser e atualização automática de checklists `- [ ]`/`- [x]` em tasks.md
     │   └── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... em .tarot/specs/*/tasks.md
+    ├── test/
+    │   └── *.test.ts                   # Suíte unitária pura (taskParser, promptBuilder, specService) rodando via `node --test`
     ├── git/
     │   └── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     └── views/
@@ -249,7 +253,7 @@ pnpm run watch-tarot-core
 
 # Validações pontuais (antes de commitar)
 pnpm exec gulp compile-extension:tarot-core
-node --test "extensions/tarot-core/src/test/**/*.test.ts"   # Node 24 executa .ts puro (sem importar vscode)
+node --test "extensions/tarot-core/out/test/**/*.test.js"   # suíte unitária pura (sem importar vscode)
 node build/next/index.ts transpile                          # somente se tocou em src/vs/
 pnpm run typecheck-client                                   # somente se tocou em src/vs/
 

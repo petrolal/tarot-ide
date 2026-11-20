@@ -200,6 +200,18 @@
           "default": true,
           "description": "%config.ui.openAgentPanelOnStartup.description%"
         },
+        "tarot.specs.defaultWorkflow": {
+          "type": "string",
+          "default": "ask",
+          "enum": [
+            "ask",
+            "spec",
+            "plan",
+            "bugfix",
+            "quick-spec"
+          ],
+          "description": "%config.specs.defaultWorkflow.description%"
+        },
         "tarot.agents.default": {
           "type": "string",
           "default": "auto",
@@ -389,6 +401,48 @@
         "title": "%command.specs.runTaskWith.title%",
         "category": "Tarot IDE",
         "icon": "$(run-with-deps)"
+      },
+      {
+        "command": "tarot.specs.openPhase",
+        "title": "%command.specs.openPhase.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.specs.analyzeRequirements",
+        "title": "%command.specs.analyzeRequirements.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/09-the-hermit.svg",
+          "dark": "icons/arcana/09-the-hermit.svg"
+        }
+      },
+      {
+        "command": "tarot.specs.quickSpec",
+        "title": "%command.specs.quickSpec.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/00-the-fool.svg",
+          "dark": "icons/arcana/00-the-fool.svg"
+        }
+      },
+      {
+        "command": "tarot.specs.generateFromSession",
+        "title": "%command.specs.generateFromSession.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/05-the-hierophant.svg",
+          "dark": "icons/arcana/05-the-hierophant.svg"
+        }
+      },
+      {
+        "command": "tarot.specs.markdownReview.add",
+        "title": "%command.specs.markdownReview.add.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.specs.markdownReview.send",
+        "title": "%command.specs.markdownReview.send.title%",
+        "category": "Tarot IDE"
       },
       {
         "command": "tarot.steering.create",

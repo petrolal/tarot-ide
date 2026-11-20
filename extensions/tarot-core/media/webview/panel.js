@@ -371,8 +371,22 @@
 		if (Array.isArray(itemsOrText)) {
 			for (const tool of itemsOrText) {
 				const row = document.createElement('div');
-				row.className = 'tool-list-item';
-				row.textContent = `• ${tool}`;
+				row.className = 'tool-call-card';
+				const check = document.createElement('span');
+				check.className = 'tool-call-check';
+				check.textContent = '✓';
+				const labelSpan = document.createElement('span');
+				labelSpan.className = 'tool-call-name';
+				const parts = String(tool).split(/\s+(?=[./\w-]+\.\w+)/);
+				labelSpan.textContent = parts[0] || String(tool);
+				row.appendChild(check);
+				row.appendChild(labelSpan);
+				if (parts.length > 1) {
+					const chip = document.createElement('span');
+					chip.className = 'tool-call-file-chip';
+					chip.textContent = parts.slice(1).join(' ');
+					row.appendChild(chip);
+				}
 				body.appendChild(row);
 			}
 		} else {
@@ -484,6 +498,22 @@
 
 			empty.appendChild(cards);
 
+			const quickBtn = document.createElement('button');
+			quickBtn.type = 'button';
+			quickBtn.className = 'quick-spec-bar';
+			const qt = document.createElement('span');
+			qt.className = 'mode-card-title';
+			qt.textContent = `⚡ ${t('modeQuickSpecTitle')}`;
+			const qd = document.createElement('span');
+			qd.className = 'mode-card-desc';
+			qd.textContent = t('modeQuickSpecDesc');
+			quickBtn.appendChild(qt);
+			quickBtn.appendChild(qd);
+			quickBtn.addEventListener('click', () => {
+				vscode.postMessage({ type: 'runSlashCommand', slashCommand: '/quick-spec' });
+			});
+			empty.appendChild(quickBtn);
+
 			messagesEl.appendChild(empty);
 			return;
 		}
@@ -524,6 +554,55 @@
 			body.className = 'msg-body';
 			renderFormattedContent(body, msg.content || '');
 			wrapper.appendChild(body);
+
+			if (msg.role === 'assistant' && msg.content) {
+				const ceMatch = msg.content.match(/Counter-?example:\s*([^\n]+(?:\n(?!Error:|#|---|\n)[^\n]+)*)/i);
+				if (ceMatch) {
+					const errMatch = msg.content.match(/Error:\s*([^\n]+)/i);
+					const pbtCard = document.createElement('div');
+					pbtCard.className = 'pbt-card';
+
+					const pbtHead = document.createElement('div');
+					pbtHead.className = 'pbt-card-head';
+					const towerSrc = window.__tarotArcana && window.__tarotArcana.icons && window.__tarotArcana.icons.error;
+					if (towerSrc) {
+						const iconImg = document.createElement('img');
+						iconImg.className = 'pbt-card-icon';
+						iconImg.src = towerSrc;
+						iconImg.alt = '';
+						pbtHead.appendChild(iconImg);
+					}
+					const pbtTitle = document.createElement('span');
+					pbtTitle.textContent = t('pbtCounterExampleTitle');
+					pbtHead.appendChild(pbtTitle);
+					pbtCard.appendChild(pbtHead);
+
+					const cePre = document.createElement('pre');
+					cePre.className = 'pbt-counterexample';
+					cePre.textContent = ceMatch[1].trim();
+					pbtCard.appendChild(cePre);
+
+					if (errMatch) {
+						const errEl = document.createElement('div');
+						errEl.className = 'pbt-error';
+						errEl.textContent = `Error: ${errMatch[1].trim()}`;
+						pbtCard.appendChild(errEl);
+					}
+
+					const saveBtn = document.createElement('button');
+					saveBtn.type = 'button';
+					saveBtn.className = 'pbt-save-rule-btn';
+					saveBtn.textContent = t('saveRuleToSteering');
+					saveBtn.addEventListener('click', () => {
+						const ruleSummary = `Avoid PBT regression (${ceMatch[1].trim()}${errMatch ? ` → ${errMatch[1].trim()}` : ''})`;
+						vscode.postMessage({ type: 'saveSteeringRule', ruleText: ruleSummary });
+						saveBtn.textContent = t('savedToSteering');
+						saveBtn.disabled = true;
+					});
+					pbtCard.appendChild(saveBtn);
+					wrapper.appendChild(pbtCard);
+				}
+			}
 
 			if (msg.role === 'assistant' && msg.taskProgress && msg.taskProgress.total > 0) {
 				const card = document.createElement('div');

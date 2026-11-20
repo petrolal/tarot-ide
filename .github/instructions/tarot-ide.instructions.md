@@ -18,7 +18,7 @@ applyTo: "extensions/tarot-core/**,product.json,resources/**,.tarot/**,docs/**"
 | `context/` | Provedores `#` (`#File`, `#Folder`, `#Problems`, `#Git Diff`, `#Terminal`, `#Codebase`, `#Steering`, `#Spec`) | ✅ (ampliar em M3.8c) |
 | `checkpoints/` | Snapshot por turno em `.tarot/checkpoints/<session>/<cp>/` e Restore | ✅ |
 | `steering/` | `AGENTS.md` + `~/.tarot/steering` + `.tarot/steering`, 4 modos (`always`/`fileMatch`/`auto`/`manual`) | ✅ |
-| `specs/` | `specService`, `taskParser`, `taskCodeLensProvider` (Feature/Bugfix EARS, gates, Run Task) | ✅ (M3.6.6/M3.6.7 estendem) |
+| `specs/` | `specService`, `specStepper`, `markdownReview`, `taskParser`, `taskCodeLensProvider` (EARS, Quick Spec, Analyze, Markdown Review, PBT) | ✅ (M3.6.7 estende ondas/sync) |
 | `git/` | `gitReviewService` (Review Queue, diff HEAD×working tree, revert, AI Commit Message) · `worktreeManager` (M3.6.7) · Pre-PR Review BYOA (M3.8c) | ✅ (estende em M3.6.7/M3.8c) |
 | `views/` | `tarotSidebarViews.ts` (TreeViews) e `agentPanelView.ts` (WebviewView do Tarot Agent) | ✅ |
 | `hooks/` | Engine de Agent Hooks `v1` | 📋 M3.7 |

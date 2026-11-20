@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.5 ✅ + saneamento pré-M3.6.6 ✅ · próximo: M3.6.6 → M3.6.7 → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.6.6** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.6 ✅ · próximo: M3.6.7 → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.6.7** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -102,7 +102,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.6.6 — Specs: UX Kiro (Stepper, Modos de Sessão, Quick Spec, Analyze Requirements, Markdown Review, PBT no Transcript) + Testes Base (UC-03)
+### Marco M3.6.6 — Specs: UX Kiro (Stepper, Modos de Sessão, Quick Spec, Analyze Requirements, Markdown Review, PBT no Transcript) + Testes Base (UC-03) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/specs/*` (Feature, Bugfix, Quick Spec, Analyze Requirements, Correctness, Best Practices) + Print 1.
 - **Objetivo**: fechar a paridade de UX de Specs e iniciar a cobertura de testes unitários em `extensions/tarot-core/`.
 - **Arquivos-alvo**:
@@ -120,11 +120,11 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Transcript**: tool calls em cards individuais (`Replace in File`, `Write File` com chip do arquivo e `✓`); falha de PBT exibe `Counter-example:` (input reduzido por *shrinking*, ícone `icons/arcana/16-the-tower.svg`) e `Error:`; ao corrigir, o agente pode salvar a regra aprendida em `.tarot/steering/`.
   - **Testes de Fronteira vs Unitários nas Specs** (*Frontier Engineering*): templates de `design.md` e `tasks.md` separam explicitamente **testes de contrato/fronteira** (integração/E2E e PBT de invariantes, preserváveis em reescritas) de testes unitários acoplados à implementação; a suíte base em `src/test/` roda lógica pura via `node --test` (sem importar `vscode`) como *fast feedback loop* determinístico.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Abrir qualquer arquivo de Spec exibe o stepper clicável com a etapa ativa.
-  - [ ] "Let's build" oferece Spec / Plan / Bug Fix / Quick Spec; Plan não escreve arquivos; Quick Spec gera os 3 artefatos sem gates.
-  - [ ] **Analyze Requirements** e **Markdown Review** funcionam sobre `requirements.md`/`bugfix.md`/`design.md`.
-  - [ ] `Counter-example:` e tool calls aparecem estruturados no transcript.
-  - [ ] Suíte unitária inicial (lógica pura sem `vscode`) executa e passa via CLI (`node --test`).
+  - [x] Abrir qualquer arquivo de Spec exibe o stepper clicável com a etapa ativa.
+  - [x] "Let's build" oferece Spec / Plan / Bug Fix / Quick Spec; Plan não escreve arquivos; Quick Spec gera os 3 artefatos sem gates.
+  - [x] **Analyze Requirements** e **Markdown Review** funcionam sobre `requirements.md`/`bugfix.md`/`design.md`.
+  - [x] `Counter-example:` e tool calls aparecem estruturados no transcript.
+  - [x] Suíte unitária inicial (lógica pura sem `vscode`) executa e passa via CLI (`node --test "extensions/tarot-core/out/test/**/*.test.js"`).
 
 ---
 

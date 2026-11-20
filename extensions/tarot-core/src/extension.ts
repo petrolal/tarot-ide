@@ -11,7 +11,9 @@ import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
+import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
 import { SpecCreationKind, TarotSpecService } from './specs/specService';
+import { SpecStepperCodeLensProvider } from './specs/specStepper';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
@@ -38,6 +40,8 @@ export function activate(context: vscode.ExtensionContext): void {
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
+	const specStepperProvider = new SpecStepperCodeLensProvider();
+	const pendingReviewComments: MarkdownReviewComment[] = [];
 
 	// Left Sidebar (Kiro-style) TreeViews
 	const specsProvider = new SpecsTreeProvider(specService, context.extensionUri);
@@ -66,10 +70,15 @@ export function activate(context: vscode.ExtensionContext): void {
 		agentsProvider,
 		agentPanelProvider,
 		specCodeLensProvider,
+		specStepperProvider,
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
 		vscode.languages.registerCodeLensProvider(
 			{ language: 'markdown', pattern: '**/.tarot/specs/*/tasks.md' },
 			specCodeLensProvider,
+		),
+		vscode.languages.registerCodeLensProvider(
+			{ language: 'markdown', pattern: '**/.tarot/specs/*/*.md' },
+			specStepperProvider,
 		),
 		vscode.window.registerTreeDataProvider('tarot.views.specs', specsProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.hooks', hooksProvider),
@@ -220,6 +229,142 @@ export function activate(context: vscode.ExtensionContext): void {
 			await agentPanelProvider.runSpecTask(specDir, lineIndex, picked.agentId);
 			specsProvider.refresh();
 			specCodeLensProvider.refresh();
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.openPhase', async (filePath?: string) => {
+			if (!filePath) {
+				return;
+			}
+			try {
+				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+				await vscode.window.showTextDocument(doc, { preview: false });
+			} catch {
+				vscode.window.showWarningMessage(vscode.l10n.t('Spec phase file does not exist yet: {0}', path.basename(filePath)));
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.analyzeRequirements', async (specDirArg?: string) => {
+			let specDir = specDirArg;
+			if (!specDir) {
+				const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+				if (activePath && activePath.replace(/\\/g, '/').includes('/.tarot/specs/')) {
+					specDir = path.dirname(activePath);
+				} else {
+					const root = await ensureWorkspaceFolder();
+					if (!root) {
+						return;
+					}
+					const specs = await specService.listSpecs(root);
+					if (specs.length === 0) {
+						vscode.window.showInformationMessage(vscode.l10n.t('No Specs found in .tarot/specs/.'));
+						return;
+					}
+					const picked = await vscode.window.showQuickPick(
+						specs.map(s => ({ label: s.slug, description: s.kind, specDir: s.dirPath })),
+						{ title: vscode.l10n.t('Analyze Requirements — Pick Spec') },
+					);
+					specDir = picked?.specDir;
+				}
+			}
+			if (specDir) {
+				await agentPanelProvider.runAnalyzeRequirements(specDir);
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.quickSpec', async () => {
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			const description = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Tarot IDE — Quick Spec'),
+				prompt: vscode.l10n.t('Describe what you want to build (generates requirements, design & tasks without approval gates)'),
+				placeHolder: vscode.l10n.t('e.g. Add rate limiting middleware with Redis backing'),
+			});
+			if (!description?.trim()) {
+				return;
+			}
+			const suggestedSlug = description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || 'quick-spec';
+			const rawSlug = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Quick Spec — Slug'),
+				prompt: vscode.l10n.t('Folder name under .tarot/specs/'),
+				value: suggestedSlug,
+			});
+			if (!rawSlug?.trim()) {
+				return;
+			}
+			const slug = rawSlug.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
+			if (!slug) {
+				return;
+			}
+			const { dirPath, entryFilePath } = await specService.createSpec(root, slug, 'quick-spec');
+			specsProvider.refresh();
+			const doc = await vscode.workspace.openTextDocument(entryFilePath);
+			await vscode.window.showTextDocument(doc, { preview: false });
+			await agentPanelProvider.runQuickSpec(dirPath, description.trim());
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.generateFromSession', async () => {
+			await agentPanelProvider.generateSpecFromActiveSession();
+			specsProvider.refresh();
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.markdownReview.add', async () => {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Open a Spec Markdown file (requirements.md, bugfix.md, or design.md) to add a review comment.'));
+				return;
+			}
+			const filePath = editor.document.uri.fsPath;
+			const fileName = path.basename(filePath);
+			const selection = editor.selection;
+			const startLine = selection.start.line + 1;
+			const endLine = selection.end.line + 1;
+			const excerpt = selection.isEmpty
+				? editor.document.lineAt(selection.start.line).text.trim()
+				: editor.document.getText(selection).trim();
+
+			const comment = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Markdown Review — {0}:L{1}', fileName, startLine),
+				prompt: vscode.l10n.t('Enter your review comment for this excerpt ({0} queued)', pendingReviewComments.length),
+				placeHolder: vscode.l10n.t('e.g. Clarify timeout behavior on retry'),
+			});
+			if (!comment?.trim()) {
+				return;
+			}
+
+			pendingReviewComments.push({
+				filePath,
+				fileName,
+				startLine,
+				endLine,
+				excerpt: excerpt || `(line ${startLine})`,
+				comment: comment.trim(),
+			});
+
+			const action = await vscode.window.showInformationMessage(
+				vscode.l10n.t('Review comment added ({0} queued for {1}).', pendingReviewComments.length, fileName),
+				vscode.l10n.t('Send All to Agent'),
+				vscode.l10n.t('Add More Later'),
+			);
+			if (action === vscode.l10n.t('Send All to Agent')) {
+				await vscode.commands.executeCommand('tarot.specs.markdownReview.send');
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.markdownReview.send', async () => {
+			if (pendingReviewComments.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No queued Markdown review comments to send.'));
+				return;
+			}
+			const fileName = pendingReviewComments[0].fileName;
+			const count = pendingReviewComments.length;
+			const prompt = formatMarkdownReviewBatch(fileName, pendingReviewComments);
+			pendingReviewComments.length = 0;
+			await agentPanelProvider.runBatchPrompt(
+				prompt,
+				vscode.l10n.t('💬 Markdown Review ({0} comments on {1})', count, fileName),
+			);
 		}),
 
 		vscode.commands.registerCommand('tarot.steering.create', async () => {

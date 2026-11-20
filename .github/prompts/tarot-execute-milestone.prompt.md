@@ -1,11 +1,11 @@
 ---
-description: Executa o próximo marco pendente do docs/MIGRATION_PLAN.md (hoje M3.6.6) em extensions/tarot-core/, com testes, compilação e atualização de status.
+description: Executa o próximo marco pendente do docs/MIGRATION_PLAN.md (hoje M3.6.7) em extensions/tarot-core/, com testes, compilação e atualização de status.
 agent: agent
 ---
 
 # Executar o próximo marco do Tarot IDE
 
-Marco alvo: `${input:milestone:Deixe vazio para o próximo pendente (hoje: M3.6.6)}`. Se vazio, escolha o **primeiro marco não concluído** da Fase 3 em `docs/MIGRATION_PLAN.md` (ordem: M3.6.6 → M3.6.7 → M3.7 → M3.8a → M3.8b → M3.8c → M3.9a → M3.9b → M3.9c → M3.10).
+Marco alvo: `${input:milestone:Deixe vazio para o próximo pendente (hoje: M3.6.7)}`. Se vazio, escolha o **primeiro marco não concluído** da Fase 3 em `docs/MIGRATION_PLAN.md` (ordem: M3.6.7 → M3.7 → M3.8a → M3.8b → M3.8c → M3.9a → M3.9b → M3.9c → M3.10).
 
 ## 1. Ler antes de codar (obrigatório)
 1. `AGENTS.md` e `docs/PROJECT_CONTEXT.md` (invariantes, Seção 3, Seção 5, Seção 6).
@@ -31,7 +31,7 @@ Liste (curto) os arquivos a criar/alterar, os contratos novos e como cada item d
 ## 5. Verificar
 ```bash
 pnpm exec gulp compile-extension:tarot-core
-node --test extensions/tarot-core/src/test/   # quando existir suíte
+node --test "extensions/tarot-core/out/test/**/*.test.js"
 rg "innerHTML|shell:\s*true" extensions/tarot-core/src extensions/tarot-core/media
 ```
 Valide JSON/manifestos alterados e faça uma **revisão adversarial** do diff contra o DoD do marco e as invariantes de `AGENTS.md` (idealmente com foco em segurança, regressão e aderência à Spec). Se tocou `src/vs/`: `node build/next/index.ts transpile` + `pnpm run typecheck-client` e registre o diff em `docs/PROJECT_CONTEXT.md` (Seção 5) e na matriz de `docs/MIGRATION_PLAN.md`. Valide visualmente com `./scripts/code.sh` quando houver mudança de UI e o ambiente permitir.
