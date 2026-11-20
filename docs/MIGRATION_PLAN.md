@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.5 ✅ · próximo: M3.6 → M3.9)** | **Sim — iniciar por M3.6** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6 ✅ · próximo: M3.7 → M3.9)** | **Sim — iniciar por M3.7** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -166,12 +166,13 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.6 — Spec-Driven Development Completo (Feature EARS, Bugfix `bugfix.md`, Run Task & PBT) (UC-03)
+### Marco M3.6 — Spec-Driven Development Completo (Feature EARS, Bugfix `bugfix.md`, Run Task & PBT) (UC-03) — ✅ Concluído
 - **Objetivo**: implementar o ciclo completo de Specs do Kiro IDE, incluindo Feature Specs (*Requirements-First* e *Design-First*), Bugfix Specs e execução granular de tarefas por qualquer agente local.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/specs/specService.ts`
   - `extensions/tarot-core/src/specs/taskParser.ts`
   - `extensions/tarot-core/src/specs/taskCodeLensProvider.ts`
+  - Integração em `tarotSidebarViews.ts` (`SpecsTreeProvider`), `agentPanelView.ts`, `panel.js`, `panel.css` e `extension.ts`
 - **Especificação**:
   - **Feature Spec**: `.tarot/specs/<slug>/{requirements.md,design.md,tasks.md}` usando notação **EARS** (`WHEN ... THE SYSTEM SHALL ...`), suportando entrada *Requirements-First* e *Design-First* + seção de *Correctness / Property-Based Testing* em `design.md`.
   - **Bugfix Spec**: `.tarot/specs/<slug>/{bugfix.md,design.md,tasks.md}` com os 3 blocos EARS (*Current Behavior*, *Expected Behavior*, *Unchanged Behavior*).
@@ -179,8 +180,8 @@ extensions/tarot-core/
   - **Card `Updated task list`** no transcript do painel direito com barra de progresso contínua (`done/total`) e checklist com ícones `✓` (paridade com Print 3 do Kiro).
   - **CodeLens em `tasks.md`** sobre cada `- [ ]`: **`▶ Run Task`** (agente ativo) e **`▶ Run Task with...`** (`claude` / `agy` / `codex`), marcando `- [x]` após conclusão.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Comando `Tarot: New Spec` permite escolher **Feature (Requirements-First)**, **Feature (Design-First)** ou **Bugfix**.
-  - [ ] CodeLens em `tasks.md` dispara o agente escolhido com o contexto completo da Spec + Steering e atualiza progresso (`done/total tasks`) na TreeView e no card `Updated task list` do painel direito.
+  - [x] Comando `Tarot: New Spec` permite escolher **Feature (Requirements-First)**, **Feature (Design-First)** ou **Bugfix**.
+  - [x] CodeLens em `tasks.md` dispara o agente escolhido com o contexto completo da Spec + Steering e atualiza progresso (`done/total tasks`) na TreeView e no card `Updated task list` do painel direito.
 
 ---
 

@@ -353,6 +353,71 @@
 			renderFormattedContent(body, msg.content || '');
 			wrapper.appendChild(body);
 
+			if (msg.role === 'assistant' && msg.taskProgress && msg.taskProgress.total > 0) {
+				const card = document.createElement('div');
+				card.className = 'task-progress-card';
+
+				const head = document.createElement('div');
+				head.className = 'task-progress-head';
+				const titleEl = document.createElement('span');
+				titleEl.className = 'task-progress-title';
+				titleEl.textContent = msg.taskProgress.title || 'Updated task list';
+				const countEl = document.createElement('span');
+				countEl.className = 'task-progress-count';
+				countEl.textContent = `${msg.taskProgress.done}/${msg.taskProgress.total}`;
+				head.appendChild(titleEl);
+				head.appendChild(countEl);
+				card.appendChild(head);
+
+				const track = document.createElement('div');
+				track.className = 'task-progress-track';
+				const fill = document.createElement('div');
+				fill.className = 'task-progress-fill';
+				const pct = Math.min(100, Math.round((msg.taskProgress.done / msg.taskProgress.total) * 100));
+				fill.style.width = `${pct}%`;
+				track.appendChild(fill);
+				card.appendChild(track);
+
+				const list = document.createElement('div');
+				list.className = 'task-progress-list';
+				for (const item of msg.taskProgress.items || []) {
+					const row = document.createElement('div');
+					row.className = `task-progress-item${item.completed ? ' done' : ''}`;
+					const icon = document.createElement('span');
+					icon.className = 'task-item-icon';
+					icon.textContent = item.completed ? '✓' : '○';
+					const txt = document.createElement('span');
+					txt.textContent = item.label;
+					row.appendChild(icon);
+					row.appendChild(txt);
+					list.appendChild(row);
+				}
+				card.appendChild(list);
+				wrapper.appendChild(card);
+			}
+
+			if (msg.role === 'assistant' && msg.approvalGate) {
+				const gateEl = document.createElement('div');
+				gateEl.className = `spec-gate-card${msg.approvalGate.approved ? ' approved' : ''}`;
+				if (msg.approvalGate.approved) {
+					const doneText = document.createElement('span');
+					doneText.className = 'spec-gate-approved';
+					doneText.textContent = `✓ Approved · ${msg.approvalGate.specSlug}`;
+					gateEl.appendChild(doneText);
+				} else {
+					const btn = document.createElement('button');
+					btn.type = 'button';
+					btn.className = 'spec-gate-btn';
+					btn.disabled = !!state.isRunning;
+					btn.textContent = `✓ ${msg.approvalGate.label}`;
+					btn.addEventListener('click', () => {
+						vscode.postMessage({ type: 'approveSpecGate', messageId: msg.id });
+					});
+					gateEl.appendChild(btn);
+				}
+				wrapper.appendChild(gateEl);
+			}
+
 			if (msg.role === 'assistant' && (msg.elapsedMs || msg.checkpointId)) {
 				const footer = document.createElement('div');
 				footer.className = 'msg-footer';

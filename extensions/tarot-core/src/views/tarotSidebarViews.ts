@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { AgentStatus } from '../agents/types';
+import { TarotSpecService } from '../specs/specService';
 import { SteeringDocument, TarotSteeringService } from '../steering/steeringService';
 
 function getWorkspaceRoot(): string | undefined {
@@ -292,6 +293,79 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 		}
 
 		return groups;
+	}
+
+	dispose(): void {
+		for (const d of this.disposables) {
+			d.dispose();
+		}
+	}
+}
+
+export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+	private readonly disposables: vscode.Disposable[] = [];
+
+	constructor(private readonly specService: TarotSpecService) {
+		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/specs/**');
+		this.disposables.push(
+			this._onDidChangeTreeData,
+			watcher,
+			watcher.onDidCreate(() => this.refresh()),
+			watcher.onDidChange(() => this.refresh()),
+			watcher.onDidDelete(() => this.refresh()),
+		);
+	}
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
+		return element;
+	}
+
+	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
+		if (element?.children) {
+			return element.children;
+		}
+		const root = getWorkspaceRoot();
+		if (!root) {
+			return [];
+		}
+
+		const specs = await this.specService.listSpecs(root);
+		return specs.map(spec => {
+			const children = spec.files.map(fileName => {
+				const fullPath = path.join(spec.dirPath, fileName);
+				const child = new SimpleTreeItem(fileName, vscode.TreeItemCollapsibleState.None, fullPath);
+				child.iconPath = new vscode.ThemeIcon(fileName === 'tasks.md' ? 'checklist' : 'markdown');
+				if (fileName === 'tasks.md' && spec.taskSummary.total > 0) {
+					child.description = `${spec.taskSummary.done}/${spec.taskSummary.total}`;
+				}
+				child.command = {
+					command: 'vscode.open',
+					title: 'Abrir arquivo',
+					arguments: [vscode.Uri.file(fullPath)],
+				};
+				return child;
+			});
+
+			const item = new SimpleTreeItem(
+				spec.slug,
+				children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+				spec.dirPath,
+				children,
+			);
+			const progress = spec.taskSummary.total > 0
+				? `${spec.taskSummary.done}/${spec.taskSummary.total} tasks`
+				: '0 tasks';
+			item.description = `${spec.kind} · ${progress}`;
+			item.iconPath = new vscode.ThemeIcon(spec.kind === 'bugfix' ? 'bug' : 'book');
+			item.tooltip = `Spec: ${spec.slug}\nTipo: ${spec.kind}\nProgresso: ${progress}`;
+			return item;
+		});
 	}
 
 	dispose(): void {

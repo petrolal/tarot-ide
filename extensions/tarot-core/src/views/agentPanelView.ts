@@ -4,13 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as crypto from 'node:crypto';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { TarotSessionStore } from '../agents/sessionStore';
-import { AgentId, AgentMode, AttachedContext, AutonomyMode, ContextProviderKind } from '../agents/types';
+import {
+	AgentId,
+	AgentMode,
+	AttachedContext,
+	AutonomyMode,
+	ContextProviderKind,
+	SpecApprovalGate,
+	TaskProgressCard,
+} from '../agents/types';
 import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
 import { resolveContextProvider } from '../context/contextProviders';
+import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
+import { markTaskCompletedInFile } from '../specs/taskParser';
 import { TarotSteeringService } from '../steering/steeringService';
 
 interface WebviewIncomingMessage {
@@ -28,6 +39,7 @@ interface WebviewIncomingMessage {
 		| 'selectSession'
 		| 'closeSession'
 		| 'restoreCheckpoint'
+		| 'approveSpecGate'
 		| 'refreshAgents';
 	readonly prompt?: string;
 	readonly agentId?: AgentId;
@@ -36,6 +48,7 @@ interface WebviewIncomingMessage {
 	readonly kind?: ContextProviderKind;
 	readonly sessionId?: string;
 	readonly checkpointId?: string;
+	readonly messageId?: string;
 	readonly index?: number;
 }
 
@@ -56,6 +69,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly sessionStore: TarotSessionStore,
 		private readonly checkpointService: TarotCheckpointService,
 		private readonly steeringService: TarotSteeringService,
+		private readonly specService: TarotSpecService,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.disposables.push(
@@ -95,6 +109,70 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
 		await this.runPrompt(prompt);
+	}
+
+	async introduceSpecInPanel(specDir: string, slug: string, creationKind: SpecCreationKind): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const session = this.sessionStore.createSession(activeAgent, 'spec', this.autonomy);
+		session.title = `Spec: ${slug}`;
+		this.mode = 'spec';
+
+		const targetPhase: 'requirements' | 'design' = creationKind === 'feature-design-first' ? 'requirements' : 'design';
+		const label = creationKind === 'feature-design-first'
+			? 'Approve Design & Generate Requirements (EARS)'
+			: creationKind === 'bugfix'
+				? 'Approve Bugfix (EARS) & Generate Root Cause Design'
+				: 'Approve Requirements (EARS) & Generate Design';
+
+		await this.sessionStore.appendMessage(session, {
+			role: 'assistant',
+			agentId: activeAgent,
+			mode: 'spec',
+			content:
+				`Spec **${slug}** (${creationKind}) criada em \`.tarot/specs/${slug}/\`. ` +
+				`Revise o arquivo aberto no editor e clique abaixo quando estiver pronto para avançar de fase.`,
+			approvalGate: {
+				specDir,
+				specSlug: slug,
+				targetPhase,
+				label,
+				approved: false,
+			},
+		});
+
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		this.postState();
+	}
+
+	async runSpecTask(specDir: string, lineIndex: number, overrideAgentId?: AgentId): Promise<void> {
+		if (overrideAgentId) {
+			await this.runtimeManager.setActiveAgent(overrideAgentId);
+		}
+		const spec = await this.specService.loadSpecContext(specDir);
+		const task = spec.taskSummary.tasks.find(t => t.lineIndex === lineIndex);
+		if (!task) {
+			vscode.window.showWarningMessage('Tarefa não encontrada em tasks.md.');
+			return;
+		}
+
+		await this.setMode('spec');
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+
+		const prompt = this.specService.buildTaskExecutionPrompt(spec, task);
+		const tasksFilePath = path.join(specDir, 'tasks.md');
+
+		await this.runPrompt(prompt, {
+			displayPrompt: `▶ Run Task #${task.index} (${spec.slug}): ${task.title}`,
+			onCompleted: async () => {
+				const updated = await markTaskCompletedInFile(tasksFilePath, lineIndex);
+				return {
+					title: `Updated task list · ${spec.slug}`,
+					done: updated.done,
+					total: updated.total,
+					items: updated.tasks.map(t => ({ label: t.title, completed: t.completed })),
+				};
+			},
+		});
 	}
 
 	private async handleMessage(msg: WebviewIncomingMessage): Promise<void> {
@@ -179,6 +257,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					}
 				}
 				break;
+			case 'approveSpecGate':
+				if (msg.messageId) {
+					await this.handleApproveSpecGate(msg.messageId);
+				}
+				break;
 			case 'cancel':
 				this.cancelActiveRun();
 				break;
@@ -243,7 +326,60 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		return [...files];
 	}
 
-	private async runPrompt(prompt: string): Promise<void> {
+	private async handleApproveSpecGate(messageId: string): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+		const msg = session.messages.find(m => m.id === messageId);
+		if (!msg?.approvalGate || msg.approvalGate.approved) {
+			return;
+		}
+		msg.approvalGate.approved = true;
+		await this.sessionStore.saveSession(session);
+		this.postState();
+
+		const gate = msg.approvalGate;
+		const spec = await this.specService.loadSpecContext(gate.specDir);
+		const phasePrompt = this.specService.buildPhaseAdvancePrompt(spec, gate.targetPhase as SpecPhase);
+
+		let nextGate: SpecApprovalGate | undefined;
+		if (gate.targetPhase === 'design' || gate.targetPhase === 'requirements') {
+			nextGate = {
+				specDir: gate.specDir,
+				specSlug: gate.specSlug,
+				targetPhase: 'tasks',
+				label: 'Approve & Generate Tasks Checklist',
+				approved: false,
+			};
+		}
+
+		await this.runPrompt(phasePrompt, {
+			displayPrompt: `✓ ${gate.label}`,
+			nextApprovalGate: nextGate,
+			onCompleted: gate.targetPhase === 'tasks'
+				? async () => {
+					const reloaded = await this.specService.loadSpecContext(gate.specDir);
+					if (reloaded.taskSummary.total === 0) {
+						return undefined;
+					}
+					return {
+						title: `Updated task list · ${reloaded.slug}`,
+						done: reloaded.taskSummary.done,
+						total: reloaded.taskSummary.total,
+						items: reloaded.taskSummary.tasks.map(t => ({ label: t.title, completed: t.completed })),
+					};
+				}
+				: undefined,
+		});
+	}
+
+	private async runPrompt(
+		prompt: string,
+		options?: {
+			displayPrompt?: string;
+			nextApprovalGate?: SpecApprovalGate;
+			onCompleted?: () => Promise<TaskProgressCard | undefined>;
+		},
+	): Promise<void> {
 		if (this.runningSessionId) {
 			return;
 		}
@@ -268,7 +404,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		await this.sessionStore.appendMessage(session, {
 			role: 'user',
 			mode: this.mode,
-			content: prompt,
+			content: options?.displayPrompt ?? prompt,
 			attachments: requestAttachments,
 		});
 
@@ -292,6 +428,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const appliedSteering = steeringResolution.applied.map(item => item.label);
 		let accumulatedText = '';
 		let accumulatedThought = '';
+		let hadError = false;
 		const usedTools: string[] = [];
 
 		this.outputChannel.appendLine(
@@ -324,6 +461,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					} else if (event.type === 'status' && event.content) {
 						this.postMessage({ type: 'streamStatus', content: event.content });
 					} else if (event.type === 'error' && event.content) {
+						hadError = true;
 						accumulatedText += (accumulatedText ? '\n\n' : '') + `[Erro] ${event.content}`;
 						this.postMessage({ type: 'streamError', content: event.content });
 					}
@@ -331,6 +469,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				this.activeCancellation.token,
 			);
 		} finally {
+			const wasCancelled = this.activeCancellation?.token.isCancellationRequested ?? false;
 			const elapsedMs = Date.now() - startedAt;
 			this.runningSessionId = undefined;
 			if (this.activeCancellation) {
@@ -338,7 +477,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				this.activeCancellation = undefined;
 			}
 
-			if (accumulatedText.trim().length > 0 || usedTools.length > 0) {
+			let taskProgress: TaskProgressCard | undefined;
+			if (!wasCancelled && !hadError && options?.onCompleted) {
+				try {
+					taskProgress = await options.onCompleted();
+				} catch {
+					// Non-fatal
+				}
+			}
+
+			if (accumulatedText.trim().length > 0 || usedTools.length > 0 || taskProgress) {
 				await this.sessionStore.appendMessage(session, {
 					role: 'assistant',
 					agentId,
@@ -347,6 +495,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					thought: accumulatedThought || undefined,
 					tools: usedTools.length > 0 ? usedTools : undefined,
 					appliedSteering: appliedSteering.length > 0 ? appliedSteering : undefined,
+					taskProgress,
+					approvalGate: !wasCancelled && !hadError ? options?.nextApprovalGate : undefined,
 					elapsedMs,
 					checkpointId,
 				});

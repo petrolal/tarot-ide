@@ -185,9 +185,13 @@ extensions/tarot-core/
     │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/ e rollback 1-clique
     ├── steering/
     │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
+    ├── specs/
+    │   ├── specService.ts              # Feature (Requirements/Design-First EARS) & Bugfix (bugfix.md) + prompts de fase/tarefa
+    │   ├── taskParser.ts               # Parser e atualização automática de checklists `- [ ]`/`- [x]` em tasks.md
+    │   └── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... em .tarot/specs/*/tasks.md
     └── views/
-        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs, Hooks, Steering agrupado com badges, Local Agents)
-        └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar (abas, disclosures, composer #, Autopilot, checkpoints)
+        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks, Steering agrupado, Local Agents)
+        └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar (abas, disclosures, task list, gates, composer #)
 ```
 
 ---

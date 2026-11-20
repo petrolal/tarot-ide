@@ -10,9 +10,11 @@ import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
+import { SpecCreationKind, TarotSpecService } from './specs/specService';
+import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
-import { LocalAgentsTreeProvider, SteeringTreeProvider, TarotWorkspaceFolderTreeProvider } from './views/tarotSidebarViews';
+import { LocalAgentsTreeProvider, SpecsTreeProvider, SteeringTreeProvider, TarotWorkspaceFolderTreeProvider } from './views/tarotSidebarViews';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -32,9 +34,11 @@ export function activate(context: vscode.ExtensionContext): void {
 	const sessionStore = new TarotSessionStore();
 	const checkpointService = new TarotCheckpointService();
 	const steeringService = new TarotSteeringService();
+	const specService = new TarotSpecService();
+	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 
 	// Left Sidebar (Kiro-style) TreeViews
-	const specsProvider = new TarotWorkspaceFolderTreeProvider('.tarot/specs', 'specs');
+	const specsProvider = new SpecsTreeProvider(specService);
 	const hooksProvider = new TarotWorkspaceFolderTreeProvider('.tarot/hooks', 'hooks');
 	const steeringProvider = new SteeringTreeProvider(steeringService);
 	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager);
@@ -46,6 +50,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		sessionStore,
 		checkpointService,
 		steeringService,
+		specService,
 		outputChannel,
 	);
 
@@ -57,6 +62,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		steeringProvider,
 		agentsProvider,
 		agentPanelProvider,
+		specCodeLensProvider,
+		vscode.languages.registerCodeLensProvider(
+			{ language: 'markdown', pattern: '**/.tarot/specs/*/tasks.md' },
+			specCodeLensProvider,
+		),
 		vscode.window.registerTreeDataProvider('tarot.views.specs', specsProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.hooks', hooksProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.steering', steeringProvider),
@@ -101,10 +111,39 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (!root) {
 				return;
 			}
+			const kindPick = await vscode.window.showQuickPick(
+				[
+					{
+						label: 'Feature (Requirements-First · EARS)',
+						description: 'requirements.md → design.md → tasks.md',
+						detail: 'Fluxo padrão Kiro: comece definindo requisitos em notação EARS (WHEN ... THE SYSTEM SHALL ...).',
+						specKind: 'feature-requirements-first' as SpecCreationKind,
+					},
+					{
+						label: 'Feature (Design-First · Arquitetura)',
+						description: 'design.md → requirements.md → tasks.md',
+						detail: 'Ideal quando a arquitetura técnica e interfaces são definidas primeiro.',
+						specKind: 'feature-design-first' as SpecCreationKind,
+					},
+					{
+						label: 'Bugfix (EARS · Regressão)',
+						description: 'bugfix.md → design.md → tasks.md',
+						detail: '3 blocos EARS obrigatórios: Current Behavior, Expected Behavior e Unchanged Behavior.',
+						specKind: 'bugfix' as SpecCreationKind,
+					},
+				],
+				{ title: 'Tarot IDE — Tipo de Spec (Kiro Workflow)' },
+			);
+			if (!kindPick) {
+				return;
+			}
+
 			const rawName = await vscode.window.showInputBox({
 				title: 'Tarot IDE — Nova Spec',
-				prompt: 'Nome da feature (ex.: auth-oauth, agent-hooks)',
-				placeHolder: 'minha-feature',
+				prompt: kindPick.specKind === 'bugfix'
+					? 'Slug do bugfix (ex.: fix-oauth-refresh-race)'
+					: 'Slug da feature (ex.: auth-oauth, agent-hooks)',
+				placeHolder: kindPick.specKind === 'bugfix' ? 'fix-meu-bug' : 'minha-feature',
 			});
 			if (!rawName) {
 				return;
@@ -113,20 +152,48 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (!slug) {
 				return;
 			}
-			const specDir = path.join(root, '.tarot', 'specs', slug);
-			await fs.mkdir(specDir, { recursive: true });
-			const reqPath = path.join(specDir, 'requirements.md');
-			const designPath = path.join(specDir, 'design.md');
-			const tasksPath = path.join(specDir, 'tasks.md');
 
-			await fs.writeFile(reqPath, `# Requirements — ${slug}\n\n## User Stories\n- Como usuário, eu quero ...\n\n## Acceptance Criteria\n- [ ] Critério 1\n`, 'utf8');
-			await fs.writeFile(designPath, `# Design — ${slug}\n\n## Architecture\n\n## Components & Interfaces\n`, 'utf8');
-			await fs.writeFile(tasksPath, `# Tasks — ${slug}\n\n- [ ] 1. Definir contratos e estrutura base\n- [ ] 2. Implementar lógica principal\n- [ ] 3. Validar com testes\n`, 'utf8');
-
+			const { dirPath, entryFilePath } = await specService.createSpec(root, slug, kindPick.specKind);
 			specsProvider.refresh();
-			const doc = await vscode.workspace.openTextDocument(reqPath);
+			const doc = await vscode.workspace.openTextDocument(entryFilePath);
 			await vscode.window.showTextDocument(doc);
-			await agentPanelProvider.setMode('spec');
+			await agentPanelProvider.introduceSpecInPanel(dirPath, slug, kindPick.specKind);
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.runTask', async (uri?: vscode.Uri, lineIndex?: number) => {
+			if (!uri || typeof lineIndex !== 'number') {
+				return;
+			}
+			const specDir = path.dirname(uri.fsPath);
+			await agentPanelProvider.runSpecTask(specDir, lineIndex);
+			specsProvider.refresh();
+			specCodeLensProvider.refresh();
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.runTaskWith', async (uri?: vscode.Uri, lineIndex?: number) => {
+			if (!uri || typeof lineIndex !== 'number') {
+				return;
+			}
+			const available = runtimeManager.getStatuses().filter(s => s.available);
+			if (available.length === 0) {
+				vscode.window.showWarningMessage('Nenhum CLI de agente local disponível (claude, agy, codex).');
+				return;
+			}
+			const picked = await vscode.window.showQuickPick(
+				available.map(s => ({
+					label: s.displayName,
+					description: s.version ?? s.binary,
+					agentId: s.id,
+				})),
+				{ title: 'Tarot IDE — Escolher Agente para Executar Tarefa' },
+			);
+			if (!picked) {
+				return;
+			}
+			const specDir = path.dirname(uri.fsPath);
+			await agentPanelProvider.runSpecTask(specDir, lineIndex, picked.agentId);
+			specsProvider.refresh();
+			specCodeLensProvider.refresh();
 		}),
 
 		vscode.commands.registerCommand('tarot.steering.create', async () => {

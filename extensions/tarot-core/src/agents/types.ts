@@ -68,6 +68,26 @@ export interface AgentAdapter {
 	run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void>;
 }
 
+export interface TaskProgressItem {
+	readonly label: string;
+	readonly completed: boolean;
+}
+
+export interface TaskProgressCard {
+	readonly title: string;
+	readonly done: number;
+	readonly total: number;
+	readonly items: readonly TaskProgressItem[];
+}
+
+export interface SpecApprovalGate {
+	readonly specDir: string;
+	readonly specSlug: string;
+	readonly targetPhase: 'requirements' | 'design' | 'tasks';
+	readonly label: string;
+	approved?: boolean;
+}
+
 export interface SessionMessage {
 	readonly id: string;
 	readonly role: 'user' | 'assistant' | 'system';
@@ -78,6 +98,8 @@ export interface SessionMessage {
 	readonly tools?: readonly string[];
 	readonly attachments?: readonly AttachedContext[];
 	readonly appliedSteering?: readonly string[];
+	readonly taskProgress?: TaskProgressCard;
+	readonly approvalGate?: SpecApprovalGate;
 	readonly elapsedMs?: number;
 	readonly checkpointId?: string;
 	readonly timestamp: string;

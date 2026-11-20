@@ -86,6 +86,11 @@ export class TarotSessionStore {
 		return entry;
 	}
 
+	async saveSession(session: AgentSession): Promise<void> {
+		session.updatedAt = new Date().toISOString();
+		await this.persist(session);
+	}
+
 	private async persist(session: AgentSession): Promise<void> {
 		const folder = vscode.workspace.workspaceFolders?.[0];
 		if (!folder) {

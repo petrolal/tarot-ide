@@ -370,6 +370,115 @@ html, body {
 	color: #F5E08E;
 }
 
+/* Kiro Print-3: Updated task list progress card */
+.task-progress-card {
+	background: #140E26;
+	border: 1px solid #312054;
+	border-radius: 8px;
+	padding: 9px 11px;
+	display: flex;
+	flex-direction: column;
+	gap: 7px;
+}
+
+.task-progress-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 11.5px;
+}
+
+.task-progress-title {
+	font-weight: 600;
+	color: #E8E6F0;
+}
+
+.task-progress-count {
+	font-size: 11px;
+	color: #C4A5F7;
+	font-variant-numeric: tabular-nums;
+}
+
+.task-progress-track {
+	width: 100%;
+	height: 5px;
+	border-radius: 999px;
+	background: #241642;
+	overflow: hidden;
+}
+
+.task-progress-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: linear-gradient(90deg, #7C3AED, #A855F7);
+	transition: width 0.2s ease;
+}
+
+.task-progress-list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.task-progress-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	font-size: 11.5px;
+	color: #9A90B0;
+	line-height: 1.35;
+}
+
+.task-progress-item.done {
+	color: #D6D2E6;
+}
+
+.task-progress-item.done .task-item-icon {
+	color: #4ADE80;
+	font-weight: 700;
+}
+
+.task-item-icon {
+	flex-shrink: 0;
+	width: 12px;
+	text-align: center;
+}
+
+/* Spec Phase Approval Gate */
+.spec-gate-card {
+	display: flex;
+	align-items: center;
+	margin-top: 2px;
+}
+
+.spec-gate-btn {
+	background: #6D28D9;
+	border: 1px solid #8B5CF6;
+	color: #FFFFFF;
+	border-radius: 6px;
+	padding: 5px 11px;
+	font-size: 11.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.spec-gate-btn:hover:not(:disabled) {
+	background: #7C3AED;
+	border-color: #D4AF37;
+}
+
+.spec-gate-btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+.spec-gate-approved {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: #4ADE80;
+}
+
 .msg-error {
 	color: #F87171;
 	font-size: 12px;
