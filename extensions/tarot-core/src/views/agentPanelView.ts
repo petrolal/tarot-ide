@@ -97,8 +97,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.disposables.push(
-			this.runtimeManager.onDidChangeAgents(() => this.postState()),
-			this.runtimeManager.onDidChangeActiveAgent(() => this.postState()),
+			this.runtimeManager.onDidChangeAgents(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
+			this.runtimeManager.onDidChangeActiveAgent(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			vscode.workspace.onDidSaveTextDocument(() => { void this.refreshChangedFiles(); }),
 		);
 	}
@@ -107,7 +107,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.view = webviewView;
 		webviewView.webview.options = {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
+			localResourceRoots: [
+				vscode.Uri.joinPath(this.extensionUri, 'media'),
+				vscode.Uri.joinPath(this.extensionUri, 'icons'),
+			],
 		};
 		webviewView.webview.html = this.buildHtml(webviewView.webview);
 

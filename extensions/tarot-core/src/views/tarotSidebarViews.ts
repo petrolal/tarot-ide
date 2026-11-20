@@ -15,8 +15,11 @@ function getWorkspaceRoot(): string | undefined {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
-function arcanaIcon(extensionUri: vscode.Uri, fileName: string): vscode.Uri {
-	return vscode.Uri.joinPath(extensionUri, 'icons', 'arcana', fileName);
+function arcanaIcon(extensionUri: vscode.Uri, fileName: string): { light: vscode.Uri; dark: vscode.Uri } {
+	return {
+		light: vscode.Uri.joinPath(extensionUri, 'icons', 'arcana', 'light', fileName),
+		dark: vscode.Uri.joinPath(extensionUri, 'icons', 'arcana', fileName),
+	};
 }
 
 class SimpleTreeItem extends vscode.TreeItem {

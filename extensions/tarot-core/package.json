@@ -348,7 +348,7 @@
         "title": "%command.git.generateCommitMessage.title%",
         "category": "Tarot IDE",
         "icon": {
-          "light": "icons/arcana/17-the-star.svg",
+          "light": "icons/arcana/light/17-the-star.svg",
           "dark": "icons/arcana/17-the-star.svg"
         }
       },
@@ -374,7 +374,7 @@
         "title": "%command.specs.create.title%",
         "category": "Tarot IDE",
         "icon": {
-          "light": "icons/arcana/05-the-hierophant.svg",
+          "light": "icons/arcana/light/05-the-hierophant.svg",
           "dark": "icons/arcana/05-the-hierophant.svg"
         }
       },
@@ -401,7 +401,7 @@
         "title": "%command.steering.generate.title%",
         "category": "Tarot IDE",
         "icon": {
-          "light": "icons/arcana/02-high-priestess.svg",
+          "light": "icons/arcana/light/02-high-priestess.svg",
           "dark": "icons/arcana/02-high-priestess.svg"
         }
       },
@@ -410,7 +410,7 @@
         "title": "%command.hooks.create.title%",
         "category": "Tarot IDE",
         "icon": {
-          "light": "icons/arcana/10-wheel-of-fortune.svg",
+          "light": "icons/arcana/light/10-wheel-of-fortune.svg",
           "dark": "icons/arcana/10-wheel-of-fortune.svg"
         }
       }

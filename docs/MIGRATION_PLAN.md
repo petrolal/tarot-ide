@@ -38,7 +38,8 @@ Commits de referência na branch `tarot-main`:
 
 ## Fase 3 — Arquitetura 100% Agêntica (Layout & Workflow Kiro + BYOA)
 
-> **Princípio de execução**: todas as entregas M3.1–M3.6 residem em **`extensions/tarot-core/`**. Não alterar `src/vs/` salvo justificativa explícita na especificação do marco.
+> **Princípio de execução**: todas as entregas da Fase 3 residem em **`extensions/tarot-core/`**. Não alterar `src/vs/` salvo justificativa explícita na especificação do marco.
+> **Consistência visual obrigatória (todos os marcos M3.6.6–M3.10)**: toda nova view/webview (Specs, Hooks, Permissões, Workflows, Sessions/Tarot Agent Mode, Schedule) deve herdar o mesmo design system **Clean Kiro + Arcana** em **Dark e Light (`body.vscode-light`)**: superfícies limpas com bordas sutis, tokens `--vscode-*`, ícones `icons/arcana/{,light/}*.svg` (`{ light, dark }`) e a tríade **roxo (ações/seleção) · ouro (headers/cartas) · teal (sucesso/checks/contexto)**.
 
 ### Arquitetura Alvo dentro de `extensions/tarot-core/`
 
