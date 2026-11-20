@@ -281,17 +281,18 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.9c — Sessions & Agent Focus Mode (UC-02, UC-07)
-- **Fonte**: `kiro.dev/docs/ide/chat` (Agent Focus Mode, experimental), Prints 3 e 4.
-- **Arquivos-alvo**: `extensions/tarot-core/src/views/{sessionsView,focusModeView}.ts`, `agentPanelView.ts`, `panel.js/css`.
+### Marco M3.9c — Sessions & Tarot Agent Mode / Agent Focus Mode (Desktop, estilo `app.kiro.dev`) (UC-02, UC-07)
+- **Fonte**: `kiro.dev/docs/ide/chat` (Agent Focus Mode), `kiro.dev/web/` (`app.kiro.dev`, adaptado para **Desktop nativo** no Tarot IDE) e Prints 3 e 4.
+- **Arquivos-alvo**: `extensions/tarot-core/src/views/{sessionsView,focusModeView}.ts`, `agentPanelView.ts`, `media/webview/panel.{js,css}`.
+- **Decisão arquitetural**: a experiência de orquestração estilo `app.kiro.dev` **roda como modo Desktop nativo dentro do Tarot IDE** (`extensions/tarot-core`, 100% Extension-First — funcionando também via `tarot-server` no navegador), substituindo integralmente a Agents Window nativa `src/vs/sessions/` do VS Code (cujos pontos de entrada ficam ocultos).
 - **Especificação**:
-  - **Painel Sessions**: busca, ícones de lista/filtro, `+ New ⌄`, menu `⋮`, botão de recolher, cards `perfil · repositório` + horário + título + resumo (`Flaky tests fixed`, `Weekly digest — Posted to #team`), badge `🔒 1 sub-agent needs approval` (parked), `Older Sessions >`.
-  - **Transcript**: disclosures `> N steps`, `> Spawned 1 sub-agent <nome>`, `> Ran <spec> × 20 · 3 failed`, `> Edited <arquivo>`, resposta final; composer com `+`, histórico, microfone (opcional), ✦, placeholder `(/command · @file · $skill)`.
-  - **Agent Focus Mode (3 painéis)**: Sessions à esquerda | chat expandido ao centro | painel auxiliar de Specs/Diffs/Artefatos à direita; toggle no canto superior direito; Autopilot e Supervised disponíveis; sessões paralelas; seletor de workflow no início. *Não* oferece Fork nos painéis de step. *(Substitui a Agents Window nativa `src/vs/sessions/` do upstream, cujos pontos de entrada ficam ocultos quando `defaultChatAgent` está ausente.)*
-  - **Concorrência segura**: chats Spec/Quick Spec/Bug Fix esperam um ao outro (`The agent is currently busy`); Plan e custom agents rodam em paralelo; aviso quando duas sessões podem editar os mesmos arquivos.
+  - **Painel Sessions (esquerda)**: busca, filtros, `+ New ⌄`, botão recolher, cards multi-repositório (`título`, resumo, badge `repo`, horário, status `Needs input` ou `🔒 1 sub-agent needs approval` *parked*), `Older Sessions >` e **rodapé fixo com atalhos diretos**: **Schedule** (M3.10), **Agent Config** (Custom Agents / Steering / Skills / MCP / Permissions) e **Settings** (`tarot.*`).
+  - **Área Central (Transcript + Composer)**: cabeçalho com título da sessão e ações à direita (refresh, diff/PR, alternar painel auxiliar); disclosures `> N steps`, `> Spawned 1 sub-agent <nome>`, `> Ran command ...`, `> Created PR ...`, `> Edited <arquivo>`, resposta Markdown/tabelas e **chips de ações sugeridas** (*follow-ups*); composer com anexos, seletor de **branch/worktree** (`git/worktreeManager.ts`), seletor de **repositório**, seletor de agente local (`Auto / claude / agy / codex`) e gatilhos `(/command · @file · $skill)`.
+  - **Agent Focus Mode (3 painéis)**: Sessions à esquerda | chat expandido ao centro | painel auxiliar recolhível de Specs/Diffs/Artefatos à direita; toggle em 1 clique no canto superior direito alternando entre *Editor View* e *Tarot Agent Mode*; modos de permissão disponíveis; sessões paralelas; seletor de workflow no início. *Não* oferece Fork nos painéis de step.
+  - **Concorrência segura**: chats Spec/Quick Spec/Bug Fix esperam um ao outro (`The agent is currently busy`); Plan e custom agents rodam em paralelo; aviso quando duas sessões podem editar os mesmos arquivos (com oferta de worktree isolado).
 - **Critérios de Aceite (DoD)**:
-  - [ ] Sessions filtra/pesquisa, mostra `perfil · repo` e badges *parked*.
-  - [ ] Focus Mode alterna com o Editor View e exibe os 3 painéis.
+  - [ ] Sessions filtra/pesquisa, mostra badge de repo, `Needs input` / badges *parked* e atalhos de rodapé (**Schedule**, **Agent Config**, **Settings**).
+  - [ ] Tarot Agent Mode / Focus Mode alterna em 1 clique com o Editor View, exibe os 3 painéis e permite selecionar repo/worktree e agente local direto no composer.
 
 ---
 
