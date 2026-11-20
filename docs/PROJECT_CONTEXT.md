@@ -22,7 +22,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Servidor / Túnel** | `tarot-server` (`.tarot-ide-server`) / `tarot-tunnel` |
 | **Bundle IDs** | macOS: `com.tarot.ide` · Linux: `com.tarot.ide` (`tarot-ide`) · Windows: `Tarot.TarotIDE` |
 | **Marketplace de Extensões** | **Open VSX Registry** (`https://open-vsx.org/vscode/gallery`) |
-| **Tema Padrão** | **Tarot Arcana Dark** (`#0A0A16` / `#1D1135` / `#4B0082` / `#D4AF37` / `#4FD1C5`) |
+| **Temas Padrão** | **Tarot Arcana Dark** (`#0A0A16` / `#1D1135` / `#4B0082` / `#D4AF37` / `#4FD1C5`) e **Tarot Arcana Light** (`#FAF9FD` / `#F4F1FA` / `#4B0082` / `#8F6B0A` / `#0D7377`) |
 | **Tema de Ícones Padrão** | **Tarot Arcana Icons** (`tarot-arcana-icons` — 46 SVGs de pastas e arquivos) |
 | **Repositório Oficial (`origin`)** | `https://github.com/petrolal/tarot-ide.git` |
 | **Licença & Copyright** | **GNU GPL v3.0** (`LICENSE` / `LICENSE.txt`) · **Copyright (c) 2026 Lucas Petrola** (`NOTICE.md`, atribuição obrigatória em forks + suporte a dual-licensing comercial; MIT do upstream preservada em `LICENSE-VSCODE-MIT.txt`) |
@@ -53,6 +53,13 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Antigravity CLI (`agy`)** | `agy` | Execução agêntica local via CLI / workflows |
 | **Extensível (Custom)** | Configurável em `tarot.agents.custom` | Permite ao usuário registrar qualquer outro CLI agêntico compatível |
 
+### 2.3 Compatibilidade Desktop & Web (`tarot-server`)
+| Modo de execução | O que herda do Tarot IDE | Limites |
+| --- | --- | --- |
+| **Desktop (Electron)** | 100% — UI, tema Arcana, ícones, Open VSX, `tarot-core` e BYOA local (`claude`, `codex`, `agy`). | Nenhum. |
+| **Web remoto (`tarot-server` / `tarot-tunnel`)** | 100% — o navegador renderiza a UI (TreeViews + Webview do `Tarot Agent`) enquanto `tarot-core` roda no **Extension Host Node.js do servidor** com acesso aos CLIs BYOA, Git e `.tarot/`. | Requer `extensionKind: ["workspace"]` e assets via `webview.asWebviewUri`. |
+| **Web puro (somente browser, sem backend Node)** | Identidade visual (tema Arcana, ícones, `nls.ts`), Open VSX e ocultação do Copilot/Agents Window. | **Sem BYOA local** (browser não possui `child_process.spawn` nem acesso ao `PATH`/filesystem local); agentes nesse modo dependem de adaptador remoto/ACP futuro (Fase 5). |
+
 ---
 
 ## 3. Regras e Guardrails do Projeto (Obrigatório para Agentes)
@@ -60,7 +67,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 ### 3.1 Regras Arquiteturais (Extension-First)
 1. **Regra de Ouro (90%+ em `extensions/tarot-core/`)**: toda nova feature do Tarot IDE (Painel Agêntico, Specs, Hooks, Steering, detectores/adaptadores de CLIs, comandos, configurações `tarot.*`) **DEVE** ser implementada dentro de `extensions/tarot-core/` (ou extensões irmãs `extensions/tarot-*`).
 2. **Núcleo (`src/vs/`) sob restrição estrita**: só modificar `src/vs/` quando for tecnicamente impossível via Extension API (ex.: layout default do workbench ou guards de remoção do Copilot). Toda alteração em `src/vs/` deve ter o menor diff possível e ser imediatamente registrada na Seção 5 deste documento e na matriz de conflitos de `docs/MIGRATION_PLAN.md`.
-3. **Nunca deletar `extensions/copilot/` do Git**: o Copilot é desativado via `product.json` + `--disable-extension=GitHub.copilot-chat` + `excludedExtensions`. Deletar a pasta quebraria `pnpm-lock.yaml` e criaria conflitos massivos em merges com `upstream`.
+3. **Nunca deletar `extensions/copilot/`, `extensions/theme-*` nem `src/vs/sessions/` do Git**: o Copilot e a Agents Window nativa são desativados via `product.json`, flags e defaults; os temas upstream (`extensions/theme-*`) permanecem como fallbacks (High Contrast, Solarized, Monokai). Deletar essas pastas quebraria `pnpm-lock.yaml` e criaria conflitos massivos em merges com `upstream`.
 4. **Nunca fazer find-and-replace global de "VS Code" em `src/vs/` ou `extensions/*/package.nls.json`**: o rebranding de textos da UI do core já é feito de forma centralizada e segura em `src/vs/nls.ts` (`_rebrandMessage`).
 
 ### 3.2 Regras de Git e Versionamento
@@ -74,7 +81,8 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 10. **Segurança na orquestração de CLIs locais**:
     - Executar sempre com `spawn(binary, args, { shell: false })` (nunca concatenar prompts do usuário em strings de shell).
     - Nunca logar ou persistir tokens/credenciais do usuário em `.tarot/` ou OutputChannels.
-    - Respeitar *Workspace Trust* (`vscode.workspace.isTrusted`) antes de disparar Agent Hooks automáticos ou comandos de escrita no disco.
+    - Respeitar *Workspace Trust* (`vscode.workspace.isTrusted`) antes de disparar Agent Hooks automáticos ou comandos de escrita no disco (`untrustedWorkspaces: "limited"` e `virtualWorkspaces: false` em `package.json`).
+    - Configurações que apontam para executáveis locais (`tarot.agents.paths.*` e `tarot.agents.custom`) usam `"scope": "machine"` para impedir que um `.vscode/settings.json` clonado injete binários arbitrários; `tarot-core` declara `"extensionKind": ["workspace"]` para compatibilidade com `tarot-server`.
     - Em Webviews, aplicar CSP estrita (`nonce`), nunca usar `innerHTML` com conteúdo não sanitizado de saída de LLMs/CLIs.
 
 ### 3.4 Regras de Build e Validação
@@ -151,14 +159,14 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 
 | Arquivo | Tipo | Finalidade |
 | --- | --- | --- |
-| `product.json` | Modificado | Rebranding completo para Tarot IDE, tema `Tarot Arcana Dark` em `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false`, remoção de `defaultChatAgent`, `GitHub.copilot-chat`, `agentsTelemetryAppName` e `voiceWsUrl`. |
+| `product.json` | Modificado | Rebranding completo para Tarot IDE, `Tarot Arcana Dark` + `Tarot Arcana Light` no topo de `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false`, remoção de `defaultChatAgent`, `GitHub.copilot-chat`, `agentsTelemetryAppName` e `voiceWsUrl`. |
 | `package.json` | Modificado (4 scripts) | Scripts leves sem Copilot: `compile-tarot`, `watch-tarot`, `watch-tarot-fast`, `watch-tarot-core`. |
 | `scripts/code.sh` & `scripts/code.bat` | Modificados (2 linhas cada) | Passam `--disable-extension=GitHub.copilot-chat` em dev. |
 | `src/vs/nls.ts` | Modificado (~15 linhas) | `_rebrandMessage` em `_format` (antes da interpolação de `args`): rebranda `"Visual Studio Code"`, `"VS Code"` e `"Code - OSS"` para `"Tarot IDE"` em toda a UI do core (inclusive Language Packs), preservando URLs, argumentos e exceções legítimas (keymaps/importação). |
 | `src/vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.ts` | Modificado (6 trechos) | Atualiza menções de marca no playground interativo em Markdown. |
-| `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts` & `src/vs/workbench/services/chat/common/chatEntitlementService.ts` | Modificados (5 linhas) | Define `chat.disableAIFeatures: true`, desativa `copilotCliCommand`/`titleBar.signIn`/`welcomePage.signIn` e marca `chatSetupHidden = true` quando `defaultChatAgent` está ausente, ocultando a aba nativa `Chat`, o ícone do Copilot no rodapé e o atalho `Open Chat` do watermark. |
+| `src/vs/workbench/contrib/chat/browser/{chat.shared.contribution,agentSessionsConfiguration}.ts`, `src/vs/workbench/services/chat/common/chatEntitlementService.ts` & `src/vs/platform/workspaces/electron-main/workspacesHistoryMainService.ts` | Modificados (~9 linhas) | Define `chat.disableAIFeatures: true`, desativa `copilotCliCommand`/`titleBar.signIn`/`welcomePage.signIn`/`titleBar.openInAgentsWindow`/`agentsWindowBanner`/`welcomePage.agentsWindowGraphic`, marca `chatSetupHidden = true` e oculta a **Agents Window** nativa (`src/vs/sessions/`) da UI e do JumpList quando `defaultChatAgent` está ausente (substituída pelo *Agent Focus Mode* do `tarot-core` em M3.9c). |
 | `src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts`, `src/vs/workbench/services/accounts/browser/defaultAccount.ts`, `src/vs/platform/extensionManagement/common/{extensionGalleryService,abstractExtensionManagementService}.ts`, `src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts` | Modificados (guards mínimos) | Protegem acessos a `productService.defaultChatAgent` contra `undefined` no boot, conta padrão e busca/instalação/remoção no Open VSX. |
-| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (2 linhas) | Define `COLOR_THEME_DARK = 'Tarot Arcana Dark'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` como padrões. |
+| `src/vs/workbench/services/themes/common/workbenchThemeService.ts` | Modificado (3 linhas) | Define `COLOR_THEME_DARK = 'Tarot Arcana Dark'`, `COLOR_THEME_LIGHT = 'Tarot Arcana Light'` e `FILE_ICON_THEME = 'tarot-arcana-icons'` como padrões. |
 | `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Emblema vetorial da carta Tarot IDE na titlebar, banners, Welcome, Sessions e marca d'água do editor vazio. |
 | `resources/{linux,win32,darwin,server}/**` | Modificados | Ícones do SO/janela/web e manifestos (`code.desktop`, `code.appdata.xml`, `VisualElementsManifest.xml`, `manifest.json`). |
 | `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png`, ícones 64..1024px). |
@@ -187,7 +195,8 @@ extensions/tarot-core/
 ├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.agents.*, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
-│   └── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (UI + TextMate + Semantic)
+│   ├── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (UI + TextMate + Semantic)
+│   └── tarot-light-color-theme.json    # Tema oficial "Tarot Arcana Light" (UI + TextMate + Semantic)
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
     ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das views

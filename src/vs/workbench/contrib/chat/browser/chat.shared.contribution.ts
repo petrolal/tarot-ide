@@ -2458,7 +2458,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize({ key: 'chat.welcomePage.agentsWindowGraphic.auto', comment: ['Values surrounded by single quotes are not to be translated.'] }, "Show 'manyWindowsToOne' when more than one editor window is open, and 'windowComparison' otherwise."),
 			],
 			description: nls.localize('chat.welcomePage.agentsWindowGraphic', "Controls which graphic explains the Agents window above the Agents window button on the Welcome page."),
-			default: AgentsWindowGraphicVariant.WindowComparison,
+			default: AgentsWindowGraphicVariant.None,
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -2481,7 +2481,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.TitleBarOpenInAgentsWindowEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.titleBar.openInAgentsWindow.enabled', "Controls whether the Open in Agents Window button is shown in the title bar."),
-			default: true,
+			default: false,
 		},
 		[ChatConfiguration.TitleBarOpenInAgentsWindowRichHover]: {
 			type: 'string',

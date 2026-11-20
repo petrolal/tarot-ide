@@ -20,13 +20,17 @@
     "Other"
   ],
   "icon": "media/icon.png",
+  "extensionKind": [
+    "workspace"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
   "capabilities": {
-    "virtualWorkspaces": true,
+    "virtualWorkspaces": false,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "description": "%capabilities.untrustedWorkspaces.description%"
     }
   },
   "main": "./out/extension",
@@ -41,6 +45,12 @@
         "label": "%theme.arcanaDark.label%",
         "uiTheme": "vs-dark",
         "path": "./themes/tarot-dark-color-theme.json"
+      },
+      {
+        "id": "Tarot Arcana Light",
+        "label": "%theme.arcanaLight.label%",
+        "uiTheme": "vs",
+        "path": "./themes/tarot-light-color-theme.json"
       }
     ],
     "iconThemes": [
@@ -96,15 +106,15 @@
     "viewsWelcome": [
       {
         "view": "tarot.views.specs",
-        "contents": "Nenhuma Spec em `.tarot/specs/`.\n[Nova Spec](command:tarot.specs.create)"
+        "contents": "%viewsWelcome.specs.contents%"
       },
       {
         "view": "tarot.views.hooks",
-        "contents": "Nenhum Agent Hook em `.tarot/hooks/`.\n[Novo Hook](command:tarot.hooks.create)"
+        "contents": "%viewsWelcome.hooks.contents%"
       },
       {
         "view": "tarot.views.steering",
-        "contents": "Nenhuma regra de Steering encontrada em `.tarot/steering/`, `~/.tarot/steering/` ou `AGENTS.md`.\n[Gerar Steering do Projeto](command:tarot.steering.generate)\n[Novo Steering](command:tarot.steering.create)"
+        "contents": "%viewsWelcome.steering.contents%"
       }
     ],
     "menus": {
@@ -203,16 +213,19 @@
         "tarot.agents.paths.claude": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "%config.agents.paths.claude.description%"
         },
         "tarot.agents.paths.agy": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "%config.agents.paths.agy.description%"
         },
         "tarot.agents.paths.codex": {
           "type": "string",
           "default": "",
+          "scope": "machine",
           "description": "%config.agents.paths.codex.description%"
         },
         "tarot.agents.timeoutMs": {
@@ -224,6 +237,7 @@
         "tarot.agents.custom": {
           "type": "array",
           "default": [],
+          "scope": "machine",
           "description": "%config.agents.custom.description%",
           "items": {
             "type": "object",

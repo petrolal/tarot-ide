@@ -41,12 +41,12 @@ Convenções: TypeScript `strict`; módulos de lógica pura (parsers, grafos, po
 | Sucesso/links/info | Mystic Teal | `#4FD1C5` / `#008080` |
 | Erro/alerta/destrutivo | Arcana Red | `#8B0000` |
 
-Regra: **prefira os tokens CSS `--vscode-*`** (ex.: `--vscode-editor-background`, `--vscode-foreground`, `--vscode-button-background`, `--vscode-focusBorder`) para respeitar temas; use os hex acima apenas em `themes/tarot-dark-color-theme.json`, SVGs de marca e como fallback `var(--vscode-x, #hex)`.
+Regra: **prefira os tokens CSS `--vscode-*`** (ex.: `--vscode-editor-background`, `--vscode-foreground`, `--vscode-button-background`, `--vscode-focusBorder`) para respeitar temas (`Tarot Arcana Dark`, `Tarot Arcana Light` ou temas do Open VSX); use os hex acima apenas em `themes/tarot-{dark,light}-color-theme.json`, SVGs de marca e como fallback `var(--vscode-x, #hex)`. Nunca apague `extensions/theme-*` do upstream.
 
 ## 3. Padrões BYOA
 
 - Agentes suportados: `claude`, `codex`, `agy` + qualquer CLI em `tarot.agents.custom`. Cada um é um `AgentAdapter` (`detect()` e `run(request, onEvent, token)`) que emite `AgentEvent` (`text | tool_start | tool_end | diff | error | done`).
-- Execução: `spawn(bin, args, { shell: false })` via `processRunner`; resolução de PATH (+ `~/.local/bin`); `SIGTERM` no cancelamento; nunca interpolar prompt em string de shell; nunca logar credenciais.
+- Execução: `spawn(bin, args, { shell: false })` via `processRunner`; resolução de PATH (+ `~/.local/bin`); `SIGTERM` no cancelamento; nunca interpolar prompt em string de shell; nunca logar credenciais. Settings de binários (`tarot.agents.paths.*`, `tarot.agents.custom`) devem usar `"scope": "machine"`; `tarot-core` declara `"extensionKind": ["workspace"]`, `"virtualWorkspaces": false` e `"untrustedWorkspaces": { "supported": "limited" }`.
 - O estado é **agnóstico de fornecedor** em `.tarot/` (trocar de agente preserva histórico). Capacidades que o CLI não suporta (MCP, *session resume*, flags de permissão) devem ser declaradas por adaptador e sinalizadas como *advisory* na UI.
 - Divergências Kiro × Tarot: ver `docs/MIGRATION_PLAN.md` (tabela ao final da Fase 3) e `docs/KIRO_ARCHITECTURE_REFERENCE.md` §4.
 

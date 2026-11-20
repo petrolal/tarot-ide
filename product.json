@@ -144,6 +144,12 @@
 			"type": "dark"
 		},
 		{
+			"id": "tarot-arcana-light",
+			"label": "Tarot Arcana Light",
+			"themeId": "Tarot Arcana Light",
+			"type": "light"
+		},
+		{
 			"id": "dark-2026",
 			"label": "Dark 2026",
 			"themeId": "Dark 2026",
@@ -156,12 +162,6 @@
 			"type": "hcDark"
 		},
 		{
-			"id": "solarized-dark",
-			"label": "Solarized Dark",
-			"themeId": "Solarized Dark",
-			"type": "dark"
-		},
-		{
 			"id": "light-2026",
 			"label": "Light 2026",
 			"themeId": "Light 2026",
@@ -172,12 +172,6 @@
 			"label": "Light High Contrast",
 			"themeId": "Default High Contrast Light",
 			"type": "hcLight"
-		},
-		{
-			"id": "solarized-light",
-			"label": "Solarized Light",
-			"themeId": "Solarized Light",
-			"type": "light"
 		}
 	],
 	"builtInExtensionsEnabledWithAutoUpdates": [],
