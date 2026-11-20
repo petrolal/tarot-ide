@@ -10,7 +10,7 @@ export type AgentId = BuiltInAgentId | (string & {});
 export type AgentMode = 'vibe' | 'spec' | 'plan';
 export type AutonomyMode = 'autopilot' | 'supervised';
 
-export type ContextProviderKind = 'file' | 'folder' | 'problems' | 'gitDiff' | 'terminal' | 'codebase' | 'steering';
+export type ContextProviderKind = 'file' | 'folder' | 'spec' | 'problems' | 'gitDiff' | 'terminal' | 'codebase' | 'steering';
 
 export interface CustomAgentConfig {
 	readonly id: string;

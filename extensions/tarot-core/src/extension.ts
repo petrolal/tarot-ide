@@ -10,6 +10,7 @@ import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
+import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { SpecCreationKind, TarotSpecService } from './specs/specService';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
@@ -35,6 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const checkpointService = new TarotCheckpointService();
 	const steeringService = new TarotSteeringService();
 	const specService = new TarotSpecService();
+	const gitReviewService = new TarotGitReviewService();
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 
 	// Left Sidebar (Kiro-style) TreeViews
@@ -51,6 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		checkpointService,
 		steeringService,
 		specService,
+		gitReviewService,
 		outputChannel,
 	);
 
@@ -63,6 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		agentsProvider,
 		agentPanelProvider,
 		specCodeLensProvider,
+		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
 		vscode.languages.registerCodeLensProvider(
 			{ language: 'markdown', pattern: '**/.tarot/specs/*/tasks.md' },
 			specCodeLensProvider,
@@ -104,6 +108,26 @@ export function activate(context: vscode.ExtensionContext): void {
 
 		vscode.commands.registerCommand('tarot.agentPanel.open', async () => {
 			await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.sendSelection', async () => {
+			await agentPanelProvider.attachSelectionAndFocus();
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.openInEditorTab', async () => {
+			await agentPanelProvider.openInEditorTab();
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.toggleFocusMode', async () => {
+			await agentPanelProvider.toggleAgentFocusMode();
+		}),
+
+		vscode.commands.registerCommand('tarot.git.generateCommitMessage', async () => {
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			await gitReviewService.generateAiCommitMessage(root, runtimeManager, outputChannel!);
 		}),
 
 		vscode.commands.registerCommand('tarot.specs.create', async () => {
@@ -338,6 +362,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// Initial background detection of local AI CLIs (claude, agy, codex, custom)
 	void runtimeManager.refresh();
+
+	// Kiro-style Agent-First startup: reveal Tarot Agent in Secondary Side Bar by default
+	const openOnStartup = vscode.workspace.getConfiguration('tarot.ui').get<boolean>('openAgentPanelOnStartup', true);
+	if (openOnStartup) {
+		setTimeout(() => {
+			void vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		}, 400);
+	}
 }
 
 export function deactivate(): void {

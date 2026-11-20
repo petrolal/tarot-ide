@@ -189,6 +189,8 @@ extensions/tarot-core/
     │   ├── specService.ts              # Feature (Requirements/Design-First EARS) & Bugfix (bugfix.md) + prompts de fase/tarefa
     │   ├── taskParser.ts               # Parser e atualização automática de checklists `- [ ]`/`- [x]` em tasks.md
     │   └── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... em .tarot/specs/*/tasks.md
+    ├── git/
+    │   └── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     └── views/
         ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks, Steering agrupado, Local Agents)
         └── agentPanelView.ts           # WebviewView Kiro na Secondary Side Bar (abas, disclosures, task list, gates, composer #)

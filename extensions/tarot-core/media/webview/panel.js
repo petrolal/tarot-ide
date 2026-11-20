@@ -3,9 +3,18 @@
 
 	const sessionTabsEl = document.getElementById('session-tabs');
 	const newSessionBtn = document.getElementById('btn-new-session');
+	const dockEditorBtn = document.getElementById('btn-dock-editor');
+	const focusModeBtn = document.getElementById('btn-focus-mode');
 	const messagesEl = document.getElementById('messages');
+	const reviewBarEl = document.getElementById('review-bar');
+	const reviewToggleBtn = document.getElementById('btn-review-toggle');
+	const reviewRefreshBtn = document.getElementById('btn-review-refresh');
+	const reviewSummaryText = document.getElementById('review-summary-text');
+	const reviewFileListEl = document.getElementById('review-file-list');
 	const contextMenuEl = document.getElementById('context-menu');
+	const slashMenuEl = document.getElementById('slash-menu');
 	const hashBtn = document.getElementById('btn-hash');
+	const slashBtn = document.getElementById('btn-slash');
 	const attachBtn = document.getElementById('btn-attach');
 	const contextRingEl = document.getElementById('context-ring');
 	const contextRingArc = document.getElementById('context-ring-arc');
@@ -27,13 +36,17 @@
 		activeAgentId: 'claude',
 		mode: 'vibe',
 		autonomy: 'autopilot',
+		isFocusMode: false,
 		isRunning: false,
 		activeSessionId: '',
 		sessions: [],
 		attachments: [],
+		changedFiles: [],
 		messages: [],
 		contextPercent: 0,
 	};
+
+	let reviewExpanded = false;
 
 	let liveBubbleEl = null;
 	let liveBodyEl = null;
@@ -445,9 +458,86 @@
 		messagesEl.scrollTop = messagesEl.scrollHeight;
 	}
 
+	function renderReviewBar() {
+		const files = state.changedFiles || [];
+		if (files.length === 0) {
+			reviewBarEl.classList.add('hidden');
+			return;
+		}
+		reviewBarEl.classList.remove('hidden');
+		const totalAdded = files.reduce((acc, f) => acc + (f.added || 0), 0);
+		const totalRemoved = files.reduce((acc, f) => acc + (f.removed || 0), 0);
+		const arrow = reviewExpanded ? '▾' : '▸';
+		reviewSummaryText.textContent = `${arrow} ${files.length} ${files.length === 1 ? 'file changed' : 'files changed'} (+${totalAdded} -${totalRemoved})`;
+
+		reviewFileListEl.classList.toggle('hidden', !reviewExpanded);
+		reviewFileListEl.textContent = '';
+		if (!reviewExpanded) {
+			return;
+		}
+
+		for (const file of files) {
+			const row = document.createElement('div');
+			row.className = 'review-file-row';
+
+			const nameBtn = document.createElement('button');
+			nameBtn.type = 'button';
+			nameBtn.className = 'review-file-link';
+			nameBtn.title = `Abrir diff: ${file.relativePath}`;
+
+			const badge = document.createElement('span');
+			badge.className = `review-status status-${(file.status || 'M').toLowerCase()}`;
+			badge.textContent = file.status || 'M';
+			nameBtn.appendChild(badge);
+
+			const pathSpan = document.createElement('span');
+			pathSpan.className = 'review-file-path';
+			pathSpan.textContent = file.relativePath;
+			nameBtn.appendChild(pathSpan);
+
+			const stats = document.createElement('span');
+			stats.className = 'review-file-stats';
+			stats.textContent = `+${file.added || 0} -${file.removed || 0}`;
+			nameBtn.appendChild(stats);
+
+			nameBtn.addEventListener('click', () => {
+				vscode.postMessage({ type: 'openFileDiff', relativePath: file.relativePath, fileStatus: file.status });
+			});
+
+			const revertBtn = document.createElement('button');
+			revertBtn.type = 'button';
+			revertBtn.className = 'review-revert-btn';
+			revertBtn.title = `Reverter ${file.relativePath}`;
+			revertBtn.textContent = '↺';
+			revertBtn.addEventListener('click', () => {
+				vscode.postMessage({ type: 'revertFile', relativePath: file.relativePath, fileStatus: file.status });
+			});
+
+			row.appendChild(nameBtn);
+			row.appendChild(revertBtn);
+			reviewFileListEl.appendChild(row);
+		}
+	}
+
 	function toggleContextMenu(force) {
 		const show = typeof force === 'boolean' ? force : contextMenuEl.classList.contains('hidden');
 		contextMenuEl.classList.toggle('hidden', !show);
+		if (show) {
+			slashMenuEl.classList.add('hidden');
+		}
+	}
+
+	function toggleSlashMenu(force, filterText) {
+		const show = typeof force === 'boolean' ? force : slashMenuEl.classList.contains('hidden');
+		slashMenuEl.classList.toggle('hidden', !show);
+		if (show) {
+			contextMenuEl.classList.add('hidden');
+			const q = (filterText || '').toLowerCase();
+			for (const item of slashMenuEl.querySelectorAll('.slash-menu-item')) {
+				const cmd = (item.dataset.cmd || '').toLowerCase();
+				item.classList.toggle('hidden', q.length > 0 && !cmd.startsWith(q));
+			}
+		}
 	}
 
 	function sendPrompt() {
@@ -460,6 +550,17 @@
 			return;
 		}
 		toggleContextMenu(false);
+		toggleSlashMenu(false);
+
+		const knownSlash = ['/spec', '/bugfix', '/plan', '/steering', '/review', '/focus', '/clear'];
+		if (knownSlash.includes(text.toLowerCase())) {
+			promptInput.value = '';
+			autoResizeInput();
+			updateSendButtonState();
+			vscode.postMessage({ type: 'runSlashCommand', slashCommand: text.toLowerCase() });
+			return;
+		}
+
 		promptInput.value = '';
 		autoResizeInput();
 		updateSendButtonState();
@@ -468,8 +569,16 @@
 
 	sendBtn.addEventListener('click', sendPrompt);
 	newSessionBtn.addEventListener('click', () => vscode.postMessage({ type: 'newSession' }));
+	dockEditorBtn.addEventListener('click', () => vscode.postMessage({ type: 'openInEditorTab' }));
+	focusModeBtn.addEventListener('click', () => vscode.postMessage({ type: 'toggleFocusMode' }));
 	attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'attachActiveFile' }));
 	hashBtn.addEventListener('click', () => toggleContextMenu());
+	slashBtn.addEventListener('click', () => toggleSlashMenu());
+	reviewToggleBtn.addEventListener('click', () => {
+		reviewExpanded = !reviewExpanded;
+		renderReviewBar();
+	});
+	reviewRefreshBtn.addEventListener('click', () => vscode.postMessage({ type: 'refreshChangedFiles' }));
 
 	for (const item of contextMenuEl.querySelectorAll('.context-menu-item')) {
 		item.addEventListener('click', () => {
@@ -480,6 +589,17 @@
 				autoResizeInput();
 			}
 			vscode.postMessage({ type: 'pickContextProvider', kind });
+		});
+	}
+
+	for (const item of slashMenuEl.querySelectorAll('.slash-menu-item')) {
+		item.addEventListener('click', () => {
+			const cmd = item.dataset.cmd;
+			toggleSlashMenu(false);
+			promptInput.value = '';
+			autoResizeInput();
+			updateSendButtonState();
+			vscode.postMessage({ type: 'runSlashCommand', slashCommand: cmd });
 		});
 	}
 
@@ -501,9 +621,15 @@
 	promptInput.addEventListener('input', () => {
 		autoResizeInput();
 		updateSendButtonState();
-		if (promptInput.value === '#' || promptInput.value.endsWith(' #')) {
+		const val = promptInput.value;
+		if (val.startsWith('/') && !val.includes(' ')) {
+			toggleSlashMenu(true, val);
+		} else {
+			toggleSlashMenu(false);
+		}
+		if (val === '#' || val.endsWith(' #')) {
 			toggleContextMenu(true);
-		} else if (!promptInput.value.includes('#')) {
+		} else if (!val.includes('#')) {
 			toggleContextMenu(false);
 		}
 	});
@@ -511,6 +637,7 @@
 	promptInput.addEventListener('keydown', e => {
 		if (e.key === 'Escape') {
 			toggleContextMenu(false);
+			toggleSlashMenu(false);
 			return;
 		}
 		if (e.key === 'Tab' && e.shiftKey) {
@@ -530,6 +657,9 @@
 		if (!contextMenuEl.contains(e.target) && e.target !== hashBtn) {
 			toggleContextMenu(false);
 		}
+		if (!slashMenuEl.contains(e.target) && e.target !== slashBtn) {
+			toggleSlashMenu(false);
+		}
 	});
 
 	window.addEventListener('message', event => {
@@ -543,10 +673,12 @@
 				state = msg;
 				modeSelect.value = state.mode || 'vibe';
 				autopilotCheckbox.checked = state.autonomy !== 'supervised';
+				focusModeBtn.classList.toggle('active-focus', !!state.isFocusMode);
 				renderSessionTabs();
 				renderAgents();
 				renderContextRing();
 				renderAttachments();
+				renderReviewBar();
 				updateSendButtonState();
 				if (!state.isRunning) {
 					statusRow.classList.add('hidden');
@@ -555,6 +687,9 @@
 				if (!liveBubbleEl) {
 					renderMessages();
 				}
+				break;
+			case 'focusInput':
+				promptInput.focus();
 				break;
 			case 'streamStart': {
 				liveRawText = '';

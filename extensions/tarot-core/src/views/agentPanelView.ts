@@ -20,6 +20,7 @@ import {
 import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
 import { resolveContextProvider } from '../context/contextProviders';
+import { ChangedFileInfo, TarotGitReviewService } from '../git/gitReviewService';
 import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
 import { markTaskCompletedInFile } from '../specs/taskParser';
 import { TarotSteeringService } from '../steering/steeringService';
@@ -40,6 +41,12 @@ interface WebviewIncomingMessage {
 		| 'closeSession'
 		| 'restoreCheckpoint'
 		| 'approveSpecGate'
+		| 'openInEditorTab'
+		| 'toggleFocusMode'
+		| 'openFileDiff'
+		| 'revertFile'
+		| 'refreshChangedFiles'
+		| 'runSlashCommand'
 		| 'refreshAgents';
 	readonly prompt?: string;
 	readonly agentId?: AgentId;
@@ -49,6 +56,9 @@ interface WebviewIncomingMessage {
 	readonly sessionId?: string;
 	readonly checkpointId?: string;
 	readonly messageId?: string;
+	readonly relativePath?: string;
+	readonly fileStatus?: ChangedFileInfo['status'];
+	readonly slashCommand?: string;
 	readonly index?: number;
 }
 
@@ -56,9 +66,12 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	static readonly viewId = 'tarot.views.agentPanel';
 
 	private view: vscode.WebviewView | undefined;
+	private editorPanel: vscode.WebviewPanel | undefined;
+	private isFocusMode = false;
 	private mode: AgentMode = 'vibe';
 	private autonomy: AutonomyMode = 'autopilot';
 	private attachments: AttachedContext[] = [];
+	private changedFiles: ChangedFileInfo[] = [];
 	private activeCancellation: vscode.CancellationTokenSource | undefined;
 	private runningSessionId: string | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
@@ -70,11 +83,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly checkpointService: TarotCheckpointService,
 		private readonly steeringService: TarotSteeringService,
 		private readonly specService: TarotSpecService,
+		private readonly gitReviewService: TarotGitReviewService,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.disposables.push(
 			this.runtimeManager.onDidChangeAgents(() => this.postState()),
 			this.runtimeManager.onDidChangeActiveAgent(() => this.postState()),
+			vscode.workspace.onDidSaveTextDocument(() => { void this.refreshChangedFiles(); }),
 		);
 	}
 
@@ -109,6 +124,97 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
 		await this.runPrompt(prompt);
+	}
+
+	async openInEditorTab(): Promise<void> {
+		if (this.editorPanel) {
+			this.editorPanel.reveal(vscode.ViewColumn.Active);
+			this.postState();
+			return;
+		}
+		const panel = vscode.window.createWebviewPanel(
+			'tarot.agentEditorTab',
+			'Tarot Agent',
+			vscode.ViewColumn.Active,
+			{
+				enableScripts: true,
+				retainContextWhenHidden: true,
+				localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
+			},
+		);
+		panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'icon.png');
+		panel.webview.html = this.buildHtml(panel.webview);
+		this.editorPanel = panel;
+
+		panel.webview.onDidReceiveMessage((msg: WebviewIncomingMessage) => {
+			void this.handleMessage(msg);
+		});
+		panel.onDidDispose(() => {
+			this.editorPanel = undefined;
+			if (this.isFocusMode) {
+				this.isFocusMode = false;
+				this.postState();
+			}
+		});
+		await this.refreshChangedFiles();
+		this.postState();
+	}
+
+	async toggleAgentFocusMode(): Promise<void> {
+		this.isFocusMode = !this.isFocusMode;
+		if (this.isFocusMode) {
+			await this.openInEditorTab();
+			await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
+		} else {
+			if (this.editorPanel) {
+				this.editorPanel.dispose();
+				this.editorPanel = undefined;
+			}
+			await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		}
+		this.postState();
+	}
+
+	async attachSelectionAndFocus(): Promise<void> {
+		const editor = vscode.window.activeTextEditor;
+		if (editor) {
+			const fsPath = editor.document.uri.fsPath;
+			const relPath = vscode.workspace.asRelativePath(editor.document.uri, false);
+			if (!editor.selection.isEmpty) {
+				const startLine = editor.selection.start.line + 1;
+				const endLine = editor.selection.end.line + 1;
+				const selectionText = editor.document.getText(editor.selection);
+				this.addAttachment({
+					kind: 'file',
+					label: `${relPath}:${startLine}-${endLine}`,
+					path: fsPath,
+					selection: selectionText,
+				});
+			} else {
+				this.addAttachment({
+					kind: 'file',
+					label: relPath,
+					path: fsPath,
+					content: editor.document.getText().slice(0, 12_000),
+				});
+			}
+		}
+		if (this.editorPanel) {
+			this.editorPanel.reveal(vscode.ViewColumn.Active);
+		} else {
+			await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		}
+		this.postMessage({ type: 'focusInput' });
+	}
+
+	async refreshChangedFiles(): Promise<void> {
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!cwd) {
+			this.changedFiles = [];
+			return;
+		}
+		this.changedFiles = await this.gitReviewService.getChangedFiles(cwd);
+		this.postState();
 	}
 
 	async introduceSpecInPanel(specDir: string, slug: string, creationKind: SpecCreationKind): Promise<void> {
@@ -179,6 +285,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const activeAgent = this.runtimeManager.getActiveAgentId();
 		switch (msg.type) {
 			case 'ready':
+				await this.refreshChangedFiles();
 				this.postState();
 				break;
 			case 'refreshAgents':
@@ -262,6 +369,39 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					await this.handleApproveSpecGate(msg.messageId);
 				}
 				break;
+			case 'openInEditorTab':
+				await this.openInEditorTab();
+				break;
+			case 'toggleFocusMode':
+				await this.toggleAgentFocusMode();
+				break;
+			case 'openFileDiff':
+				if (msg.relativePath && msg.fileStatus) {
+					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+					if (cwd) {
+						await this.gitReviewService.openFileDiff(cwd, msg.relativePath, msg.fileStatus);
+					}
+				}
+				break;
+			case 'revertFile':
+				if (msg.relativePath && msg.fileStatus) {
+					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+					if (cwd) {
+						const reverted = await this.gitReviewService.revertFile(cwd, msg.relativePath, msg.fileStatus);
+						if (reverted) {
+							await this.refreshChangedFiles();
+						}
+					}
+				}
+				break;
+			case 'refreshChangedFiles':
+				await this.refreshChangedFiles();
+				break;
+			case 'runSlashCommand':
+				if (msg.slashCommand) {
+					await this.handleSlashCommand(msg.slashCommand);
+				}
+				break;
 			case 'cancel':
 				this.cancelActiveRun();
 				break;
@@ -324,6 +464,44 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			}
 		}
 		return [...files];
+	}
+
+	private async handleSlashCommand(cmd: string): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		switch (cmd) {
+			case '/spec':
+				await vscode.commands.executeCommand('tarot.specs.create');
+				break;
+			case '/bugfix':
+				await vscode.commands.executeCommand('tarot.specs.create');
+				break;
+			case '/plan':
+				await this.setMode('plan');
+				break;
+			case '/steering':
+				await vscode.commands.executeCommand('tarot.steering.generate');
+				break;
+			case '/focus':
+				await this.toggleAgentFocusMode();
+				break;
+			case '/clear':
+				this.sessionStore.createSession(activeAgent, this.mode, this.autonomy);
+				this.attachments = [];
+				this.postState();
+				break;
+			case '/review': {
+				const diffAtt = await resolveContextProvider('gitDiff');
+				const probAtt = await resolveContextProvider('problems');
+				if (diffAtt) {
+					this.addAttachment(diffAtt);
+				}
+				if (probAtt) {
+					this.addAttachment(probAtt);
+				}
+				await this.runPrompt('Revise as alterações atuais (#Git Diff) e quaisquer erros em #Problems. Aponte bugs, riscos de segurança e melhorias objetivas.');
+				break;
+			}
+		}
 	}
 
 	private async handleApproveSpecGate(messageId: string): Promise<void> {
@@ -503,6 +681,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			}
 
 			this.postMessage({ type: 'streamEnd' });
+			await this.refreshChangedFiles();
 			this.postState();
 		}
 	}
@@ -535,10 +714,12 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			activeAgentId,
 			mode: this.mode,
 			autonomy: this.autonomy,
+			isFocusMode: this.isFocusMode,
 			isRunning: Boolean(this.runningSessionId),
 			activeSessionId: activeSession.id,
 			sessions,
 			attachments: this.attachments.map(a => ({ kind: a.kind, label: a.label })),
+			changedFiles: this.changedFiles,
 			messages: activeSession.messages,
 			contextPercent: this.estimateContextPercent(activeSession.messages, this.attachments),
 		});
@@ -547,6 +728,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private postMessage(payload: Record<string, unknown>): void {
 		if (this.view) {
 			void this.view.webview.postMessage(payload);
+		}
+		if (this.editorPanel) {
+			void this.editorPanel.webview.postMessage(payload);
 		}
 	}
 
@@ -570,20 +754,43 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			<span class="tabbar-brand">TAROT</span>
 			<div id="session-tabs" class="session-tabs" role="tablist"></div>
 			<button id="btn-new-session" class="tabbar-add-btn" type="button" title="Nova sessão">+</button>
+			<button id="btn-dock-editor" class="tabbar-add-btn" type="button" title="Abrir sessão em aba do editor (Dockable Tab)">⤢</button>
+			<button id="btn-focus-mode" class="tabbar-add-btn" type="button" title="Alternar Agent Focus Mode">⊞</button>
 		</header>
 
 		<main id="messages" class="tarot-messages" aria-live="polite"></main>
 
 		<footer class="tarot-composer-wrap">
+			<div id="review-bar" class="review-bar hidden">
+				<div class="review-bar-header">
+					<button id="btn-review-toggle" class="review-toggle-btn" type="button">
+						<span id="review-summary-text">0 files changed</span>
+					</button>
+					<button id="btn-review-refresh" class="review-mini-btn" type="button" title="Atualizar Git diff">↻</button>
+				</div>
+				<div id="review-file-list" class="review-file-list hidden"></div>
+			</div>
+
 			<div id="context-menu" class="context-popup hidden" role="menu">
 				<div class="context-popup-header">Context Providers (#)</div>
 				<button class="context-menu-item" type="button" data-kind="file"><span class="ctx-tag">#File</span><span class="ctx-desc">Selecionar arquivo do workspace</span></button>
 				<button class="context-menu-item" type="button" data-kind="folder"><span class="ctx-tag">#Folder</span><span class="ctx-desc">Listar diretório do projeto</span></button>
+				<button class="context-menu-item" type="button" data-kind="spec"><span class="ctx-tag">#Spec</span><span class="ctx-desc">Anexar Spec de .tarot/specs/</span></button>
 				<button class="context-menu-item" type="button" data-kind="problems"><span class="ctx-tag">#Problems</span><span class="ctx-desc">Erros e warnings ativos do editor</span></button>
 				<button class="context-menu-item" type="button" data-kind="gitDiff"><span class="ctx-tag">#Git Diff</span><span class="ctx-desc">Alterações atuais (git diff HEAD)</span></button>
 				<button class="context-menu-item" type="button" data-kind="codebase"><span class="ctx-tag">#Codebase</span><span class="ctx-desc">Mapa de arquivos do workspace</span></button>
 				<button class="context-menu-item" type="button" data-kind="terminal"><span class="ctx-tag">#Terminal</span><span class="ctx-desc">Contexto do terminal ativo</span></button>
-				<button class="context-menu-item" type="button" data-kind="steering"><span class="ctx-tag">#Steering</span><span class="ctx-desc">Arquivo manual de .tarot/steering/</span></button>
+				<button class="context-menu-item" type="button" data-kind="steering"><span class="ctx-tag">#Steering</span><span class="ctx-desc">Arquivo de Steering (workspace/global)</span></button>
+			</div>
+
+			<div id="slash-menu" class="context-popup hidden" role="menu">
+				<div class="context-popup-header">Slash Commands (/)</div>
+				<button class="slash-menu-item" type="button" data-cmd="/spec"><span class="ctx-tag">/spec</span><span class="ctx-desc">Criar nova Feature ou Bugfix Spec (EARS)</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/plan"><span class="ctx-tag">/plan</span><span class="ctx-desc">Alternar para Plan Mode (somente leitura)</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/steering"><span class="ctx-tag">/steering</span><span class="ctx-desc">Gerar Steering Docs (product/tech/structure)</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/review"><span class="ctx-tag">/review</span><span class="ctx-desc">Revisar #Git Diff + #Problems com o agente</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/focus"><span class="ctx-tag">/focus</span><span class="ctx-desc">Alternar Agent Focus Mode</span></button>
+				<button class="slash-menu-item" type="button" data-cmd="/clear"><span class="ctx-tag">/clear</span><span class="ctx-desc">Iniciar nova sessão limpa</span></button>
 			</div>
 
 			<div id="status-row" class="status-row hidden">
@@ -598,7 +805,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					<textarea
 						id="prompt-input"
 						rows="1"
-						placeholder="Ask a question or describe a task..."
+						placeholder="Ask a question, type / for commands or # for context..."
 					></textarea>
 					<button id="btn-send" class="action-icon-btn" type="button" title="Enviar (Enter)" disabled>
 						<svg id="icon-send" width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -613,7 +820,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				<div class="composer-bottom">
 					<div class="composer-left">
 						<button id="btn-hash" class="tool-icon-btn" type="button" title="Context Providers (#)">#</button>
-						<button id="btn-attach" class="tool-icon-btn" type="button" title="Anexar arquivo ativo">
+						<button id="btn-slash" class="tool-icon-btn" type="button" title="Slash Commands (/)">/</button>
+						<button id="btn-attach" class="tool-icon-btn" type="button" title="Anexar arquivo ativo (Ctrl+L)">
 							<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10.5 4.5L5.8 9.2a1.75 1.75 0 1 0 2.48 2.48l5.3-5.3a3 3 0 0 0-4.24-4.24l-5.5 5.5a4.25 4.25 0 0 0 6.01 6.01l4.4-4.4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg>
 						</button>
 						<span id="context-ring" class="context-ring" title="Uso estimado de contexto: 0%">

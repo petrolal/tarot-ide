@@ -134,11 +134,46 @@
           "when": "view == tarot.views.agents",
           "group": "navigation"
         }
+      ],
+      "editor/context": [
+        {
+          "command": "tarot.agent.sendSelection",
+          "group": "1_modification@10"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "tarot.agent.toggleFocusMode",
+          "group": "navigation@100"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "tarot.git.generateCommitMessage",
+          "group": "navigation@1"
+        }
       ]
+    },
+    "keybindings": [
+      {
+        "command": "tarot.agent.sendSelection",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configurationDefaults": {
+      "workbench.secondarySideBar.defaultVisibility": "visible",
+      "window.commandCenter": true
     },
     "configuration": {
       "title": "Tarot IDE",
       "properties": {
+        "tarot.ui.openAgentPanelOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.ui.openAgentPanelOnStartup.description%"
+        },
         "tarot.agents.default": {
           "type": "string",
           "default": "auto",
@@ -259,6 +294,30 @@
         "command": "tarot.agentPanel.open",
         "title": "%command.agentPanel.open.title%",
         "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.agent.sendSelection",
+        "title": "%command.agent.sendSelection.title%",
+        "category": "Tarot IDE",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "tarot.agent.openInEditorTab",
+        "title": "%command.agent.openInEditorTab.title%",
+        "category": "Tarot IDE",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "tarot.agent.toggleFocusMode",
+        "title": "%command.agent.toggleFocusMode.title%",
+        "category": "Tarot IDE",
+        "icon": "$(layout-centered)"
+      },
+      {
+        "command": "tarot.git.generateCommitMessage",
+        "title": "%command.git.generateCommitMessage.title%",
+        "category": "Tarot IDE",
+        "icon": "$(sparkle)"
       },
       {
         "command": "tarot.agents.select",

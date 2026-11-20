@@ -12,8 +12,8 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6 ✅ · próximo: M3.7 → M3.9)** | **Sim — iniciar por M3.7** |
-| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.5 |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.5 ✅ · próximo: M3.7 → M3.9)** | **Sim — iniciar por M3.7** |
+| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
 ---
@@ -185,7 +185,31 @@ extensions/tarot-core/
 
 ---
 
-### Marco M3.7 — Agent Hooks Engine `v1` (File + Lifecycle + Manual, `command` & `agent`) (UC-05)
+### Marco M3.6.5 — Paridade Imediata de Look & Feel + UX Kiro (Boot Agent-First, Review Queue, `/`, `#Spec`, `Ctrl+L`, Dockable Tab & AI Commit) (UC-02, UC-03) — ✅ Concluído
+- **Objetivo**: eliminar a sensação de "VS Code com sidebar" e entregar o fluxo e aparência imediata do **Kiro IDE** no primeiro boot.
+- **Arquivos-alvo**:
+  - `extensions/tarot-core/package.json` (`keybindings`, `menus.editor/context`, `menus.editor/title`, `menus.scm/title`, `configurationDefaults`)
+  - `extensions/tarot-core/src/views/agentPanelView.ts` + `media/webview/{panel.js,panel.css}`
+  - `extensions/tarot-core/src/context/contextProviders.ts` (`#Spec`)
+  - `extensions/tarot-core/src/git/gitReviewService.ts` (Review Queue `git status/diff --numstat` + AI Commit Message)
+  - `extensions/tarot-core/src/extension.ts` (auto-focus Secondary Side Bar no boot, `Ctrl+L`, Dockable Chat Tab, Agent Focus Mode toggle, AI Commit)
+- **Especificação**:
+  1. **Boot Agent-First**: `Tarot Agent` na Secondary Side Bar aberto por padrão ao iniciar a IDE (`workbench.secondarySideBar.defaultVisibility: "visible"` + `window.commandCenter: true` via `configurationDefaults` e ativação automática da view) + botão **Agent Focus Mode** no canto superior direito (`editor/title` / `view/title`).
+  2. **Barra de Arquivos Alterados (Review Queue)** acima do composer: mostra `N files changed (+X -Y)` com lista expansível de arquivos, clique abrindo `vscode.diff` (HEAD vs working tree) e botão `↺ Revert File`.
+  3. **Popup de Slash Commands (`/`) no Composer**: `/spec`, `/bugfix`, `/plan`, `/steering`, `/review`, `/focus`, `/clear`, filtrável ao digitar `/`, além do novo provedor **`#Spec`** no menu `#`.
+  4. **Send Selection to Agent (`Ctrl+L`)**: comando + menu de contexto no editor enviando a seleção (com arquivo e intervalo de linhas) direto como chip no composer do `Tarot Agent`.
+  5. **Dockable Chat Tab**: botão `⤢` na barra de abas do painel direito abrindo a sessão ativa como aba full-width no editor central (`WebviewPanel`).
+  6. **AI Commit Message (`✦`)**: botão na barra do **Source Control** que lê `git diff --staged` (ou working tree) e gera mensagem Conventional Commit via agente local ativo (`claude`, `agy`, `codex`).
+- **Critérios de Aceite (DoD)**:
+  - [x] Ao abrir o Tarot IDE, a barra de busca central (`Command Center`) e o painel direito `Tarot Agent` já aparecem visíveis por padrão.
+  - [x] Digitar `/` no composer abre popup de Slash Commands; `#Spec` injeta uma Spec de `.tarot/specs/`.
+  - [x] `Ctrl+L` no editor anexa a seleção no composer e foca o `Tarot Agent`.
+  - [x] Barra de arquivos alterados acima do composer lista arquivos modificados no Git e abre `vscode.diff` em 1 clique.
+  - [x] Botão `⤢` destaca a sessão em aba no editor central; botão `✦` no Source Control gera commit message com o agente local.
+
+---
+
+### Marco M3.7 — Agent Hooks Engine `v1` (File + Lifecycle + Manual + Natural Language Creation) (UC-05)
 - **Objetivo**: implementar a engine de automações orientadas a eventos fiel ao schema `v1` do Kiro IDE.
 - **Arquivos-alvo**:
   - `extensions/tarot-core/src/hooks/hookEngine.ts`
@@ -211,6 +235,7 @@ extensions/tarot-core/
 - **Especificação**:
   - Triggers: `PostFileCreate`, `PostFileSave`, `PostFileDelete` (com `matcher` regex), `Stop` (fim de turno do agente), `SessionStart`, `SessionEnd` e `Manual` (botão Play na TreeView).
   - Ações: `type: "command"` (execução direta segura sem shell injection) e `type: "agent"` (dispara prompt no agente escolhido).
+  - **Natural Language Hook Creation**: opção no botão `+` para descrever o hook em português/inglês e deixar o agente local gerar o JSON `v1` válido automaticamente.
   - Debounce, fila serial por hook e **bloqueio obrigatório quando `!vscode.workspace.isTrusted`**.
 - **Critérios de Aceite (DoD)**:
   - [ ] Hooks `PostFileSave` e `Manual` funcionam para `command` e `agent`, com toggle habilitar/desabilitar e botão Play na TreeView.
@@ -247,6 +272,7 @@ extensions/tarot-core/
   - Receitas declarativas em `.tarot/workflows/*.yaml` (e globais `~/.tarot/workflows/*.yaml`) definindo `steps` com `agent` (`claude` | `agy` | `codex` | `default`), `loop`, `parallel`, `gate` (`validate-gate` com testes/typecheck) e aprovação humana (`Approved`).
   - Editor visual central mostrando status `Running · step X of Y`, badges `loop ×N` e `parallel`, sub-passos expansíveis e logs ao vivo.
   - View **Sessions** com campo `Search sessions...`, botão `+ New ⌄`, status (`needs approval`, `done`, `running`), seção `Older Sessions >` e disclosures de sub-agentes (`> Spawned 1 sub-agent ...`) no transcript.
+  - **Agent Focus Mode completo (3 painéis)**: alternância no canto superior direito entre Editor View e Agent Focus Mode (Sessions à esquerda | Chat expandido central | Painel auxiliar de Specs/Diffs à direita).
 - **Critérios de Aceite (DoD)**:
   - [ ] Receitas built-in (`feature-pipeline`, `investigate`, `semantic-review-multi-model`) listadas em `RECIPES` com botão Play `▷`.
   - [ ] Executar uma Recipe abre o painel visual de steps no editor central, respeita `validate-gate` e registra o histórico em `WORKFLOW RUNS`.

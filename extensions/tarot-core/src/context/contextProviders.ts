@@ -8,10 +8,12 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AttachedContext, ContextProviderKind } from '../agents/types';
+import { TarotSpecService } from '../specs/specService';
 import { TarotSteeringService } from '../steering/steeringService';
 
 const MAX_CONTENT_CHARS = 12_000;
 const steeringService = new TarotSteeringService();
+const specService = new TarotSpecService();
 
 function truncate(text: string, max = MAX_CONTENT_CHARS): string {
 	if (text.length <= max) {
@@ -149,6 +151,35 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				label: `Codebase (${uris.length} files)`,
 				path: root,
 				content: truncate(`Workspace files (${uris.length} sampled):\n${tree}`),
+			};
+		}
+
+		case 'spec': {
+			if (!root) {
+				return undefined;
+			}
+			const specs = await specService.listSpecs(root);
+			if (specs.length === 0) {
+				vscode.window.showInformationMessage('Nenhuma Spec encontrada em .tarot/specs/.');
+				return undefined;
+			}
+			const picked = await vscode.window.showQuickPick(
+				specs.map(s => ({
+					label: s.slug,
+					description: `${s.kind} · ${s.taskSummary.done}/${s.taskSummary.total} tasks`,
+					spec: s,
+				})),
+				{ title: '#Spec — Selecionar Spec do projeto' },
+			);
+			if (!picked) {
+				return undefined;
+			}
+			const loaded = await specService.loadSpecContext(picked.spec.dirPath);
+			return {
+				kind: 'spec',
+				label: `spec/${loaded.slug}`,
+				path: loaded.dirPath,
+				content: truncate(loaded.contextText),
 			};
 		}
 
