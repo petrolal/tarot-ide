@@ -61,7 +61,7 @@ export class CustomCliAdapter implements AgentAdapter {
 	async run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void> {
 		const resolvedPath = await resolveBinaryPath(this.binary);
 		if (!resolvedPath) {
-			onEvent({ type: 'error', content: `Agente customizado '${this.displayName}' ('${this.binary}') não encontrado.` });
+			onEvent({ type: 'error', content: vscode.l10n.t("Custom agent '{0}' ('{1}') not found.", this.displayName, this.binary) });
 			onEvent({ type: 'done' });
 			return;
 		}
@@ -71,7 +71,7 @@ export class CustomCliAdapter implements AgentAdapter {
 		const stderrLines: string[] = [];
 		let emittedText = false;
 
-		onEvent({ type: 'status', content: `Executando ${this.displayName}...` });
+		onEvent({ type: 'status', content: vscode.l10n.t('Running {0}...', this.displayName) });
 
 		try {
 			const exitCode = await spawnStreaming(resolvedPath, args, {
@@ -90,7 +90,7 @@ export class CustomCliAdapter implements AgentAdapter {
 			});
 
 			if (exitCode !== 0 && !emittedText && !token.isCancellationRequested) {
-				onEvent({ type: 'error', content: stderrLines.join('\n') || `${this.displayName} encerrou com código ${exitCode}.` });
+				onEvent({ type: 'error', content: stderrLines.join('\n') || vscode.l10n.t('{0} exited with code {1}.', this.displayName, exitCode ?? vscode.l10n.t('unknown')) });
 			}
 		} catch (err) {
 			onEvent({ type: 'error', content: err instanceof Error ? err.message : String(err) });

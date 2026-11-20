@@ -152,6 +152,20 @@
           "command": "tarot.git.generateCommitMessage",
           "group": "navigation@1"
         }
+      ],
+      "commandPalette": [
+        {
+          "command": "tarot.agents.selectById",
+          "when": "false"
+        },
+        {
+          "command": "tarot.specs.runTask",
+          "when": "false"
+        },
+        {
+          "command": "tarot.specs.runTaskWith",
+          "when": "false"
+        }
       ]
     },
     "keybindings": [
@@ -332,10 +346,28 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "tarot.agents.selectById",
+        "title": "%command.agents.selectById.title%",
+        "category": "Tarot IDE",
+        "icon": "$(check)"
+      },
+      {
         "command": "tarot.specs.create",
         "title": "%command.specs.create.title%",
         "category": "Tarot IDE",
         "icon": "$(add)"
+      },
+      {
+        "command": "tarot.specs.runTask",
+        "title": "%command.specs.runTask.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tarot.specs.runTaskWith",
+        "title": "%command.specs.runTaskWith.title%",
+        "category": "Tarot IDE",
+        "icon": "$(run-with-deps)"
       },
       {
         "command": "tarot.steering.create",

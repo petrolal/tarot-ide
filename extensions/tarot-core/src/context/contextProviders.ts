@@ -33,7 +33,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 		case 'file': {
 			const uris = await vscode.workspace.findFiles('**/*', '**/{node_modules,.git,out,dist,.build}/**', 500);
 			if (uris.length === 0) {
-				vscode.window.showInformationMessage('Nenhum arquivo encontrado no workspace.');
+				vscode.window.showInformationMessage(vscode.l10n.t('No file found in the workspace.'));
 				return undefined;
 			}
 			const items = uris
@@ -44,8 +44,8 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				.sort((a, b) => a.label.localeCompare(b.label));
 
 			const picked = await vscode.window.showQuickPick(items, {
-				title: '#File — Selecionar arquivo para contexto',
-				placeHolder: 'Digite o nome do arquivo...',
+				title: vscode.l10n.t('#File — Pick a file for the context'),
+				placeHolder: vscode.l10n.t('Type the file name...'),
 			});
 			if (!picked) {
 				return undefined;
@@ -69,8 +69,8 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				.map(e => e.name)
 				.sort();
 			const picked = await vscode.window.showQuickPick(dirs, {
-				title: '#Folder — Selecionar pasta do workspace',
-				placeHolder: 'Escolha uma pasta...',
+				title: vscode.l10n.t('#Folder — Pick a workspace folder'),
+				placeHolder: vscode.l10n.t('Pick a folder...'),
 			});
 			if (!picked) {
 				return undefined;
@@ -99,7 +99,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 					}
 				}
 			}
-			const summary = lines.length > 0 ? lines.slice(0, 120).join('\n') : 'Nenhum erro ou warning ativo no painel Problems.';
+			const summary = lines.length > 0 ? lines.slice(0, 120).join('\n') : vscode.l10n.t('No active error or warning in the Problems panel.');
 			return {
 				kind: 'problems',
 				label: `Problems (${lines.length})`,
@@ -113,7 +113,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 			}
 			const gitPath = await resolveBinaryPath('git');
 			if (!gitPath) {
-				vscode.window.showWarningMessage('Git não encontrado no PATH.');
+				vscode.window.showWarningMessage(vscode.l10n.t('Git not found on PATH.'));
 				return undefined;
 			}
 			const statusRes = await execSimple(gitPath, ['-C', root, 'status', '--short']).catch(() => ({ exitCode: 1, stdout: '', stderr: '' }));
@@ -132,7 +132,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 
 		case 'terminal': {
 			const active = vscode.window.activeTerminal;
-			const name = active ? active.name : 'nenhum terminal ativo';
+			const name = active ? active.name : vscode.l10n.t('no active terminal');
 			return {
 				kind: 'terminal',
 				label: `Terminal (${name})`,
@@ -160,7 +160,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 			}
 			const specs = await specService.listSpecs(root);
 			if (specs.length === 0) {
-				vscode.window.showInformationMessage('Nenhuma Spec encontrada em .tarot/specs/.');
+				vscode.window.showInformationMessage(vscode.l10n.t('No Spec found in .tarot/specs/.'));
 				return undefined;
 			}
 			const picked = await vscode.window.showQuickPick(
@@ -169,7 +169,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 					description: `${s.kind} · ${s.taskSummary.done}/${s.taskSummary.total} tasks`,
 					spec: s,
 				})),
-				{ title: '#Spec — Selecionar Spec do projeto' },
+				{ title: vscode.l10n.t('#Spec — Pick a Spec from the project') },
 			);
 			if (!picked) {
 				return undefined;
@@ -186,7 +186,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 		case 'steering': {
 			const docs = await steeringService.discover(root);
 			if (docs.length === 0) {
-				vscode.window.showInformationMessage('Nenhum arquivo de Steering encontrado em .tarot/steering/, ~/.tarot/steering/ ou AGENTS.md.');
+				vscode.window.showInformationMessage(vscode.l10n.t('No Steering file found in .tarot/steering/, ~/.tarot/steering/ or AGENTS.md.'));
 				return undefined;
 			}
 			const picked = await vscode.window.showQuickPick(
@@ -197,7 +197,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 					doc,
 				})),
 				{
-					title: '#Steering — Selecionar arquivo de Steering',
+					title: vscode.l10n.t('#Steering — Pick a Steering file'),
 					matchOnDescription: true,
 					matchOnDetail: true,
 				},

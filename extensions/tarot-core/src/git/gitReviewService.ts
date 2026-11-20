@@ -122,12 +122,13 @@ export class TarotGitReviewService {
 	}
 
 	async revertFile(cwd: string, relativePath: string, status: ChangedFileInfo['status']): Promise<boolean> {
+		const revertLabel = vscode.l10n.t('Revert');
 		const answer = await vscode.window.showWarningMessage(
-			`Reverter todas as alterações em "${relativePath}"?`,
+			vscode.l10n.t('Revert all changes in "{0}"?', relativePath),
 			{ modal: true },
-			'Reverter',
+			revertLabel,
 		);
-		if (answer !== 'Reverter') {
+		if (answer !== revertLabel) {
 			return false;
 		}
 
@@ -142,7 +143,7 @@ export class TarotGitReviewService {
 		}
 		const res = await execSimple(gitBin, ['-C', cwd, 'checkout', '--', relativePath], 8000);
 		if (res.exitCode !== 0) {
-			vscode.window.showErrorMessage(`Não foi possível reverter ${relativePath}: ${res.stderr.trim()}`);
+			vscode.window.showErrorMessage(vscode.l10n.t('Could not revert {0}: {1}', relativePath, res.stderr.trim()));
 			return false;
 		}
 		return true;
@@ -155,7 +156,7 @@ export class TarotGitReviewService {
 	): Promise<void> {
 		const gitBin = await resolveBinaryPath('git');
 		if (!gitBin) {
-			vscode.window.showWarningMessage('Git não encontrado no PATH.');
+			vscode.window.showWarningMessage(vscode.l10n.t('Git not found on PATH.'));
 			return;
 		}
 
@@ -166,21 +167,21 @@ export class TarotGitReviewService {
 			diffText = diffRes.stdout.trim();
 		}
 		if (!diffText) {
-			vscode.window.showInformationMessage('Nenhuma alteração Git encontrada para gerar mensagem de commit.');
+			vscode.window.showInformationMessage(vscode.l10n.t('No Git change found to generate a commit message.'));
 			return;
 		}
 
 		const agentId = runtimeManager.getActiveAgentId();
 		const adapter = runtimeManager.getAdapter(agentId);
 		if (!adapter) {
-			vscode.window.showWarningMessage('Nenhum agente local instalado (claude, agy, codex) para gerar commit message.');
+			vscode.window.showWarningMessage(vscode.l10n.t('No local agent installed (claude, agy, codex) to generate a commit message.'));
 			return;
 		}
 
 		await vscode.window.withProgress(
 			{
 				location: vscode.ProgressLocation.SourceControl,
-				title: `Tarot IDE: gerando commit message com ${adapter.displayName}...`,
+				title: vscode.l10n.t('Tarot IDE: generating commit message with {0}...', adapter.displayName),
 				cancellable: true,
 			},
 			async (_progress, token) => {
@@ -215,7 +216,7 @@ export class TarotGitReviewService {
 					.trim();
 
 				if (!cleaned) {
-					vscode.window.showWarningMessage('O agente não retornou uma mensagem de commit.');
+					vscode.window.showWarningMessage(vscode.l10n.t('The agent did not return a commit message.'));
 					return;
 				}
 
@@ -225,7 +226,7 @@ export class TarotGitReviewService {
 					repo.inputBox.value = cleaned;
 				} else {
 					await vscode.env.clipboard.writeText(cleaned);
-					vscode.window.showInformationMessage(`Mensagem de commit copiada para a área de transferência: "${cleaned.split('\n')[0]}"`);
+					vscode.window.showInformationMessage(vscode.l10n.t('Commit message copied to the clipboard: "{0}"', cleaned.split('\n')[0]));
 				}
 			},
 		);

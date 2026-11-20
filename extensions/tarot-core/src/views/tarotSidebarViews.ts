@@ -43,17 +43,17 @@ export class LocalAgentsTreeProvider implements vscode.TreeDataProvider<AgentSta
 		const isActive = status.id === this.runtimeManager.getActiveAgentId();
 		const item = new vscode.TreeItem(status.displayName, vscode.TreeItemCollapsibleState.None);
 		item.description = status.available
-			? `${isActive ? '★ Ativo · ' : ''}${status.version ?? 'instalado'}`
-			: 'Não instalado';
+			? `${isActive ? vscode.l10n.t('★ Active · ') : ''}${status.version ?? vscode.l10n.t('installed')}`
+			: vscode.l10n.t('Not installed');
 		item.tooltip = status.available
-			? `${status.displayName}\nCaminho: ${status.resolvedPath ?? status.binary}\nVersão: ${status.version ?? 'ok'}`
-			: `${status.displayName} não encontrado no PATH.\n${status.installHint ?? ''}`;
+			? `${status.displayName}\n${vscode.l10n.t('Path: {0}', status.resolvedPath ?? status.binary)}\n${vscode.l10n.t('Version: {0}', status.version ?? 'ok')}`
+			: `${vscode.l10n.t('{0} not found on PATH.', status.displayName)}\n${status.installHint ?? ''}`;
 		item.iconPath = status.available
 			? new vscode.ThemeIcon(isActive ? 'sparkle' : 'check', new vscode.ThemeColor(isActive ? 'charts.yellow' : 'charts.green'))
 			: new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('disabledForeground'));
 		item.command = {
 			command: 'tarot.agents.selectById',
-			title: 'Selecionar Agente',
+			title: vscode.l10n.t('Select Agent'),
 			arguments: [status.id],
 		};
 		return item;
@@ -133,7 +133,7 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 							child.iconPath = new vscode.ThemeIcon('markdown');
 							child.command = {
 								command: 'vscode.open',
-								title: 'Abrir arquivo',
+								title: vscode.l10n.t('Open File'),
 								arguments: [vscode.Uri.file(fullPath)],
 							};
 							children.push(child);
@@ -166,7 +166,7 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 				item.iconPath = new vscode.ThemeIcon(this.kind === 'steering' ? 'compass' : 'zap');
 				item.command = {
 					command: 'vscode.open',
-					title: 'Abrir arquivo',
+					title: vscode.l10n.t('Open File'),
 					arguments: [vscode.Uri.file(fullPath)],
 				};
 				return item;
@@ -228,13 +228,13 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 		item.iconPath = new vscode.ThemeIcon(iconMap[doc.inclusion]);
 		item.tooltip = [
 			`${doc.fileName} (${doc.scope})`,
-			`Inclusão: ${badge}`,
-			doc.description ? `Descrição: ${doc.description}` : undefined,
-			`Caminho: ${doc.filePath}`,
+			vscode.l10n.t('Inclusion: {0}', badge),
+			doc.description ? vscode.l10n.t('Description: {0}', doc.description) : undefined,
+			vscode.l10n.t('Path: {0}', doc.filePath),
 		].filter(Boolean).join('\n');
 		item.command = {
 			command: 'vscode.open',
-			title: 'Abrir Steering',
+			title: vscode.l10n.t('Open Steering'),
 			arguments: [vscode.Uri.file(doc.filePath)],
 		};
 		return item;
@@ -263,14 +263,14 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 				undefined,
 				agentsDocs.map(d => this.toDocItem(d)),
 			);
-			group.description = 'root';
+			group.description = vscode.l10n.t('root');
 			group.iconPath = new vscode.ThemeIcon('root-folder');
 			groups.push(group);
 		}
 
 		if (workspaceDocs.length > 0) {
 			const group = new SimpleTreeItem(
-				'Workspace',
+				vscode.l10n.t('Workspace'),
 				vscode.TreeItemCollapsibleState.Expanded,
 				undefined,
 				workspaceDocs.map(d => this.toDocItem(d)),
@@ -282,7 +282,7 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 
 		if (globalDocs.length > 0) {
 			const group = new SimpleTreeItem(
-				'Global',
+				vscode.l10n.t('Global'),
 				vscode.TreeItemCollapsibleState.Expanded,
 				undefined,
 				globalDocs.map(d => this.toDocItem(d)),
@@ -346,7 +346,7 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 				}
 				child.command = {
 					command: 'vscode.open',
-					title: 'Abrir arquivo',
+					title: vscode.l10n.t('Open File'),
 					arguments: [vscode.Uri.file(fullPath)],
 				};
 				return child;
@@ -360,10 +360,10 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 			);
 			const progress = spec.taskSummary.total > 0
 				? `${spec.taskSummary.done}/${spec.taskSummary.total} tasks`
-				: '0 tasks';
+				: vscode.l10n.t('0 tasks');
 			item.description = `${spec.kind} · ${progress}`;
 			item.iconPath = new vscode.ThemeIcon(spec.kind === 'bugfix' ? 'bug' : 'book');
-			item.tooltip = `Spec: ${spec.slug}\nTipo: ${spec.kind}\nProgresso: ${progress}`;
+			item.tooltip = `${vscode.l10n.t('Spec: {0}', spec.slug)}\n${vscode.l10n.t('Type: {0}', spec.kind)}\n${vscode.l10n.t('Progress: {0}', progress)}`;
 			return item;
 		});
 	}

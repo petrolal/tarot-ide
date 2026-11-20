@@ -57,7 +57,7 @@ export class CodexAdapter implements AgentAdapter {
 	async run(request: AgentRunRequest, onEvent: (event: AgentEvent) => void, token: vscode.CancellationToken): Promise<void> {
 		const resolvedPath = await resolveBinaryPath(this.binary, this.getConfiguredPath());
 		if (!resolvedPath) {
-			onEvent({ type: 'error', content: `OpenAI Codex CLI ('codex') não encontrado no PATH. Instale com: ${this.installHint}` });
+			onEvent({ type: 'error', content: vscode.l10n.t("OpenAI Codex CLI ('codex') not found on PATH. Install with: {0}", this.installHint) });
 			onEvent({ type: 'done' });
 			return;
 		}
@@ -67,7 +67,7 @@ export class CodexAdapter implements AgentAdapter {
 		let emittedText = false;
 		const stderrLines: string[] = [];
 
-		onEvent({ type: 'status', content: 'Executando OpenAI Codex CLI...' });
+		onEvent({ type: 'status', content: vscode.l10n.t('Running OpenAI Codex CLI...') });
 
 		try {
 			const exitCode = await spawnStreaming(resolvedPath, args, {
@@ -96,11 +96,11 @@ export class CodexAdapter implements AgentAdapter {
 			});
 
 			if (token.isCancellationRequested) {
-				onEvent({ type: 'status', content: 'Execução cancelada.' });
+				onEvent({ type: 'status', content: vscode.l10n.t('Execution cancelled.') });
 			} else if (exitCode !== 0 && !emittedText) {
 				onEvent({
 					type: 'error',
-					content: stderrLines.join('\n') || `Codex encerrou com código ${exitCode ?? 'desconhecido'}.`,
+					content: stderrLines.join('\n') || vscode.l10n.t('Codex exited with code {0}.', exitCode ?? vscode.l10n.t('unknown')),
 				});
 			}
 		} catch (err) {

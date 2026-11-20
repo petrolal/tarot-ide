@@ -32,7 +32,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 	) {
 		this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		this.statusBarItem.command = 'tarot.agents.select';
-		this.statusBarItem.tooltip = 'Tarot IDE — Selecionar agente local ativo (claude / codex / agy)';
+		this.statusBarItem.tooltip = vscode.l10n.t('Tarot IDE — Select the active local agent (claude / codex / agy)');
 		this.statusBarItem.show();
 
 		this.disposables.push(
@@ -89,7 +89,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		this.updateStatusBar();
 
 		const summary = this.statuses
-			.map(s => `${s.id}: ${s.available ? `${s.version ?? 'ok'} (${s.resolvedPath})` : 'não instalado'}`)
+			.map(s => `${s.id}: ${s.available ? `${s.version ?? 'ok'} (${s.resolvedPath})` : 'not installed'}`)
 			.join(' | ');
 		this.outputChannel.appendLine(`[Agents] ${summary}`);
 
@@ -126,15 +126,15 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		}
 		const items = this.statuses.map(s => ({
 			label: `${s.available ? '$(check)' : '$(circle-slash)'} ${s.displayName}`,
-			description: s.available ? (s.version ?? 'Disponível') : 'Não instalado',
+			description: s.available ? (s.version ?? vscode.l10n.t('Available')) : vscode.l10n.t('Not installed'),
 			detail: s.available ? s.resolvedPath : (s.installHint ?? s.error),
 			agentId: s.id,
 			available: s.available,
 		}));
 
 		const picked = await vscode.window.showQuickPick(items, {
-			title: 'Tarot IDE — Selecionar Agente Local',
-			placeHolder: 'Escolha o motor de IA instalado na sua máquina',
+			title: vscode.l10n.t('Tarot IDE — Select Local Agent'),
+			placeHolder: vscode.l10n.t('Pick the AI engine installed on your machine'),
 		});
 
 		if (!picked) {
@@ -144,7 +144,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		if (!picked.available) {
 			const status = this.statuses.find(s => s.id === picked.agentId);
 			vscode.window.showWarningMessage(
-				`${status?.displayName ?? picked.agentId} não foi encontrado no PATH. ${status?.installHint ?? ''}`,
+				vscode.l10n.t('{0} was not found on PATH. {1}', status?.displayName ?? picked.agentId, status?.installHint ?? ''),
 			);
 			return;
 		}
@@ -158,7 +158,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 			this.statusBarItem.text = `$(sparkle) Tarot: ${current.id}`;
 			this.statusBarItem.backgroundColor = undefined;
 		} else {
-			this.statusBarItem.text = `$(warning) Tarot: sem agente`;
+			this.statusBarItem.text = `$(warning) Tarot: ${vscode.l10n.t('no agent')}`;
 			this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
 		}
 	}

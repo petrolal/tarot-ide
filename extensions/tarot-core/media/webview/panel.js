@@ -31,6 +31,18 @@
 
 	const RING_CIRCUMFERENCE = 34.56;
 
+	// String catalog injected by the host (see src/views/panelStrings.ts). Keys fall back to
+	// themselves so a missing entry degrades to a readable label instead of an empty string.
+	const L10N = window.__tarotL10n || {};
+
+	function t(key, ...args) {
+		const template = L10N[key] || key;
+		return template.replace(/\{(\d+)\}/g, (match, index) => {
+			const value = args[Number(index)];
+			return value === undefined ? match : String(value);
+		});
+	}
+
 	let state = {
 		agents: [],
 		activeAgentId: 'claude',
@@ -76,13 +88,13 @@
 		if (state.isRunning) {
 			sendBtn.disabled = false;
 			sendBtn.classList.add('stop');
-			sendBtn.title = 'Parar execução';
+			sendBtn.title = t('stopExecution');
 			iconSend.classList.add('hidden');
 			iconStop.classList.remove('hidden');
 			return;
 		}
 		sendBtn.classList.remove('stop');
-		sendBtn.title = 'Enviar (Enter)';
+		sendBtn.title = t('send');
 		iconSend.classList.remove('hidden');
 		iconStop.classList.add('hidden');
 		sendBtn.disabled = promptInput.value.trim().length === 0;
@@ -114,7 +126,7 @@
 				const close = document.createElement('span');
 				close.className = 'tab-close';
 				close.textContent = '×';
-				close.title = 'Fechar aba';
+				close.title = t('closeTab');
 				close.addEventListener('click', e => {
 					e.stopPropagation();
 					vscode.postMessage({ type: 'closeSession', sessionId: s.id });
@@ -152,7 +164,7 @@
 		const pct = Math.max(0, Math.min(100, state.contextPercent || 0));
 		const offset = RING_CIRCUMFERENCE * (1 - pct / 100);
 		contextRingArc.setAttribute('stroke-dashoffset', offset.toFixed(2));
-		contextRingEl.title = `Uso estimado de contexto: ${pct}%`;
+		contextRingEl.title = t('contextUsage', pct);
 	}
 
 	function renderAttachments() {
@@ -234,12 +246,12 @@
 			const copyBtn = document.createElement('button');
 			copyBtn.className = 'code-copy-btn';
 			copyBtn.type = 'button';
-			copyBtn.textContent = 'Copiar';
+			copyBtn.textContent = t('copy');
 			copyBtn.addEventListener('click', () => {
 				if (navigator.clipboard) {
 					navigator.clipboard.writeText(codeText).then(() => {
-						copyBtn.textContent = 'Copiado!';
-						setTimeout(() => { copyBtn.textContent = 'Copiar'; }, 1200);
+						copyBtn.textContent = t('copied');
+						setTimeout(() => { copyBtn.textContent = t('copy'); }, 1200);
 					}).catch(() => {});
 				}
 			});
@@ -299,10 +311,10 @@
 			sigil.textContent = '✦';
 			head.appendChild(sigil);
 			const h3 = document.createElement('h3');
-			h3.textContent = 'Tarot Agent — BYOA';
+			h3.textContent = t('emptyTitle');
 			head.appendChild(h3);
 			const sub = document.createElement('p');
-			sub.textContent = 'Escolha o fluxo ou digite # para anexar contexto.';
+			sub.textContent = t('emptySubtitle');
 			head.appendChild(sub);
 			empty.appendChild(head);
 
@@ -314,10 +326,10 @@
 			vibeCard.className = `mode-card${state.mode === 'vibe' ? ' active' : ''}`;
 			const vt = document.createElement('div');
 			vt.className = 'mode-card-title';
-			vt.textContent = 'Vibe';
+			vt.textContent = t('modeVibeTitle');
 			const vd = document.createElement('div');
 			vd.className = 'mode-card-desc';
-			vd.textContent = 'Chat rápido para explorar, editar e depurar código.';
+			vd.textContent = t('modeVibeDesc');
 			vibeCard.appendChild(vt);
 			vibeCard.appendChild(vd);
 			vibeCard.addEventListener('click', () => {
@@ -330,10 +342,10 @@
 			specCard.className = `mode-card${state.mode === 'spec' ? ' active' : ''}`;
 			const st = document.createElement('div');
 			st.className = 'mode-card-title';
-			st.textContent = 'Spec';
+			st.textContent = t('modeSpecTitle');
 			const sd = document.createElement('div');
 			sd.className = 'mode-card-desc';
-			sd.textContent = 'Planeje requirements (EARS), design e tasks antes de codar.';
+			sd.textContent = t('modeSpecDesc');
 			specCard.appendChild(st);
 			specCard.appendChild(sd);
 			specCard.addEventListener('click', () => {
@@ -356,15 +368,15 @@
 			if (msg.role === 'assistant') {
 				if (Array.isArray(msg.appliedSteering) && msg.appliedSteering.length > 0) {
 					const sLabel = msg.appliedSteering.length === 1
-						? '1 steering doc'
-						: `${msg.appliedSteering.length} steering docs`;
+						? t('steeringDoc')
+						: t('steeringDocs', msg.appliedSteering.length);
 					wrapper.appendChild(createDisclosure(sLabel, msg.appliedSteering).details);
 				}
 				if (msg.thought) {
-					wrapper.appendChild(createDisclosure('Thought complete', msg.thought).details);
+					wrapper.appendChild(createDisclosure(t('thoughtComplete'), msg.thought).details);
 				}
 				if (Array.isArray(msg.tools) && msg.tools.length > 0) {
-					const label = msg.tools.length === 1 ? '1 tool call' : `${msg.tools.length} tool calls`;
+					const label = msg.tools.length === 1 ? t('toolCall') : t('toolCalls', msg.tools.length);
 					wrapper.appendChild(createDisclosure(label, msg.tools).details);
 				}
 			}
@@ -382,7 +394,7 @@
 				head.className = 'task-progress-head';
 				const titleEl = document.createElement('span');
 				titleEl.className = 'task-progress-title';
-				titleEl.textContent = msg.taskProgress.title || 'Updated task list';
+				titleEl.textContent = msg.taskProgress.title || t('updatedTaskList');
 				const countEl = document.createElement('span');
 				countEl.className = 'task-progress-count';
 				countEl.textContent = `${msg.taskProgress.done}/${msg.taskProgress.total}`;
@@ -423,7 +435,7 @@
 				if (msg.approvalGate.approved) {
 					const doneText = document.createElement('span');
 					doneText.className = 'spec-gate-approved';
-					doneText.textContent = `✓ Approved · ${msg.approvalGate.specSlug}`;
+					doneText.textContent = t('approved', msg.approvalGate.specSlug);
 					gateEl.appendChild(doneText);
 				} else {
 					const btn = document.createElement('button');
@@ -444,14 +456,14 @@
 				footer.className = 'msg-footer';
 
 				const elapsed = document.createElement('span');
-				elapsed.textContent = msg.elapsedMs ? `Elapsed time: ${formatElapsed(msg.elapsedMs)}` : '';
+				elapsed.textContent = msg.elapsedMs ? t('elapsedTime', formatElapsed(msg.elapsedMs)) : '';
 				footer.appendChild(elapsed);
 
 				if (msg.checkpointId) {
 					const cpBtn = document.createElement('button');
 					cpBtn.type = 'button';
 					cpBtn.className = 'checkpoint-btn';
-					cpBtn.textContent = '↺ Restore Checkpoint';
+					cpBtn.textContent = t('restoreCheckpoint');
 					cpBtn.addEventListener('click', () => {
 						vscode.postMessage({ type: 'restoreCheckpoint', checkpointId: msg.checkpointId });
 					});
@@ -476,7 +488,7 @@
 		const totalAdded = files.reduce((acc, f) => acc + (f.added || 0), 0);
 		const totalRemoved = files.reduce((acc, f) => acc + (f.removed || 0), 0);
 		const arrow = reviewExpanded ? '▾' : '▸';
-		reviewSummaryText.textContent = `${arrow} ${files.length} ${files.length === 1 ? 'file changed' : 'files changed'} (+${totalAdded} -${totalRemoved})`;
+		reviewSummaryText.textContent = `${arrow} ${files.length} ${files.length === 1 ? t('fileChanged') : t('filesChanged')} (+${totalAdded} -${totalRemoved})`;
 
 		reviewFileListEl.classList.toggle('hidden', !reviewExpanded);
 		reviewFileListEl.textContent = '';
@@ -491,7 +503,7 @@
 			const nameBtn = document.createElement('button');
 			nameBtn.type = 'button';
 			nameBtn.className = 'review-file-link';
-			nameBtn.title = `Abrir diff: ${file.relativePath}`;
+			nameBtn.title = t('openDiff', file.relativePath);
 
 			const badge = document.createElement('span');
 			badge.className = `review-status status-${(file.status || 'M').toLowerCase()}`;
@@ -515,7 +527,7 @@
 			const revertBtn = document.createElement('button');
 			revertBtn.type = 'button';
 			revertBtn.className = 'review-revert-btn';
-			revertBtn.title = `Reverter ${file.relativePath}`;
+			revertBtn.title = t('revertFile', file.relativePath);
 			revertBtn.textContent = '↺';
 			revertBtn.addEventListener('click', () => {
 				vscode.postMessage({ type: 'revertFile', relativePath: file.relativePath, fileStatus: file.status });
@@ -733,7 +745,7 @@
 				if (liveToolsDetails && liveToolsSummary && liveToolsBody && msg.toolName) {
 					liveToolsCount += 1;
 					liveToolsDetails.classList.remove('hidden');
-					liveToolsSummary.textContent = liveToolsCount === 1 ? '1 tool call' : `${liveToolsCount} tool calls`;
+					liveToolsSummary.textContent = liveToolsCount === 1 ? t('toolCall') : t('toolCalls', liveToolsCount);
 					const row = document.createElement('div');
 					row.className = 'tool-list-item';
 					row.textContent = `• ${msg.toolName}`;
@@ -750,7 +762,7 @@
 				if (liveBubbleEl) {
 					const errEl = document.createElement('div');
 					errEl.className = 'msg-error';
-					errEl.textContent = msg.content || 'Erro ao executar agente.';
+					errEl.textContent = msg.content || t('runAgentError');
 					liveBubbleEl.appendChild(errEl);
 				}
 				break;

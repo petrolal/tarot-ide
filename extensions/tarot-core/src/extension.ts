@@ -22,7 +22,7 @@ let outputChannel: vscode.OutputChannel | undefined;
 async function ensureWorkspaceFolder(): Promise<string | undefined> {
 	const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	if (!root) {
-		vscode.window.showWarningMessage('Abra uma pasta/workspace no Tarot IDE para criar artefatos em .tarot/.');
+		vscode.window.showWarningMessage(vscode.l10n.t('Open a folder/workspace in Tarot IDE to create artifacts under .tarot/.'));
 	}
 	return root;
 }
@@ -81,8 +81,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
 		vscode.commands.registerCommand('tarot.welcome', () => {
 			const available = runtimeManager.getStatuses().filter(s => s.available).map(s => s.id);
-			const agentsText = available.length > 0 ? `Agentes detectados: ${available.join(', ')}.` : 'Nenhum CLI de agente detectado no PATH.';
-			vscode.window.showInformationMessage(`Bem-vindo ao Tarot IDE! ${agentsText}`);
+			const agentsText = available.length > 0
+				? vscode.l10n.t('Agents detected: {0}.', available.join(', '))
+				: vscode.l10n.t('No agent CLI detected on PATH.');
+			vscode.window.showInformationMessage(vscode.l10n.t('Welcome to Tarot IDE! {0}', agentsText));
 		}),
 
 		vscode.commands.registerCommand('tarot.agents.refresh', async () => {
@@ -100,7 +102,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 			const status = runtimeManager.getStatuses().find(s => s.id === agentId);
 			if (status && !status.available) {
-				vscode.window.showWarningMessage(`${status.displayName} não está instalado. ${status.installHint ?? ''}`);
+				vscode.window.showWarningMessage(vscode.l10n.t('{0} is not installed. {1}', status.displayName, status.installHint ?? ''));
 				return;
 			}
 			await runtimeManager.setActiveAgent(agentId);
@@ -138,36 +140,36 @@ export function activate(context: vscode.ExtensionContext): void {
 			const kindPick = await vscode.window.showQuickPick(
 				[
 					{
-						label: 'Feature (Requirements-First · EARS)',
-						description: 'requirements.md → design.md → tasks.md',
-						detail: 'Fluxo padrão Kiro: comece definindo requisitos em notação EARS (WHEN ... THE SYSTEM SHALL ...).',
+						label: vscode.l10n.t('Feature (Requirements-First · EARS)'),
+						description: vscode.l10n.t('requirements.md → design.md → tasks.md'),
+						detail: vscode.l10n.t('Default Kiro workflow: start by defining requirements in EARS notation (WHEN ... THE SYSTEM SHALL ...).'),
 						specKind: 'feature-requirements-first' as SpecCreationKind,
 					},
 					{
-						label: 'Feature (Design-First · Arquitetura)',
-						description: 'design.md → requirements.md → tasks.md',
-						detail: 'Ideal quando a arquitetura técnica e interfaces são definidas primeiro.',
+						label: vscode.l10n.t('Feature (Design-First · Architecture)'),
+						description: vscode.l10n.t('design.md → requirements.md → tasks.md'),
+						detail: vscode.l10n.t('Best when the technical architecture and interfaces are defined first.'),
 						specKind: 'feature-design-first' as SpecCreationKind,
 					},
 					{
-						label: 'Bugfix (EARS · Regressão)',
-						description: 'bugfix.md → design.md → tasks.md',
-						detail: '3 blocos EARS obrigatórios: Current Behavior, Expected Behavior e Unchanged Behavior.',
+						label: vscode.l10n.t('Bugfix (EARS · Regression)'),
+						description: vscode.l10n.t('bugfix.md → design.md → tasks.md'),
+						detail: vscode.l10n.t('Three mandatory EARS blocks: Current Behavior, Expected Behavior and Unchanged Behavior.'),
 						specKind: 'bugfix' as SpecCreationKind,
 					},
 				],
-				{ title: 'Tarot IDE — Tipo de Spec (Kiro Workflow)' },
+				{ title: vscode.l10n.t('Tarot IDE — Spec Type (Kiro Workflow)') },
 			);
 			if (!kindPick) {
 				return;
 			}
 
 			const rawName = await vscode.window.showInputBox({
-				title: 'Tarot IDE — Nova Spec',
+				title: vscode.l10n.t('Tarot IDE — New Spec'),
 				prompt: kindPick.specKind === 'bugfix'
-					? 'Slug do bugfix (ex.: fix-oauth-refresh-race)'
-					: 'Slug da feature (ex.: auth-oauth, agent-hooks)',
-				placeHolder: kindPick.specKind === 'bugfix' ? 'fix-meu-bug' : 'minha-feature',
+					? vscode.l10n.t('Bugfix slug (e.g. fix-oauth-refresh-race)')
+					: vscode.l10n.t('Feature slug (e.g. auth-oauth, agent-hooks)'),
+				placeHolder: kindPick.specKind === 'bugfix' ? 'fix-my-bug' : 'my-feature',
 			});
 			if (!rawName) {
 				return;
@@ -200,7 +202,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 			const available = runtimeManager.getStatuses().filter(s => s.available);
 			if (available.length === 0) {
-				vscode.window.showWarningMessage('Nenhum CLI de agente local disponível (claude, agy, codex).');
+				vscode.window.showWarningMessage(vscode.l10n.t('No local agent CLI available (claude, agy, codex).'));
 				return;
 			}
 			const picked = await vscode.window.showQuickPick(
@@ -209,7 +211,7 @@ export function activate(context: vscode.ExtensionContext): void {
 					description: s.version ?? s.binary,
 					agentId: s.id,
 				})),
-				{ title: 'Tarot IDE — Escolher Agente para Executar Tarefa' },
+				{ title: vscode.l10n.t('Tarot IDE — Pick Agent to Run Task') },
 			);
 			if (!picked) {
 				return;
@@ -223,10 +225,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('tarot.steering.create', async () => {
 			const scopePick = await vscode.window.showQuickPick(
 				[
-					{ label: 'Workspace (.tarot/steering/)', description: 'Regras versionadas neste repositório', scope: 'workspace' as const },
-					{ label: 'Global (~/.tarot/steering/)', description: 'Regras pessoais aplicadas em todos os seus projetos', scope: 'global' as const },
+					{ label: vscode.l10n.t('Workspace (.tarot/steering/)'), description: vscode.l10n.t('Rules versioned in this repository'), scope: 'workspace' as const },
+					{ label: vscode.l10n.t('Global (~/.tarot/steering/)'), description: vscode.l10n.t('Personal rules applied to every project'), scope: 'global' as const },
 				],
-				{ title: 'Tarot IDE — Escopo do Steering' },
+				{ title: vscode.l10n.t('Tarot IDE — Steering Scope') },
 			);
 			if (!scopePick) {
 				return;
@@ -244,8 +246,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 
 			const rawName = await vscode.window.showInputBox({
-				title: 'Tarot IDE — Novo Steering',
-				prompt: 'Nome do arquivo de regras (ex.: product, tech, structure, api-style)',
+				title: vscode.l10n.t('Tarot IDE — New Steering'),
+				prompt: vscode.l10n.t('Rules file name (e.g. product, tech, structure, api-style)'),
 				placeHolder: 'tech',
 			});
 			if (!rawName) {
@@ -254,12 +256,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 			const inclusionPick = await vscode.window.showQuickPick(
 				[
-					{ label: 'always', description: 'Incluído em todos os turnos (padrão Kiro)', value: 'always' as SteeringInclusion },
-					{ label: 'fileMatch', description: 'Incluído quando o editor ativo ou #File casar com um glob', value: 'fileMatch' as SteeringInclusion },
-					{ label: 'auto', description: 'Incluído automaticamente quando relevante ao prompt', value: 'auto' as SteeringInclusion },
-					{ label: 'manual', description: 'Incluído apenas quando citado como #nome ou via #Steering', value: 'manual' as SteeringInclusion },
+					{ label: 'always', description: vscode.l10n.t('Included in every turn (Kiro default)'), value: 'always' as SteeringInclusion },
+					{ label: 'fileMatch', description: vscode.l10n.t('Included when the active editor or #File matches a glob'), value: 'fileMatch' as SteeringInclusion },
+					{ label: 'auto', description: vscode.l10n.t('Included automatically when relevant to the prompt'), value: 'auto' as SteeringInclusion },
+					{ label: 'manual', description: vscode.l10n.t('Included only when referenced as #name or through #Steering'), value: 'manual' as SteeringInclusion },
 				],
-				{ title: 'Tarot IDE — Modo de Inclusão' },
+				{ title: vscode.l10n.t('Tarot IDE — Inclusion Mode') },
 			);
 			if (!inclusionPick) {
 				return;
@@ -268,8 +270,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			let fileMatchPattern: string | undefined;
 			if (inclusionPick.value === 'fileMatch') {
 				fileMatchPattern = await vscode.window.showInputBox({
-					title: 'Tarot IDE — Glob fileMatchPattern',
-					prompt: 'Padrão glob (ex.: src/**/*.ts, *.tsx)',
+					title: vscode.l10n.t('Tarot IDE — fileMatchPattern Glob'),
+					prompt: vscode.l10n.t('Glob pattern (e.g. src/**/*.ts, *.tsx)'),
 					value: 'src/**/*.ts',
 				});
 				if (!fileMatchPattern) {
@@ -308,20 +310,22 @@ export function activate(context: vscode.ExtensionContext): void {
 			const available = runtimeManager.getStatuses().filter(s => s.available);
 			if (available.length === 0) {
 				vscode.window.showInformationMessage(
-					'Templates product.md, tech.md e structure.md criados em .tarot/steering/. Instale um CLI local (claude, agy ou codex) para preenchimento automático.'
+					vscode.l10n.t('Templates product.md, tech.md and structure.md created in .tarot/steering/. Install a local CLI (claude, agy or codex) for automatic filling.')
 				);
 				return;
 			}
 
+			const fillWithAgent = vscode.l10n.t('Fill With Agent');
+			const editManually = vscode.l10n.t('Edit Manually');
 			const confirm = await vscode.window.showInformationMessage(
-				'Templates criados em .tarot/steering/ (product.md, tech.md, structure.md). Deseja que o agente ativo analise o workspace e preencha automaticamente?',
-				'Preencher com Agente',
-				'Editar Manualmente',
+				vscode.l10n.t('Templates created in .tarot/steering/ (product.md, tech.md, structure.md). Do you want the active agent to analyze the workspace and fill them in?'),
+				fillWithAgent,
+				editManually,
 			);
-			if (confirm === 'Preencher com Agente') {
+			if (confirm === fillWithAgent) {
 				const prompt = steeringService.buildGenerateSteeringPrompt(root);
 				await agentPanelProvider.runExternalPrompt(prompt, 'vibe');
-			} else if (confirm === 'Editar Manualmente') {
+			} else if (confirm === editManually) {
 				const doc = await vscode.workspace.openTextDocument(path.join(root, '.tarot', 'steering', 'product.md'));
 				await vscode.window.showTextDocument(doc);
 			}
@@ -333,8 +337,8 @@ export function activate(context: vscode.ExtensionContext): void {
 				return;
 			}
 			const rawName = await vscode.window.showInputBox({
-				title: 'Tarot IDE — Novo Agent Hook',
-				prompt: 'Identificador do hook (ex.: update-tests-on-save)',
+				title: vscode.l10n.t('Tarot IDE — New Agent Hook'),
+				prompt: vscode.l10n.t('Hook identifier (e.g. update-tests-on-save)'),
 				placeHolder: 'update-tests-on-save',
 			});
 			if (!rawName) {
@@ -344,14 +348,24 @@ export function activate(context: vscode.ExtensionContext): void {
 			const dir = path.join(root, '.tarot', 'hooks');
 			await fs.mkdir(dir, { recursive: true });
 			const filePath = path.join(dir, `${id}.json`);
+			// Hook schema `v1`: several hooks per file, `matcher` is a regex on the file path and
+			// the action is either a `command` or an `agent` loop. Authored prompts stay PT-BR.
 			const template = {
-				id,
-				name: id,
-				enabled: true,
-				trigger: 'onSave',
-				glob: 'src/**/*.ts',
-				agent: 'default',
-				prompt: 'Verifique se o arquivo alterado {{file}} precisa de ajustes ou atualização de testes.',
+				version: 'v1',
+				hooks: [
+					{
+						name: id,
+						description: 'Revisa o arquivo salvo e ajusta ou cria testes quando necessário.',
+						enabled: true,
+						trigger: 'PostFileSave',
+						matcher: '\\.(ts|tsx)$',
+						timeout: 60,
+						action: {
+							type: 'agent',
+							prompt: 'Verifique se o arquivo alterado {{file}} precisa de ajustes ou atualização de testes.',
+						},
+					},
+				],
 			};
 			await fs.writeFile(filePath, JSON.stringify(template, null, 2) + '\n', 'utf8');
 			hooksProvider.refresh();

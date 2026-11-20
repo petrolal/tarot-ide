@@ -76,16 +76,17 @@ export class TarotCheckpointService {
 		try {
 			manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')) as CheckpointManifest;
 		} catch {
-			vscode.window.showErrorMessage(`Checkpoint '${checkpointId}' não encontrado.`);
+			vscode.window.showErrorMessage(vscode.l10n.t("Checkpoint '{0}' not found.", checkpointId));
 			return false;
 		}
 
+		const restoreLabel = vscode.l10n.t('Restore');
 		const confirm = await vscode.window.showWarningMessage(
-			`Restaurar arquivos do workspace para o checkpoint de ${new Date(manifest.createdAt).toLocaleTimeString()}? (O histórico do chat será preservado.)`,
+			vscode.l10n.t('Restore the workspace files to the checkpoint from {0}? (Chat history will be preserved.)', new Date(manifest.createdAt).toLocaleTimeString()),
 			{ modal: true },
-			'Restaurar',
+			restoreLabel,
 		);
-		if (confirm !== 'Restaurar') {
+		if (confirm !== restoreLabel) {
 			return false;
 		}
 
@@ -113,7 +114,7 @@ export class TarotCheckpointService {
 			}
 		}
 
-		vscode.window.showInformationMessage('Checkpoint restaurado com sucesso (histórico preservado).');
+		vscode.window.showInformationMessage(vscode.l10n.t('Checkpoint restored successfully (history preserved).'));
 		return true;
 	}
 

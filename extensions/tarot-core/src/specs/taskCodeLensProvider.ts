@@ -23,24 +23,24 @@ export class SpecTaskCodeLensProvider implements vscode.CodeLensProvider, vscode
 			if (task.completed) {
 				lenses.push(
 					new vscode.CodeLens(range, {
-						title: '✓ Concluída',
+						title: vscode.l10n.t('✓ Completed'),
 						command: '',
-						tooltip: `Tarefa #${task.index} concluída`,
+						tooltip: vscode.l10n.t('Task #{0} completed', task.index),
 					}),
 				);
 			} else {
 				lenses.push(
 					new vscode.CodeLens(range, {
-						title: '▶ Run Task',
+						title: vscode.l10n.t('▶ Run Task'),
 						command: 'tarot.specs.runTask',
 						arguments: [document.uri, task.lineIndex],
-						tooltip: `Executar tarefa #${task.index} com o agente local ativo`,
+						tooltip: vscode.l10n.t('Run task #{0} with the active local agent', task.index),
 					}),
 					new vscode.CodeLens(range, {
-						title: '▶ Run Task with...',
+						title: vscode.l10n.t('▶ Run Task with...'),
 						command: 'tarot.specs.runTaskWith',
 						arguments: [document.uri, task.lineIndex],
-						tooltip: `Escolher qual agente local (claude, agy, codex) executará a tarefa #${task.index}`,
+						tooltip: vscode.l10n.t('Pick which local agent (claude, agy, codex) runs task #{0}', task.index),
 					}),
 				);
 			}

@@ -35,7 +35,7 @@ export class TarotSessionStore {
 		const now = new Date().toISOString();
 		const session: AgentSession = {
 			id: `session-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`,
-			title: mode === 'spec' ? 'Spec: nova tarefa' : 'Nova sessão',
+			title: mode === 'spec' ? vscode.l10n.t('Spec: new task') : vscode.l10n.t('New session'),
 			createdAt: now,
 			updatedAt: now,
 			activeAgentId,
