@@ -13,7 +13,6 @@ import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
 import { SpecCreationKind, TarotSpecService } from './specs/specService';
-import { SpecStepperCodeLensProvider } from './specs/specStepper';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
@@ -40,7 +39,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
-	const specStepperProvider = new SpecStepperCodeLensProvider();
 	const pendingReviewComments: MarkdownReviewComment[] = [];
 
 	// Left Sidebar (Kiro-style) TreeViews
@@ -70,15 +68,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		agentsProvider,
 		agentPanelProvider,
 		specCodeLensProvider,
-		specStepperProvider,
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
 		vscode.languages.registerCodeLensProvider(
 			{ language: 'markdown', pattern: '**/.tarot/specs/*/tasks.md' },
 			specCodeLensProvider,
-		),
-		vscode.languages.registerCodeLensProvider(
-			{ language: 'markdown', pattern: '**/.tarot/specs/*/*.md' },
-			specStepperProvider,
 		),
 		vscode.window.registerTreeDataProvider('tarot.views.specs', specsProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.hooks', hooksProvider),
@@ -151,7 +144,7 @@ export function activate(context: vscode.ExtensionContext): void {
 					{
 						label: vscode.l10n.t('Feature (Requirements-First · EARS)'),
 						description: vscode.l10n.t('requirements.md → design.md → tasks.md'),
-						detail: vscode.l10n.t('Default Kiro workflow: start by defining requirements in EARS notation (WHEN ... THE SYSTEM SHALL ...).'),
+						detail: vscode.l10n.t('Default Tarot workflow: start by defining requirements in EARS notation (WHEN ... THE SYSTEM SHALL ...).'),
 						specKind: 'feature-requirements-first' as SpecCreationKind,
 					},
 					{
@@ -167,7 +160,7 @@ export function activate(context: vscode.ExtensionContext): void {
 						specKind: 'bugfix' as SpecCreationKind,
 					},
 				],
-				{ title: vscode.l10n.t('Tarot IDE — Spec Type (Kiro Workflow)') },
+				{ title: vscode.l10n.t('Tarot IDE — Spec Type') },
 			);
 			if (!kindPick) {
 				return;
@@ -401,7 +394,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 			const inclusionPick = await vscode.window.showQuickPick(
 				[
-					{ label: 'always', description: vscode.l10n.t('Included in every turn (Kiro default)'), value: 'always' as SteeringInclusion },
+					{ label: 'always', description: vscode.l10n.t('Included in every turn (default)'), value: 'always' as SteeringInclusion },
 					{ label: 'fileMatch', description: vscode.l10n.t('Included when the active editor or #File matches a glob'), value: 'fileMatch' as SteeringInclusion },
 					{ label: 'auto', description: vscode.l10n.t('Included automatically when relevant to the prompt'), value: 'auto' as SteeringInclusion },
 					{ label: 'manual', description: vscode.l10n.t('Included only when referenced as #name or through #Steering'), value: 'manual' as SteeringInclusion },

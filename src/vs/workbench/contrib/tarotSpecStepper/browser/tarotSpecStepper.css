@@ -1,0 +1,178 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2026 Lucas Petrola — Tarot IDE. All rights reserved.
+ *  Licensed under the GNU General Public License v3.0 (GPL-3.0). See LICENSE and NOTICE.md.
+ *--------------------------------------------------------------------------------------------*/
+
+.tarot-spec-stepper {
+	position: absolute;
+	left: 0;
+	right: 0;
+	height: 44px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 0 18px;
+	box-sizing: border-box;
+	background: var(--vscode-editor-background);
+	z-index: 4;
+	user-select: none;
+	overflow: hidden;
+}
+
+.tarot-spec-stepper-slug {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12.5px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	opacity: 0.9;
+	margin-right: 4px;
+	white-space: nowrap;
+}
+
+.tarot-spec-stepper-slug .codicon {
+	font-size: 14px;
+	color: #D4AF37;
+}
+
+.vs .tarot-spec-stepper-slug .codicon {
+	color: #8F6B0A;
+}
+
+.tarot-spec-stepper-steps {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.tarot-spec-step-pill {
+	display: inline-flex;
+	align-items: stretch;
+	border-radius: 5px;
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	background: rgba(255, 255, 255, 0.03);
+	padding: 0;
+	overflow: hidden;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 12px;
+	line-height: 1;
+	color: rgba(230, 226, 240, 0.8);
+	transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.tarot-spec-step-pill:hover {
+	border-color: rgba(139, 92, 246, 0.65);
+	color: #FFFFFF;
+}
+
+.tarot-spec-step-pill.active {
+	border-color: #8B5CF6;
+	background: rgba(139, 92, 246, 0.12);
+	color: #FFFFFF;
+}
+
+.tarot-spec-step-num {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	padding: 4px 6px;
+	font-weight: 600;
+	font-size: 11.5px;
+	background: rgba(255, 255, 255, 0.08);
+	color: rgba(230, 226, 240, 0.85);
+}
+
+.tarot-spec-step-pill.active .tarot-spec-step-num {
+	background: #8B5CF6;
+	color: #FFFFFF;
+}
+
+.tarot-spec-step-label {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 9px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.tarot-spec-step-sep {
+	color: rgba(230, 226, 240, 0.42);
+	font-size: 13px;
+	line-height: 1;
+}
+
+.tarot-spec-stepper-actions {
+	margin-left: auto;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.tarot-spec-action-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	border-radius: 5px;
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	background: rgba(255, 255, 255, 0.04);
+	color: rgba(230, 226, 240, 0.85);
+	padding: 4px 9px;
+	font-family: inherit;
+	font-size: 11.5px;
+	cursor: pointer;
+	transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.tarot-spec-action-btn:hover {
+	border-color: rgba(212, 175, 55, 0.55);
+	background: rgba(139, 92, 246, 0.16);
+	color: #FFFFFF;
+}
+
+/* Light theme (Tarot Arcana Light & Open VSX light themes) */
+.vs .tarot-spec-step-pill {
+	border-color: rgba(29, 17, 53, 0.16);
+	background: #F4F1FA;
+	color: #4A3E66;
+}
+
+.vs .tarot-spec-step-pill:hover {
+	border-color: #4B0082;
+	color: #1D1135;
+}
+
+.vs .tarot-spec-step-pill.active {
+	border-color: #4B0082;
+	background: #EFEAF8;
+	color: #1D1135;
+}
+
+.vs .tarot-spec-step-num {
+	background: rgba(29, 17, 53, 0.08);
+	color: #4A3E66;
+}
+
+.vs .tarot-spec-step-pill.active .tarot-spec-step-num {
+	background: #4B0082;
+	color: #FFFFFF;
+}
+
+.vs .tarot-spec-step-sep {
+	color: rgba(29, 17, 53, 0.35);
+}
+
+.vs .tarot-spec-action-btn {
+	border-color: rgba(29, 17, 53, 0.16);
+	background: #F4F1FA;
+	color: #4A3E66;
+}
+
+.vs .tarot-spec-action-btn:hover {
+	border-color: #4B0082;
+	background: #E7DFF5;
+	color: #1D1135;
+}

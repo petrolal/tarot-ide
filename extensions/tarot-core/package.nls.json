@@ -1,6 +1,6 @@
 {
 	"displayName": "Tarot Core",
-	"description": "Core built-in extension, Arcana theme, file icons, Kiro-style workflow, and BYOA agent runtime for Tarot IDE.",
+	"description": "Core built-in extension, Arcana theme, file icons, Spec-Driven workflow, and BYOA agent runtime for Tarot IDE.",
 	"capabilities.untrustedWorkspaces.description": "Workspace artifacts under .tarot/ (hooks, steering, agents, skills, MCP, workflows) and local agent execution require a trusted workspace.",
 	"theme.arcanaDark.label": "Tarot Arcana Dark",
 	"theme.arcanaLight.label": "Tarot Arcana Light",
@@ -36,7 +36,7 @@
 	"command.steering.create.title": "New Steering File",
 	"command.steering.generate.title": "Generate Project Steering Documents",
 	"command.hooks.create.title": "New Agent Hook",
-	"config.ui.openAgentPanelOnStartup.description": "Automatically open the Tarot Agent panel in the right Secondary Side Bar on startup (Kiro Agent-First layout).",
+	"config.ui.openAgentPanelOnStartup.description": "Automatically open the Tarot Agent panel in the right Secondary Side Bar on startup (Agent-First layout).",
 	"config.specs.defaultWorkflow.description": "Default workflow mode for new Spec sessions ('ask' shows the Let's build mode picker).",
 	"config.agents.default.description": "Default local AI agent CLI for Tarot IDE ('auto' selects the first available installed CLI).",
 	"config.agents.paths.claude.description": "Optional custom executable path for Claude Code CLI ('claude').",

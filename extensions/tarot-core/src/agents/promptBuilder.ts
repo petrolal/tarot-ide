@@ -15,7 +15,7 @@ export function buildEffectivePrompt(request: AgentRunRequest): string {
 	if (request.mode === 'spec') {
 		parts.push(
 			'[Tarot IDE — Spec Mode]\n' +
-			'Follow Spec-Driven Development (Kiro workflow): use EARS notation (WHEN ... THE SYSTEM SHALL ...) for requirements, produce structured design and discrete tasks before editing code.'
+			'Follow Spec-Driven Development (Tarot workflow): use EARS notation (WHEN ... THE SYSTEM SHALL ...) for requirements, produce structured design and discrete tasks before editing code.'
 		);
 	} else if (request.mode === 'plan') {
 		parts.push(

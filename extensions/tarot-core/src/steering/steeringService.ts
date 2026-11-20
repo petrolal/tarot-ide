@@ -409,7 +409,7 @@ export class TarotSteeringService {
 	buildGenerateSteeringPrompt(workspaceRoot: string): string {
 		const projectName = path.basename(workspaceRoot);
 		return (
-			`Analyze the repository "${projectName}" and populate the 3 foundational Kiro/Tarot Steering documents in \`.tarot/steering/\`:\n` +
+			`Analyze the repository "${projectName}" and populate the 3 foundational Tarot Steering documents in \`.tarot/steering/\`:\n` +
 			`1. \`.tarot/steering/product.md\` (product purpose, target users, key use cases, UX principles)\n` +
 			`2. \`.tarot/steering/tech.md\` (stack, runtime versions, package manager, build/test commands, security/architecture constraints)\n` +
 			`3. \`.tarot/steering/structure.md\` (directory tree, module boundaries, naming & import conventions)\n\n` +
