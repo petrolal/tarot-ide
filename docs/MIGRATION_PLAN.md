@@ -201,10 +201,11 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.8b — Skills, Custom Agents, Sub-agentes, Powers e MCP (UC-06)
-- **Fonte**: `kiro.dev/docs/{skills,custom-agents,custom-agents/subagents,powers,mcp,steering}/`.
-- **Arquivos-alvo**: `extensions/tarot-core/src/{skills/skillsService,agents/customAgentService,agents/subagentManager,powers/powersService,mcp/mcpConfigService}.ts`; ajustes em `steeringService.ts`.
+### Marco M3.8b — Skills, Custom Agents, Sub-agentes, Powers, MCP & Adaptador Universal ACP (UC-06)
+- **Fonte**: `kiro.dev/docs/{skills,custom-agents,custom-agents/subagents,powers,mcp,steering}/` + Agent Client Protocol (ACP).
+- **Arquivos-alvo**: `extensions/tarot-core/src/{skills/skillsService,agents/customAgentService,agents/subagentManager,agents/adapters/acpAdapter,agents/agentCatalog,powers/powersService,mcp/mcpConfigService}.ts`; ajustes em `steeringService.ts` e `runtimeManager.ts`.
 - **Especificação**:
+  - **Descoberta Dinâmica & ACP (`acpAdapter.ts` + `agentCatalog.ts`)**: introduzir um adaptador genérico **ACP (Agent Client Protocol via stdio)** compatível com qualquer CLI ACP (`agy acp`, `kiro-cli`, `opencode`, `goose`, bridges de Claude/Codex, etc.) + catálogo declarativo de presets (mantendo `claude`, `codex`, `agy` prontos *out-of-the-box*, mas sem exigir uma classe TS hardcoded para cada novo CLI).
   - **Skills** (padrão *Agent Skills*): pasta com `SKILL.md` (+ `scripts/`, `references/`) em `.tarot/skills/` e `~/.tarot/skills/`; *progressive disclosure* (só nome+descrição no início, instruções completas ao casar com o pedido ou via `/nome [args]` / `$nome`); workspace vence global; **Import skill** (URL de repo GitHub/GitLab apontando subpasta, ou pasta local); skill ≥ 30.000 caracteres carrega por inteiro se couber.
   - **Custom agents**: `.tarot/agents/<nome>.{md,json}` e `~/.tarot/agents/` (subpastas ⇒ `team/planner`; workspace vence). Campos: `name`, `description`, `tools`, `excludedTools`, `includeMcpJson`, `includePowers`, `resources` (`file://`, `skill://`), `permissions`, `prompt`, `model`, `welcomeMessage`. **Seletor de agente** no composer agrupado em *Built-in* (Default, Spec, Quick Spec, Bug Fix, Plan) / *User* / *Workspace*; troca mantém histórico e permissões; desabilitado durante execução multi-passo.
   - **Sub-agentes**: janela de contexto isolada, herdam steering, MCP, acesso a arquivos e permissões; **DAG** planejado de antemão e imutável; **review loops** (`target`, `trigger` ≥ 4 caracteres, `max_iterations` 1–10; sem loop em si mesmo nem mútuo); built-ins: *Context gathering*, *General purpose*, *Validation*; execução paralela; orquestrador precisa da tool `subagent`.

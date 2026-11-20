@@ -51,7 +51,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | **Claude Code** | `claude` | Execução agêntica (edição, terminal, planejamento, modo headless/JSON stream) |
 | **OpenAI Codex CLI** | `codex` | Execução agêntica local via CLI / modo não-interativo |
 | **Antigravity CLI (`agy`)** | `agy` | Execução agêntica local via CLI / workflows |
-| **Extensível (Custom)** | Configurável em `tarot.agents.custom` | Permite ao usuário registrar qualquer outro CLI agêntico compatível |
+| **Extensível (Custom / ACP)** | Configurável em `tarot.agents.custom` ou via **ACP** (`agy acp`, etc.) | Permite descobrir e orquestrar dinamicamente qualquer CLI compatível via catálogo declarativo ou **Agent Client Protocol (ACP)** (M3.8b), sem hardcode de adaptadores por CLI |
 
 ### 2.3 Compatibilidade Desktop & Web (`tarot-server`)
 | Modo de execução | O que herda do Tarot IDE | Limites |
