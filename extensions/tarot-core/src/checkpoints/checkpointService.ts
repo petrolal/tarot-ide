@@ -38,7 +38,21 @@ interface CheckpointManifest {
 	readonly baseline?: readonly BaselineFileEntry[];
 }
 
-const WORKSPACE_SCAN_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.tarot/**,**/.venv/**,**/venv/**,**/dist/**,**/out/**,**/build/**,**/.next/**}';
+// `.tarot/checkpoints/**` and `.tarot/sessions/**` are Tarot's own bookkeeping — the former is
+// self-referential (every checkpoint write would make the next checkpoint see its own backups as
+// "added"), the latter is rewritten on every single chat message regardless of what the agent
+// did. Both are pure noise for a diff about what *this turn* changed. Every other `.tarot/**` path
+// (settings, hooks, agents, workflows, powers, specs, steering) is real content the agent or the
+// user writes to, and is exactly what the fs_write invariants (`.tarot/settings/**`,
+// `.tarot/{hooks,agents,workflows,powers}/**`) need to actually see to be enforced — excluding all
+// of `.tarot/` blindly (the previous behavior) made the gate structurally unable to ever catch a
+// write to the paths it exists to protect.
+const WORKSPACE_SCAN_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.tarot/checkpoints/**,**/.tarot/sessions/**,**/.venv/**,**/venv/**,**/dist/**,**/out/**,**/build/**,**/.next/**}';
+
+function isTarotBookkeepingPath(relativePath: string): boolean {
+	const normalized = relativePath.replace(/\\/g, '/');
+	return normalized.startsWith('.tarot/checkpoints/') || normalized.startsWith('.tarot/sessions/');
+}
 const WORKSPACE_SCAN_LIMIT = 5_000;
 
 /** Revert outcome for `restoreCheckpointFiles`: `skipped` files have no recoverable backup (no git, no manifest entry, but known to have existed before the checkpoint) — reverting them would mean deleting real content, so they are left untouched instead. */
@@ -346,9 +360,11 @@ export class TarotCheckpointService {
 			if (res.exitCode === 0 && res.stdout) {
 				for (const line of res.stdout.split('\n')) {
 					const trimmed = line.slice(3).trim();
-					if (trimmed && !trimmed.startsWith('.tarot/')) {
+					if (trimmed) {
 						const cleanPath = trimmed.includes(' -> ') ? trimmed.split(' -> ').pop()!.trim() : trimmed;
-						files.add(cleanPath);
+						if (!isTarotBookkeepingPath(cleanPath)) {
+							files.add(cleanPath);
+						}
 					}
 				}
 			}
@@ -358,7 +374,7 @@ export class TarotCheckpointService {
 		for (const doc of vscode.workspace.textDocuments) {
 			if (!doc.isUntitled && doc.uri.scheme === 'file' && doc.uri.fsPath.startsWith(workspaceRoot)) {
 				const rel = path.relative(workspaceRoot, doc.uri.fsPath);
-				if (rel && !rel.startsWith('.tarot')) {
+				if (rel && !isTarotBookkeepingPath(rel)) {
 					files.add(rel);
 				}
 			}
