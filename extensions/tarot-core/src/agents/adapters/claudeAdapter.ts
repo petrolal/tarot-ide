@@ -89,14 +89,18 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 		// here since "accept file changes" should not silently extend to "accept file deletion".
 		if (request.mode === 'plan') {
 			args.push('--permission-mode', 'plan');
-		} else if (request.autonomy === 'acceptFileChanges') {
-			args.push('--permission-mode', 'acceptEdits', '--disallowedTools', 'Bash(rm *)');
 		} else if (request.autonomy === 'approveForMe') {
 			args.push('--permission-mode', 'auto', '--permission-prompts', 'none');
 		} else {
-			// Supervised: explicit for clarity, same outcome as passing nothing — a real per-action
-			// review loop needs a bidirectional --permission-prompt-tool bridge (M3.8b/M3.9a).
-			args.push('--permission-mode', 'default');
+			// Supervised and Accept File Changes both apply edits via acceptEdits: a real
+			// pre-write, per-hunk pause-and-ask for Supervised (what Kiro's own Supervised mode
+			// does) needs a bidirectional --permission-prompt-tool bridge Tarot does not build yet
+			// (M3.8b/M3.9a) — `--permission-mode default` denies every edit outright with no host
+			// to answer, which is not "supervised", just broken. Until that bridge exists, Tarot's
+			// own post-hoc fs_write approval gate (reviewFileWritesForTurn) is what actually
+			// reviews: it shows a real Keep/Revert card for every file in Supervised, vs. only for
+			// explicit policy rules in Accept File Changes.
+			args.push('--permission-mode', 'acceptEdits', '--disallowedTools', 'Bash(rm *)');
 		}
 		let emittedText = false;
 		const stderrLines: string[] = [];

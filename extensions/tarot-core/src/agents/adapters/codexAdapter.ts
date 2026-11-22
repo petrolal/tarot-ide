@@ -71,7 +71,28 @@ export class CodexAdapter implements AgentAdapter {
 		}
 
 		const prompt = buildEffectivePrompt(request);
-		const args = ['exec', '--json'];
+		// `codex exec` defaults to a **read-only sandbox** with no flags at all (confirmed against
+		// developers.openai.com/codex/noninteractive — "By default, codex exec runs in a read-only
+		// sandbox") — codex could never write a single file through Tarot in any autonomy mode
+		// (gap found in code review, 2026-11-22, same class as the earlier claude permission-mode
+		// deadlock). It also refuses to run outside a Git repository unless told otherwise; Tarot's
+		// own checkpoint system now works without git too (see checkpointService.ts's baseline
+		// fingerprint), so that check is redundant here. NOTE: unlike the claude fix, this is
+		// sourced from official docs only — the codex CLI was not available in this environment to
+		// cross-check against its own --help, so verify against a real install before trusting it
+		// blindly.
+		const args = ['exec', '--json', '--skip-git-repo-check'];
+		if (request.mode === 'plan') {
+			// Read-only sandbox is already the default — nothing to add.
+		} else if (request.autonomy === 'approveForMe') {
+			args.push('--approve-for-me');
+		} else {
+			// Supervised/Accept File Changes: allow writes within the workspace. Tarot's own
+			// post-hoc fs_write approval gate (reviewFileWritesForTurn) is what actually reviews
+			// per policy — codex exec has no documented per-action pause-and-ask for unattended
+			// runs to build real Supervised review on top of (same limitation as claude).
+			args.push('--sandbox', 'workspace-write');
+		}
 		if (request.model && request.model !== 'auto') {
 			args.push('-m', request.model);
 		}
