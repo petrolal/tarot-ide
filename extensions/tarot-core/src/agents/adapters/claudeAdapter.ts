@@ -79,6 +79,25 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 			const claudeEffort = request.effort === 'xhigh' ? 'high' : request.effort;
 			args.push('--effort', claudeEffort);
 		}
+		// Without an explicit --permission-mode, `claude -p` runs in its own default ("manual"):
+		// with no interactive terminal and no --permission-prompt-tool configured, every file edit
+		// and non-read-only Bash command is denied outright — Accept File Changes/Approve For Me
+		// were previously pure UI state with no effect on the actual CLI run (gap found in code
+		// review, 2026-11-22; confirmed against `claude --help`'s own --permission-mode/
+		// --permission-prompts documentation). `acceptEdits` also auto-approves a few Bash
+		// commands beyond file edits (mkdir/touch/mv/cp/rm/rmdir/sed) — rm is explicitly denied
+		// here since "accept file changes" should not silently extend to "accept file deletion".
+		if (request.mode === 'plan') {
+			args.push('--permission-mode', 'plan');
+		} else if (request.autonomy === 'acceptFileChanges') {
+			args.push('--permission-mode', 'acceptEdits', '--disallowedTools', 'Bash(rm *)');
+		} else if (request.autonomy === 'approveForMe') {
+			args.push('--permission-mode', 'auto', '--permission-prompts', 'none');
+		} else {
+			// Supervised: explicit for clarity, same outcome as passing nothing — a real per-action
+			// review loop needs a bidirectional --permission-prompt-tool bridge (M3.8b/M3.9a).
+			args.push('--permission-mode', 'default');
+		}
 		let emittedText = false;
 		const stderrLines: string[] = [];
 		const pendingToolUses = new Map<string, string>();
