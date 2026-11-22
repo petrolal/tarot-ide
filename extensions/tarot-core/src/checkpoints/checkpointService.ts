@@ -15,12 +15,36 @@ interface CheckpointFileEntry {
 	readonly backupName?: string;
 }
 
+/** A file's identity at checkpoint time — no content, just enough to notice it changed later. */
+interface BaselineFileEntry {
+	readonly relativePath: string;
+	readonly mtimeMs: number;
+	readonly size: number;
+}
+
 interface CheckpointManifest {
 	readonly id: string;
 	readonly sessionId: string;
 	readonly createdAt: string;
 	readonly workspaceRoot: string;
 	readonly files: readonly CheckpointFileEntry[];
+	/**
+	 * Only populated when git is unavailable at checkpoint time: `collectDirtyFiles` has no way to
+	 * see a clean, pre-existing file the agent later edits without opening it in an editor tab, so
+	 * `createCheckpoint` fingerprints the whole workspace (mtime+size, no content copy) instead —
+	 * `getCheckpointDiff` compares against this to detect changes git-less detection would
+	 * otherwise miss entirely.
+	 */
+	readonly baseline?: readonly BaselineFileEntry[];
+}
+
+const WORKSPACE_SCAN_EXCLUDE = '{**/node_modules/**,**/.git/**,**/.tarot/**,**/.venv/**,**/venv/**,**/dist/**,**/out/**,**/build/**,**/.next/**}';
+const WORKSPACE_SCAN_LIMIT = 5_000;
+
+/** Revert outcome for `restoreCheckpointFiles`: `skipped` files have no recoverable backup (no git, no manifest entry, but known to have existed before the checkpoint) — reverting them would mean deleting real content, so they are left untouched instead. */
+export interface RevertFilesResult {
+	readonly reverted: readonly string[];
+	readonly skipped: readonly string[];
 }
 
 export interface CheckpointDiffEntry {
@@ -60,12 +84,14 @@ export class TarotCheckpointService {
 				}
 			}
 
+			const gitPath = await resolveBinaryPath('git');
 			const manifest: CheckpointManifest = {
 				id,
 				sessionId,
 				createdAt: new Date().toISOString(),
 				workspaceRoot,
 				files: entries,
+				baseline: gitPath ? undefined : await this.scanWorkspaceFingerprint(workspaceRoot),
 			};
 
 			await fs.writeFile(path.join(cpDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
@@ -99,14 +125,21 @@ export class TarotCheckpointService {
 
 		// 1. Revert any newly modified tracked files via git checkout if git is available
 		const gitPath = await resolveBinaryPath('git');
+		const backedUpSet = new Set(manifest.files.map(f => f.relativePath));
+		let unrecoverable: string[] = [];
 		if (gitPath) {
 			const currentDirty = await this.collectDirtyFiles(workspaceRoot);
-			const backedUpSet = new Set(manifest.files.map(f => f.relativePath));
 			for (const rel of currentDirty) {
 				if (!backedUpSet.has(rel)) {
 					await execSimple(gitPath, ['-C', workspaceRoot, 'checkout', '--', rel]).catch(() => undefined);
 				}
 			}
+		} else if (manifest.baseline) {
+			// No git: collectDirtyFiles can't see a clean file the agent edited without opening it
+			// in an editor tab. The baseline fingerprint at least tells us WHICH paths changed, but
+			// there is no backup to restore them from — report instead of silently leaving them.
+			const changed = await this.diffAgainstBaseline(workspaceRoot, manifest.baseline);
+			unrecoverable = changed.filter(c => c.status !== 'added' && !backedUpSet.has(c.relativePath)).map(c => c.relativePath);
 		}
 
 		// 2. Restore all snapshotted files from checkpoint backup
@@ -121,7 +154,14 @@ export class TarotCheckpointService {
 			}
 		}
 
-		vscode.window.showInformationMessage(vscode.l10n.t('Checkpoint restored successfully (history preserved).'));
+		if (unrecoverable.length > 0) {
+			vscode.window.showWarningMessage(vscode.l10n.t(
+				'Checkpoint restored, but {0} file(s) could not be reverted (no git and no backup for a file that existed before this checkpoint): {1}',
+				unrecoverable.length, unrecoverable.join(', '),
+			));
+		} else {
+			vscode.window.showInformationMessage(vscode.l10n.t('Checkpoint restored successfully (history preserved).'));
+		}
 		return true;
 	}
 
@@ -135,10 +175,13 @@ export class TarotCheckpointService {
 	 * snapshots files that were already dirty (or open+unsaved) *before* the turn, so a file that
 	 * was clean and got edited has no backup either — blindly deleting it would be real data loss
 	 * (same gap `getCheckpointDiff` already has for its read-only "View changes" diff). `git
-	 * checkout` is tried first for exactly this reason; only a path git does not know about (or no
-	 * git available) falls through to a delete, which is then actually safe.
+	 * checkout` is tried first for exactly this reason; a path git does not know about either falls
+	 * through to the baseline fingerprint (no git case): if it was already on disk at checkpoint
+	 * time, deleting it would destroy real content with nothing to restore, so it is left alone and
+	 * reported in `skipped` instead — only a path confirmed new (absent from both manifest and
+	 * baseline) is ever deleted.
 	 */
-	async restoreCheckpointFiles(workspaceRoot: string, sessionId: string, checkpointId: string, relativePaths: readonly string[]): Promise<boolean> {
+	async restoreCheckpointFiles(workspaceRoot: string, sessionId: string, checkpointId: string, relativePaths: readonly string[]): Promise<RevertFilesResult> {
 		const cpDir = path.join(workspaceRoot, '.tarot', 'checkpoints', sessionId, checkpointId);
 		const filesDir = path.join(cpDir, 'files');
 
@@ -146,29 +189,48 @@ export class TarotCheckpointService {
 		try {
 			manifest = JSON.parse(await fs.readFile(path.join(cpDir, 'manifest.json'), 'utf8')) as CheckpointManifest;
 		} catch {
-			return false;
+			return { reverted: [], skipped: [...relativePaths] };
 		}
 
 		const gitPath = await resolveBinaryPath('git');
 		const byPath = new Map(manifest.files.map(f => [f.relativePath, f]));
+		const baselineByPath = new Map((manifest.baseline ?? []).map(f => [f.relativePath, f]));
+		const reverted: string[] = [];
+		const skipped: string[] = [];
+
 		for (const rel of relativePaths) {
 			const targetAbs = path.join(workspaceRoot, rel);
 			const entry = byPath.get(rel);
 			if (entry?.existed && entry.backupName) {
 				await fs.mkdir(path.dirname(targetAbs), { recursive: true });
 				await fs.copyFile(path.join(filesDir, entry.backupName), targetAbs);
+				reverted.push(rel);
+				continue;
+			}
+			if (entry && !entry.existed) {
+				// Manifest explicitly confirms this path did not exist before the checkpoint.
+				await fs.rm(targetAbs, { force: true }).catch(() => undefined);
+				reverted.push(rel);
 				continue;
 			}
 			if (gitPath) {
 				const result = await execSimple(gitPath, ['-C', workspaceRoot, 'checkout', '--', rel]).catch(() => undefined);
 				if (result?.exitCode === 0) {
+					reverted.push(rel);
 					continue;
 				}
 			}
-			// Not in the manifest and git does not know it either: genuinely new, safe to delete.
+			if (baselineByPath.has(rel)) {
+				// Existed, unchanged-looking at checkpoint time, no git and no backup: cannot
+				// revert safely. Leaving it in place is the only non-destructive option.
+				skipped.push(rel);
+				continue;
+			}
+			// Confirmed new by every signal available: safe to delete.
 			await fs.rm(targetAbs, { force: true }).catch(() => undefined);
+			reverted.push(rel);
 		}
-		return true;
+		return { reverted, skipped };
 	}
 
 	/**
@@ -217,7 +279,63 @@ export class TarotCheckpointService {
 			}
 		}
 
+		if (manifest.baseline) {
+			for (const change of await this.diffAgainstBaseline(workspaceRoot, manifest.baseline)) {
+				if (!manifestPaths.has(change.relativePath) && !entries.has(change.relativePath)) {
+					entries.set(change.relativePath, change);
+				}
+			}
+		}
+
 		return Array.from(entries.values());
+	}
+
+	/** Fingerprints every file currently in the workspace (mtime+size, no content) for later `diffAgainstBaseline` comparison. Only meaningful when git is unavailable — see `CheckpointManifest.baseline`. */
+	private async scanWorkspaceFingerprint(workspaceRoot: string): Promise<BaselineFileEntry[]> {
+		try {
+			const uris = await vscode.workspace.findFiles('**/*', WORKSPACE_SCAN_EXCLUDE, WORKSPACE_SCAN_LIMIT);
+			const entries: BaselineFileEntry[] = [];
+			for (const uri of uris) {
+				if (uri.scheme !== 'file' || !uri.fsPath.startsWith(workspaceRoot)) {
+					continue;
+				}
+				try {
+					const stat = await fs.stat(uri.fsPath);
+					if (stat.isFile()) {
+						entries.push({ relativePath: path.relative(workspaceRoot, uri.fsPath), mtimeMs: stat.mtimeMs, size: stat.size });
+					}
+				} catch {
+					// Race between findFiles and stat (file removed mid-scan) — skip it.
+				}
+			}
+			return entries;
+		} catch {
+			return [];
+		}
+	}
+
+	/** Compares a fresh workspace scan against a checkpoint's `baseline` to find additions, modifications and deletions a git-less `collectDirtyFiles` cannot see. */
+	private async diffAgainstBaseline(workspaceRoot: string, baseline: readonly BaselineFileEntry[]): Promise<CheckpointDiffEntry[]> {
+		const baselineByPath = new Map(baseline.map(f => [f.relativePath, f]));
+		const current = await this.scanWorkspaceFingerprint(workspaceRoot);
+		const currentByPath = new Map(current.map(f => [f.relativePath, f]));
+		const changes: CheckpointDiffEntry[] = [];
+
+		for (const file of current) {
+			const before = baselineByPath.get(file.relativePath);
+			if (!before) {
+				changes.push({ relativePath: file.relativePath, status: 'added' });
+			} else if (before.mtimeMs !== file.mtimeMs || before.size !== file.size) {
+				// Existed and looked clean at checkpoint time: there is no content backup for it.
+				changes.push({ relativePath: file.relativePath, status: 'modified' });
+			}
+		}
+		for (const before of baseline) {
+			if (!currentByPath.has(before.relativePath)) {
+				changes.push({ relativePath: before.relativePath, status: 'deleted' });
+			}
+		}
+		return changes;
 	}
 
 	private async collectDirtyFiles(workspaceRoot: string): Promise<string[]> {

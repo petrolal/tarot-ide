@@ -822,7 +822,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const gate = msg.fileWriteGate;
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!keep && cwd) {
-			await this.checkpointService.restoreCheckpointFiles(cwd, gate.sessionId, gate.checkpointId, gate.files);
+			const result = await this.checkpointService.restoreCheckpointFiles(cwd, gate.sessionId, gate.checkpointId, gate.files);
+			if (result.skipped.length > 0) {
+				vscode.window.showWarningMessage(vscode.l10n.t(
+					'{0} file(s) could not be safely reverted (no backup available for a file that already existed before this turn): {1}',
+					result.skipped.length, result.skipped.join(', '),
+				));
+			}
 			await this.refreshChangedFiles();
 		}
 		gate.resolution = keep ? 'kept' : 'reverted';
@@ -1000,7 +1006,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					role: 'assistant',
 					agentId,
 					mode: this.mode,
-					content: accumulatedText || vscode.l10n.t('(Run completed with no additional output.)'),
+					content: accumulatedText || this.summarizeToolsFallback(usedTools),
 					thought: accumulatedThought || undefined,
 					tools: usedTools.length > 0 ? usedTools : undefined,
 					appliedSteering: appliedSteering.length > 0 ? appliedSteering : undefined,
@@ -1135,6 +1141,24 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		vscode.window.showInformationMessage(vscode.l10n.t('Saved learned rule to .tarot/steering/pbt-rules.md.'));
 	}
 
+	/**
+	 * Some CLIs close a turn with a `result.response`/equivalent that is genuinely empty even
+	 * after real tool calls (confirmed with `agy`: 6 tool calls, no closing text) — the generic
+	 * "no additional output" placeholder then reads as if nothing happened, when the collapsed
+	 * "N tool calls" disclosure the user has to expand is the only trace of real work. Synthesize
+	 * a one-line summary from the tool labels instead whenever there is at least one.
+	 */
+	private summarizeToolsFallback(usedTools: readonly string[]): string {
+		if (usedTools.length === 0) {
+			return vscode.l10n.t('(Run completed with no additional output.)');
+		}
+		const maxShown = 5;
+		const shown = usedTools.slice(0, maxShown).join(', ');
+		return usedTools.length > maxShown
+			? vscode.l10n.t('Completed {0} action(s): {1}, and {2} more.', usedTools.length, shown, usedTools.length - maxShown)
+			: vscode.l10n.t('Completed {0} action(s): {1}.', usedTools.length, shown);
+	}
+
 	private async refreshAvailableModels(): Promise<void> {
 		this.availableModels = await this.runtimeManager.listModelsForAgent();
 	}
@@ -1172,8 +1196,17 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			}
 		}
 		if (denied.length > 0) {
-			await this.checkpointService.restoreCheckpointFiles(cwd, sessionId, checkpointId, denied);
-			this.outputChannel.appendLine(`[Permissions] fs_write denied, auto-reverted: ${denied.join(', ')}`);
+			const result = await this.checkpointService.restoreCheckpointFiles(cwd, sessionId, checkpointId, denied);
+			this.outputChannel.appendLine(`[Permissions] fs_write denied, auto-reverted: ${result.reverted.join(', ') || '(none)'}`);
+			if (result.skipped.length > 0) {
+				// Denied by policy but no backup exists to revert it (no git, pre-existing file) —
+				// the content is still on disk; surface this instead of pretending it was handled.
+				this.outputChannel.appendLine(`[Permissions] fs_write denied but could NOT be reverted (no backup): ${result.skipped.join(', ')}`);
+				vscode.window.showWarningMessage(vscode.l10n.t(
+					'{0} file(s) were written against denied permissions but could not be auto-reverted (no backup available): {1}',
+					result.skipped.length, result.skipped.join(', '),
+				));
+			}
 		}
 		if (asked.length === 0) {
 			return undefined;
