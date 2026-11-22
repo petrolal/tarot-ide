@@ -86,6 +86,8 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
     - Em Webviews, aplicar CSP estrita (`nonce`), nunca usar `innerHTML` com conteúdo não sanitizado de saída de LLMs/CLIs.
     - Ao classificar um comando `shell` como "seguro por padrão" (ex.: `git` somente-leitura em `policyEngine.ts`), **sempre checar redirecionamento não citado (`>`, `>>`, `<`) antes de liberar** — `git show ... > arquivo` é escrita, não leitura; um allowlist que olha só o subcomando permite escrita arbitrária sob o `allow` padrão (achado e corrigido em revisão de código, 2026-11-22; ver `policyEngine.ts::hasUnquotedRedirection`).
     - Nunca montar o argv de um processo com prompt de tamanho ilimitado: todo adapter BYOA passa o prompt como argumento único de CLI, e `promptBuilder.ts` injeta conteúdo de Steering/anexos sem limite — validar o tamanho total (binário+argv) **antes** do `spawn`, com limite conservador por plataforma (bem mais estrito no Windows) em vez de deixar o SO falhar com `E2BIG`/`ENAMETOOLONG` (ver `agents/commandLineLimits.ts` + cap por seção em `promptBuilder.ts`).
+    - Uma regra `allow` com `match` (preset ou regra do usuário) nunca deve casar um comando `shell` com redirecionamento não citado (`>`/`>>`/`<`) escapando do que o `match` nomeia — `cat *` não é "ler o arquivo" quando o comando é `cat secrets.env > /tmp/exfil.txt` (ver `policyEngine.ts::ruleMatchesValue`/`hasUnquotedRedirection`). Uma regra sem `match` (ex. `allow-all`) é concessão deliberada e fica fora dessa checagem.
+    - A capability `fs_write` precisa estar **realmente conectada** a algo que a avalie — definir o schema/presets sem nenhum call-site de `evaluate('fs_write', ...)` no runtime é o mesmo que não ter política nenhuma para escrita de arquivos (ver `agentPanelView.ts::reviewFileWritesForTurn`, que fecha esse gap para o que o diff do checkpoint consegue enxergar — hoje ainda não cobre `.tarot/**`, ver Débitos Técnicos).
 
 ### 3.4 Regras de Build e Validação
 11. **Usar sempre `pnpm`** (nunca `npm`). Preferir os scripts leves `pnpm run watch-tarot`, `pnpm run watch-tarot-fast`, `pnpm run watch-tarot-core` e `pnpm run compile-tarot`.
@@ -211,14 +213,14 @@ extensions/tarot-core/
     │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort
     │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento + guarda de tamanho de linha de comando antes do spawn (commandLineLimits.ts)
     │   ├── commandLineLimits.ts        # Teto puro e testável (binário+argv) por plataforma — bem mais estrito no Windows — para falhar com erro claro em vez de E2BIG/ENAMETOOLONG do SO
-    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, histórico, anexos #); cada seção de Steering/anexo é truncada em 50k chars, nunca o prompt do usuário
+    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, Spec ativo, histórico, anexos #); cada seção de Steering/Spec/anexo é truncada em 50k chars, nunca o prompt do usuário
     │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json — grava a cada mensagem, mas nada ainda recarrega essas sessões no boot (History real fica para M3.8c)
     │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>); agente ativo persiste em globalState (ACTIVE_AGENT_STATE_KEY)
     │   └── adapters/                   # claudeAdapter, agyAdapter (--print=<prompt> + agy models), codexAdapter, customAdapter (--model/--effort)
     ├── context/
     │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
     ├── checkpoints/
-    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique e diff isolado por tarefa (getCheckpointDiff)
+    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique, diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles, git checkout como fallback antes de deletar)
     ├── steering/
     │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
     ├── hooks/
@@ -252,7 +254,7 @@ extensions/tarot-core/
     └── views/
         ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks agrupado Workspace/Global com toggle + Play, Steering agrupado, Local Agents); Hooks/Steering/Specs só carregam `.tarot/**` com o workspace confiável
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
-        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js); modelo/effort selecionados persistem em globalState entre reinícios
+        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js); modelo/effort selecionados persistem em globalState entre reinícios; resolveActiveSpecContext injeta o Spec relevante em todo turno (não só via #Spec manual); reviewFileWritesForTurn avalia fs_write pós-turno e gera o card de aprovação (Keep/Revert)
 ```
 
 > **Contrato Webview ↔ Extension Host**: toda troca de estado e ações do `Tarot Agent` passa pelo protocolo `postMessage` centralizado em `src/views/agentPanelView.ts` (handler `_handleMessage` + `_postState`) e `media/webview/panel.js` (`window.addEventListener('message', ...)`). O catálogo de strings viaja no HTML inicial em `window.__tarotL10n` (ver §3.5).
