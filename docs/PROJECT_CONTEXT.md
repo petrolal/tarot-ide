@@ -236,7 +236,7 @@ extensions/tarot-core/
     │   ├── presets.ts                  # `allow-all`/`edit-workspace`/`read-workspace`/`read-all`/`read-only-shell`/`dev-shell`/`approve-for-me`
     │   ├── policyEngine.ts             # Avaliação pura: `deny > ask > allow > evaluate`, sem precedência entre escopos, glob completo (fs) vs wildcard `*` (shell/web/mcp); allowlist de `git` somente-leitura rejeita redirecionamento não citado (`hasUnquotedRedirection`)
     │   ├── trustService.ts             # `vscode.workspace.isTrusted` + paths externos de `permissions.yaml` (user/workspace, hash do path fora do repo)
-    │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, cartão de aprovação (Allow/Always Allow/Deny/Always Deny) e gate de hooks `command`
+    │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, cartão de aprovação (Allow/Always Allow/Deny/Always Deny) e gate de hooks `command`; watcher de arquivo + toast deduplicado (reportLoadErrors) quando `permissions.yaml` tem erro de parsing
     ├── specs/
     │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, Sync Files e PBT parser & stepper logic
     │   ├── specStepper.ts              # CodeLens stepper clicável (1 Requirements › 2 Design › 3 Task list) + Analyze + Review
