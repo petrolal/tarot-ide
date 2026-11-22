@@ -226,7 +226,7 @@ extensions/tarot-core/
     │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
     ├── hooks/
     │   ├── hookTypes.ts                # Schema `v1` puro: parse/validação, triggers canônicos + aliases, `*`/matcher/confirm
-    │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook (pré-M3.6.6) para `v1`
+    │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook (pré-M3.6.6) para `v1`; traduz `glob` legado pra regex válida só quando não é regex já (migrateLegacyMatcher/globToMatcherRegex)
     │   ├── hookRunner.ts               # Executa `action.command` via `/bin/sh -c`/`cmd.exe /c` (nunca `shell: true` nativo), STDIN JSON, timeout, exit 0/2/outro
     │   └── hookEngine.ts               # Descoberta hierárquica (.tarot/hooks + ~/.tarot/hooks), seleção por trigger/matcher e orquestração serial por hook
     ├── permissions/                    # M3.8a — Permissões Baseadas em Capacidades
@@ -248,7 +248,7 @@ extensions/tarot-core/
     │   ├── specSync.ts                 # Merge puro do Sync Files: preserva tarefas concluídas que a regeneração não reescreveu
     │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json`: mapeia tarefa → checkpoint pré-execução
     ├── test/
-    │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, promptBuilder, specService, permissionTypes, yamlLite, shellParser, policyEngine, presets) via `node --test`
+    │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, hookMigration, promptBuilder, specService, permissionTypes, yamlLite, shellParser, policyEngine, presets, commandLineLimits) via `node --test`
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git opcionais e isolados (criar/listar/aplicar por cópia/descartar) para tasks paralelas (M3.6.7+)
