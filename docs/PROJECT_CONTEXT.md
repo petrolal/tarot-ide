@@ -221,7 +221,7 @@ extensions/tarot-core/
     ├── context/
     │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
     ├── checkpoints/
-    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique, diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles, git checkout como fallback antes de deletar)
+    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique, diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles, git checkout como fallback antes de deletar); sem git, baseline de mtime/tamanho (scanWorkspaceFingerprint/diffAgainstBaseline) detecta mudanças que collectDirtyFiles não enxerga sozinho
     ├── steering/
     │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
     ├── hooks/
@@ -255,7 +255,7 @@ extensions/tarot-core/
     └── views/
         ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks agrupado Workspace/Global com toggle + Play, Steering agrupado, Local Agents); Hooks/Steering/Specs só carregam `.tarot/**` com o workspace confiável
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
-        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js); modelo/effort selecionados persistem em globalState entre reinícios; resolveActiveSpecContext injeta o Spec relevante em todo turno (não só via #Spec manual); reviewFileWritesForTurn avalia fs_write pós-turno e gera o card de aprovação (Keep/Revert)
+        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js); modelo/effort selecionados persistem em globalState entre reinícios; resolveActiveSpecContext injeta o Spec relevante em todo turno (não só via #Spec manual); reviewFileWritesForTurn avalia fs_write pós-turno e gera o card de aprovação (Keep/Revert); summarizeToolsFallback sintetiza um resumo de "N action(s)" quando o CLI fecha o turno sem texto apesar de tool calls reais
 ```
 
 > **Contrato Webview ↔ Extension Host**: toda troca de estado e ações do `Tarot Agent` passa pelo protocolo `postMessage` centralizado em `src/views/agentPanelView.ts` (handler `_handleMessage` + `_postState`) e `media/webview/panel.js` (`window.addEventListener('message', ...)`). O catálogo de strings viaja no HTML inicial em `window.__tarotL10n` (ver §3.5).
