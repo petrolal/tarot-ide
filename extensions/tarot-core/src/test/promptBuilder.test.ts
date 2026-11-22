@@ -36,11 +36,31 @@ describe('promptBuilder', () => {
 		assert.match(out, /\[Project Steering Context\]\nAlways use pnpm\./);
 	});
 
+	it('includes the Approve For Me block only in vibe/spec mode', () => {
+		const out = buildEffectivePrompt({
+			prompt: 'Add a helper',
+			mode: 'vibe',
+			autonomy: 'approveForMe',
+			cwd: '/tmp/workspace',
+			timeoutMs: 30_000,
+		});
+		assert.match(out, /\[Autonomy: Approve For Me\]/);
+
+		const planOut = buildEffectivePrompt({
+			prompt: 'Design the caching layer',
+			mode: 'plan',
+			autonomy: 'approveForMe',
+			cwd: '/tmp/workspace',
+			timeoutMs: 30_000,
+		});
+		assert.doesNotMatch(planOut, /\[Autonomy: Approve For Me\]/);
+	});
+
 	it('formats attachments and recent conversation history', () => {
 		const out = buildEffectivePrompt({
 			prompt: 'Review this',
 			mode: 'vibe',
-			autonomy: 'autopilot',
+			autonomy: 'acceptFileChanges',
 			cwd: '/tmp/workspace',
 			timeoutMs: 30_000,
 			attachments: [

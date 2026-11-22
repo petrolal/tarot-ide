@@ -467,6 +467,24 @@
         "icon": "$(circle-slash)"
       },
       {
+        "command": "tarot.permissions.openUserPermissions",
+        "title": "%command.permissions.openUserPermissions.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/05-the-hierophant.svg",
+          "dark": "icons/arcana/05-the-hierophant.svg"
+        }
+      },
+      {
+        "command": "tarot.permissions.openWorkspacePermissions",
+        "title": "%command.permissions.openWorkspacePermissions.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/05-the-hierophant.svg",
+          "dark": "icons/arcana/05-the-hierophant.svg"
+        }
+      },
+      {
         "command": "tarot.specs.openPhase",
         "title": "%command.specs.openPhase.title%",
         "category": "Tarot IDE"

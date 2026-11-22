@@ -62,7 +62,7 @@ export class TarotSessionStore {
 			this.sessions.splice(idx, 1);
 		}
 		if (this.sessions.length === 0) {
-			return this.createSession(fallbackAgentId, 'vibe', 'autopilot');
+			return this.createSession(fallbackAgentId, 'vibe', 'acceptFileChanges');
 		}
 		const nextIdx = Math.min(idx, this.sessions.length - 1);
 		this.activeSessionId = this.sessions[Math.max(0, nextIdx)].id;

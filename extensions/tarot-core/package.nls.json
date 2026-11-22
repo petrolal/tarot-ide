@@ -32,6 +32,8 @@
 	"command.specs.viewTaskChanges.title": "View Task Changes",
 	"command.hooks.runManual.title": "Run Hook",
 	"command.hooks.toggle.title": "Enable/Disable Hook",
+	"command.permissions.openUserPermissions.title": "Open User Permissions (permissions.yaml)",
+	"command.permissions.openWorkspacePermissions.title": "Open Workspace Permissions (permissions.yaml)",
 	"command.specs.openPhase.title": "Open Spec Phase",
 	"command.specs.analyzeRequirements.title": "Analyze Spec Requirements",
 	"command.specs.quickSpec.title": "New Quick Spec (No Gates)",

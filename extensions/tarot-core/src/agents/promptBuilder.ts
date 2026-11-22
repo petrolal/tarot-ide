@@ -29,6 +29,11 @@ export function buildEffectivePrompt(request: AgentRunRequest): string {
 			'[Autonomy: Supervised]\n' +
 			'Keep edits incremental, clearly explain each file change and wait for user review before large refactors or destructive shell commands.'
 		);
+	} else if (request.autonomy === 'approveForMe' && request.mode !== 'plan') {
+		parts.push(
+			'[Autonomy: Approve For Me]\n' +
+			'Proceed with low-risk edits and read-only commands without asking; still explain any large refactor or destructive shell command before running it.'
+		);
 	}
 
 	if (request.systemContext && request.systemContext.trim().length > 0) {

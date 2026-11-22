@@ -27,6 +27,8 @@ import { ChangedFileInfo, TarotGitReviewService } from '../git/gitReviewService'
 import { runHooksForTrigger, selectHooksForTrigger, TarotHookEngine } from '../hooks/hookEngine';
 import { runHookCommand } from '../hooks/hookRunner';
 import { HookDefinition } from '../hooks/hookTypes';
+import { TarotPermissionsService } from '../permissions/permissionsService';
+import { describeAdvisoryTranslation, getEnforcementKind } from '../permissions/policyEngine';
 import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
 import { mergeTasksMarkdown } from '../specs/specSync';
 import { recordTaskCheckpoint } from '../specs/specTaskCheckpoints';
@@ -85,7 +87,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private editorPanel: vscode.WebviewPanel | undefined;
 	private isFocusMode = false;
 	private mode: AgentMode = 'vibe';
-	private autonomy: AutonomyMode = 'autopilot';
+	private autonomy: AutonomyMode = 'acceptFileChanges';
+	private readonly runGatedHookCommand: typeof runHookCommand;
 	private selectedModel = 'auto';
 	private selectedEffort: ReasoningEffort = 'auto';
 	private availableModels: readonly AgentModelOption[] = [];
@@ -105,8 +108,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly specService: TarotSpecService,
 		private readonly gitReviewService: TarotGitReviewService,
 		private readonly hookEngine: TarotHookEngine,
+		private readonly permissionsService: TarotPermissionsService,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
+		this.runGatedHookCommand = this.permissionsService.createGatedRunCommand(this.outputChannel);
 		this.disposables.push(
 			this.runtimeManager.onDidChangeAgents(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			this.runtimeManager.onDidChangeActiveAgent(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
@@ -439,7 +444,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(cwd) : [];
 
 		if (workspaceHooks.length > 0) {
-			const pre = await runHooksForTrigger(workspaceHooks, 'PreTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey });
+			const pre = await runHooksForTrigger(workspaceHooks, 'PreTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey, runCommand: this.runGatedHookCommand });
 			this.logHookWarnings(pre.warnings);
 			if (pre.blocked) {
 				vscode.window.showWarningMessage(vscode.l10n.t('Hook "{0}" blocked Task #{1}: {2}', pre.blockedBy?.name ?? '?', task.index, pre.blockReason ?? ''));
@@ -472,7 +477,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		});
 
 		if (workspaceHooks.length > 0) {
-			const post = await runHooksForTrigger(workspaceHooks, 'PostTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey });
+			const post = await runHooksForTrigger(workspaceHooks, 'PostTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey, runCommand: this.runGatedHookCommand });
 			this.logHookWarnings(post.warnings);
 			for (const action of post.agentActions) {
 				this.queuedHookPrompts.push(action.prompt);
@@ -524,7 +529,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 				break;
 			case 'setAutonomy':
-				if (msg.autonomy === 'autopilot' || msg.autonomy === 'supervised') {
+				if (msg.autonomy === 'supervised' || msg.autonomy === 'acceptFileChanges' || msg.autonomy === 'approveForMe') {
 					this.autonomy = msg.autonomy;
 					const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
 					session.autonomy = this.autonomy;
@@ -813,7 +818,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				workspaceHooks,
 				'PromptSubmit',
 				{ cwd, session_id: session.id, user_prompt: prompt },
-				{ matchInput: prompt, inlineAgentPrompts: true },
+				{ matchInput: prompt, inlineAgentPrompts: true, runCommand: this.runGatedHookCommand },
 			);
 			if (promptSubmit.blocked) {
 				this.postMessage({ type: 'streamError', content: vscode.l10n.t('Blocked by hook "{0}": {1}', promptSubmit.blockedBy?.name ?? '?', promptSubmit.blockReason ?? '') });
@@ -849,12 +854,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postState();
 		this.postMessage({ type: 'streamStart', agentId, agentName: adapter.displayName, sessionId: session.id });
 
-		const steeringResolution = await this.steeringService.resolveForTurn({
-			workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
-			prompt,
-			activeFiles: this.collectActiveFilePaths(requestAttachments),
-			attachments: requestAttachments,
-		});
+		// Steering lives under .tarot/steering/ — never loaded in an untrusted workspace (AGENTS.md
+		// §2d / MIGRATION_PLAN.md M3.8a), since a cloned repo could otherwise prompt-inject instructions.
+		const steeringResolution = vscode.workspace.isTrusted
+			? await this.steeringService.resolveForTurn({
+				workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+				prompt,
+				activeFiles: this.collectActiveFilePaths(requestAttachments),
+				attachments: requestAttachments,
+			})
+			: { applied: [] };
 		const steeringContext = steeringResolution.formattedContext;
 		const appliedSteering = steeringResolution.applied.map(item => item.label);
 		let accumulatedText = '';
@@ -963,7 +972,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	}
 
 	private async runPreToolUseHook(hooks: readonly HookDefinition[], toolName: string, cwd: string, sessionId: string): Promise<void> {
-		const result = await runHooksForTrigger(hooks, 'PreToolUse', { cwd, session_id: sessionId, tool_name: toolName }, { matchInput: toolName });
+		const result = await runHooksForTrigger(hooks, 'PreToolUse', { cwd, session_id: sessionId, tool_name: toolName }, { matchInput: toolName, runCommand: this.runGatedHookCommand });
 		this.logHookWarnings(result.warnings);
 		if (result.blocked) {
 			this.outputChannel.appendLine(`[Hooks] PreToolUse "${result.blockedBy?.name}" denied tool "${toolName}" — cancelling the run.`);
@@ -976,7 +985,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	}
 
 	private async runPostToolUseHook(hooks: readonly HookDefinition[], toolName: string, cwd: string, sessionId: string): Promise<void> {
-		const result = await runHooksForTrigger(hooks, 'PostToolUse', { cwd, session_id: sessionId, tool_name: toolName }, { matchInput: toolName });
+		const result = await runHooksForTrigger(hooks, 'PostToolUse', { cwd, session_id: sessionId, tool_name: toolName }, { matchInput: toolName, runCommand: this.runGatedHookCommand });
 		this.logHookWarnings(result.warnings);
 		for (const action of result.agentActions) {
 			this.queuedHookPrompts.push(action.prompt);
@@ -991,7 +1000,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				continue;
 			}
 			if (hook.action.type === 'command' && hook.action.command) {
-				const outcome = await runHookCommand(hook.action.command, { cwd, session_id: sessionId, hook_event_name: 'Stop' }, hook.timeout);
+				const outcome = await this.runGatedHookCommand(hook.action.command, { cwd, session_id: sessionId, hook_event_name: 'Stop' }, hook.timeout);
 				if (outcome.kind === 'warn') {
 					this.logHookWarnings([{ hook, message: outcome.stderr || `Hook "${hook.name}" exited with code ${outcome.exitCode}.` }]);
 				}
@@ -1025,7 +1034,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		if (!command) {
 			return;
 		}
-		const outcome = await runHookCommand(command, { cwd, session_id: sessionId, hook_event_name: 'Stop' }, hook.timeout);
+		const outcome = await this.runGatedHookCommand(command, { cwd, session_id: sessionId, hook_event_name: 'Stop' }, hook.timeout);
 		if (outcome.kind === 'warn') {
 			this.logHookWarnings([{ hook, message: outcome.stderr || `Hook "${hook.name}" exited with code ${outcome.exitCode}.` }]);
 		}
@@ -1095,6 +1104,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			selectedEffort: this.selectedEffort,
 			mode: this.mode,
 			autonomy: this.autonomy,
+			permissionEnforcement: { kind: getEnforcementKind(activeAgentId), detail: describeAdvisoryTranslation(activeAgentId) },
 			isFocusMode: this.isFocusMode,
 			isRunning: Boolean(this.runningSessionId),
 			activeSessionId: activeSession.id,
@@ -1224,6 +1234,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				<button class="mode-menu-item" type="button" data-mode="plan"><span class="ctx-tag">Plan</span><span class="ctx-desc">${s.slashPlanDesc}</span></button>
 			</div>
 
+			<div id="autonomy-menu" class="context-popup mode-popover hidden" role="menu">
+				<div class="context-popup-header">${s.autonomyMenuHeader}</div>
+				<button class="mode-menu-item" type="button" data-autonomy="supervised"><span class="ctx-tag">${s.autonomySupervisedTitle}</span><span class="ctx-desc">${s.autonomySupervisedDesc}</span></button>
+				<button class="mode-menu-item" type="button" data-autonomy="acceptFileChanges"><span class="ctx-tag">${s.autonomyAcceptTitle}</span><span class="ctx-desc">${s.autonomyAcceptDesc}</span></button>
+				<button class="mode-menu-item" type="button" data-autonomy="approveForMe"><span class="ctx-tag">${s.autonomyApproveTitle}</span><span class="ctx-desc">${s.autonomyApproveDesc}</span></button>
+			</div>
+
 			<div id="status-row" class="status-row hidden">
 				<span class="status-dot"></span>
 				<span id="status-indicator" class="status-text"></span>
@@ -1273,11 +1290,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 							<span id="mode-picker-label">Default</span>
 							<svg class="picker-chevron" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4.5 6.2L8 9.8l3.5-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
 						</button>
-						<label class="autopilot-toggle" title="${s.autopilotHint}">
-							<span class="autopilot-label">Autopilot</span>
-							<input id="autopilot-checkbox" type="checkbox" checked />
-							<span class="toggle-track"><span class="toggle-thumb"></span></span>
-						</label>
+						<button id="btn-autonomy-picker" class="picker-trigger-btn" type="button" aria-label="${s.autonomyAria}" title="${s.autonomyAria}">
+							<span id="autonomy-enforcement-dot" class="enforcement-dot" title=""></span>
+							<span id="autonomy-picker-label">${s.autonomyAcceptTitle}</span>
+							<svg class="picker-chevron" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4.5 6.2L8 9.8l3.5-3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</button>
 					</div>
 				</div>
 			</div>

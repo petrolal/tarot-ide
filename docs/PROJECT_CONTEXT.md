@@ -223,6 +223,14 @@ extensions/tarot-core/
     │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook (pré-M3.6.6) para `v1`
     │   ├── hookRunner.ts               # Executa `action.command` via `/bin/sh -c`/`cmd.exe /c` (nunca `shell: true` nativo), STDIN JSON, timeout, exit 0/2/outro
     │   └── hookEngine.ts               # Descoberta hierárquica (.tarot/hooks + ~/.tarot/hooks), seleção por trigger/matcher e orquestração serial por hook
+    ├── permissions/                    # M3.8a — Permissões Baseadas em Capacidades
+    │   ├── permissionTypes.ts          # Capabilities/efeitos/escopos puros + parse/validação de `permissions.yaml` já carregado
+    │   ├── yamlLite.ts                 # Parser YAML hand-rolled (mapeamentos/sequências/listas inline) — sem dependência `yaml`/`js-yaml`
+    │   ├── shellParser.ts              # Split de comandos compostos (`;`/`&&`/`||`/`|`) respeitando quotes/subshells; bloqueia `$()`/backtick/heredoc como não-analisável
+    │   ├── presets.ts                  # `allow-all`/`edit-workspace`/`read-workspace`/`read-all`/`read-only-shell`/`dev-shell`/`approve-for-me`
+    │   ├── policyEngine.ts             # Avaliação pura: `deny > ask > allow > evaluate`, sem precedência entre escopos, glob completo (fs) vs wildcard `*` (shell/web/mcp)
+    │   ├── trustService.ts             # `vscode.workspace.isTrusted` + paths externos de `permissions.yaml` (user/workspace, hash do path fora do repo)
+    │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, cartão de aprovação (Allow/Always Allow/Deny/Always Deny) e gate de hooks `command`
     ├── specs/
     │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, Sync Files e PBT parser & stepper logic
     │   ├── specStepper.ts              # CodeLens stepper clicável (1 Requirements › 2 Design › 3 Task list) + Analyze + Review
@@ -234,7 +242,7 @@ extensions/tarot-core/
     │   ├── specSync.ts                 # Merge puro do Sync Files: preserva tarefas concluídas que a regeneração não reescreveu
     │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json`: mapeia tarefa → checkpoint pré-execução
     ├── test/
-    │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, promptBuilder, specService) via `node --test`
+    │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, promptBuilder, specService, permissionTypes, yamlLite, shellParser, policyEngine, presets) via `node --test`
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git opcionais e isolados (criar/listar/aplicar por cópia/descartar) para tasks paralelas (M3.6.7+)

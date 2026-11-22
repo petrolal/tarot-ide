@@ -8,7 +8,14 @@ import * as vscode from 'vscode';
 export type BuiltInAgentId = 'claude' | 'codex' | 'agy';
 export type AgentId = BuiltInAgentId | (string & {});
 export type AgentMode = 'vibe' | 'spec' | 'plan';
-export type AutonomyMode = 'autopilot' | 'supervised';
+/**
+ * The 3 composer permission modes (MIGRATION_PLAN.md M3.8a, replacing the old binary
+ * Autopilot/Supervised toggle): `supervised` approves per turn with hunk-level review,
+ * `acceptFileChanges` applies edits directly (the old `autopilot`), `approveForMe` auto-answers
+ * low-risk approval prompts via the permissions policy. All 3 are **advisory** for BYOA CLIs —
+ * see `permissions/policyEngine.ts::getEnforcementKind`.
+ */
+export type AutonomyMode = 'supervised' | 'acceptFileChanges' | 'approveForMe';
 export type ReasoningEffort = 'auto' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface AgentModelOption {

@@ -12,7 +12,8 @@ import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
-import { runHookCommand } from './hooks/hookRunner';
+import { TarotPermissionsService } from './permissions/permissionsService';
+import { TarotTrustService } from './permissions/trustService';
 import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
 import { SpecCreationKind, TarotSpecService } from './specs/specService';
 import { readTaskCheckpoint } from './specs/specTaskCheckpoints';
@@ -72,6 +73,8 @@ export function activate(context: vscode.ExtensionContext): void {
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
 	const hookEngine = new TarotHookEngine();
+	const trustService = new TarotTrustService();
+	const permissionsService = new TarotPermissionsService(trustService);
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 	const pendingReviewComments: MarkdownReviewComment[] = [];
 
@@ -91,12 +94,15 @@ export function activate(context: vscode.ExtensionContext): void {
 		specService,
 		gitReviewService,
 		hookEngine,
+		permissionsService,
 		outputChannel,
 	);
 
 	context.subscriptions.push(
 		outputChannel,
 		runtimeManager,
+		trustService,
+		permissionsService,
 		specsProvider,
 		hooksProvider,
 		steeringProvider,
@@ -653,7 +659,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				return;
 			}
 			if (hook.action.type === 'command' && hook.action.command) {
-				const outcome = await runHookCommand(hook.action.command, { cwd: root, hook_event_name: 'Manual' }, hook.timeout);
+				const outcome = await permissionsService.createGatedRunCommand(outputChannel!)(hook.action.command, { cwd: root, hook_event_name: 'Manual' }, hook.timeout);
 				if (outcome.kind === 'ok') {
 					outputChannel!.appendLine(`[Hooks] "${hook.name}" (manual): ${outcome.stdout || '(no output)'}`);
 					vscode.window.showInformationMessage(vscode.l10n.t('Hook "{0}" ran successfully.', hook.name));
@@ -662,6 +668,37 @@ export function activate(context: vscode.ExtensionContext): void {
 					vscode.window.showWarningMessage(vscode.l10n.t('Hook "{0}" failed: {1}', hook.name, message || vscode.l10n.t('unknown error')));
 				}
 			}
+		}),
+
+		vscode.commands.registerCommand('tarot.permissions.openUserPermissions', async () => {
+			const filePath = trustService.getUserPermissionsPath();
+			await fs.mkdir(path.dirname(filePath), { recursive: true });
+			try {
+				await fs.access(filePath);
+			} catch {
+				await fs.writeFile(filePath, 'version: 1\nrules: []\n', 'utf8');
+			}
+			const doc = await vscode.workspace.openTextDocument(filePath);
+			await vscode.window.showTextDocument(doc);
+		}),
+
+		vscode.commands.registerCommand('tarot.permissions.openWorkspacePermissions', async () => {
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			if (!trustService.requireTrustedOrWarn(vscode.l10n.t('Trust this workspace before editing its permissions.'))) {
+				return;
+			}
+			const filePath = trustService.getWorkspacePermissionsPath(root);
+			await fs.mkdir(path.dirname(filePath), { recursive: true });
+			try {
+				await fs.access(filePath);
+			} catch {
+				await fs.writeFile(filePath, 'version: 1\nrules: []\n', 'utf8');
+			}
+			const doc = await vscode.workspace.openTextDocument(filePath);
+			await vscode.window.showTextDocument(doc);
 		}),
 	);
 
@@ -680,7 +717,12 @@ export function activate(context: vscode.ExtensionContext): void {
 		if (hooks.length === 0) {
 			return;
 		}
-		const result = await runHooksForTrigger(hooks, trigger, { cwd: root, file_path: relativePath }, { matchInput: relativePath });
+		// headless: true — an automatic file-save trigger cannot show a blocking approval prompt
+		// on every keystroke, so an "ask" decision silently downgrades to deny (M3.8a default policy).
+		const result = await runHooksForTrigger(
+			hooks, trigger, { cwd: root, file_path: relativePath },
+			{ matchInput: relativePath, runCommand: permissionsService.createGatedRunCommand(outputChannel!, { headless: true }) },
+		);
 		for (const w of result.warnings) {
 			outputChannel!.appendLine(`[Hooks] "${w.hook.name}" (${trigger}): ${w.message}`);
 		}

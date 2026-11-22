@@ -184,6 +184,10 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 		}
 
 		case 'steering': {
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before attaching Steering documents.'));
+				return undefined;
+			}
 			const docs = await steeringService.discover(root);
 			if (docs.length === 0) {
 				vscode.window.showInformationMessage(vscode.l10n.t('No Steering file found in .tarot/steering/, ~/.tarot/steering/ or AGENTS.md.'));

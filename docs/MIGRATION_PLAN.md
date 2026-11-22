@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.7 ✅ · próximo: M3.8a → M3.8b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.8a** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.8a ✅ · próximo: M3.8b → M3.8c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.8b** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -180,7 +180,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.8a — Permissões Baseadas em Capacidades (`permissions.yaml`), Modos de Permissão e Workspace Trust (UC-06)
+### Marco M3.8a — Permissões Baseadas em Capacidades (`permissions.yaml`), Modos de Permissão e Workspace Trust (UC-06) — ✅ Concluído (DoD) · cartão de aprovação webview e flags nativas de claude/codex adiados
 - **Fonte**: `kiro.dev/docs/permissions/`, `custom-agents/subagents`, `ide/chat`, `workflows` (Security and trust).
 - **Arquivos-alvo**: `extensions/tarot-core/src/permissions/{permissionsService,policyEngine,shellParser,presets,trustService}.ts`; UI de aprovação em `agentPanelView.ts`.
 - **Especificação**:
@@ -197,9 +197,10 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Cartões de aprovação** no transcript (*Allow / Deny / Always allow / Always deny* ou feedback, ícone `icons/arcana/05-the-hierophant.svg` nos cartões de aprovação e política `permissions.yaml`), destacando visualmente **ações reversíveis vs irreversíveis** (ex.: escrita em workspace com checkpoint vs deploy/delete/rede externa), e estado *parked* (`🔒 N sub-agent needs approval`).
 - **⚠ Risco BYOA**: Tarot só **impõe** regras nas ações que passam por ele (hooks, git, checkpoints, ferramentas próprias). Para `claude`/`codex`/`agy` as regras são **traduzidas em flags nativas** (permission mode, sandbox, allow/deny lists) quando existirem e marcadas como **advisory** quando o CLI não suportar — a UI deve mostrar *enforced* vs *advisory*.
 - **Critérios de Aceite (DoD)**:
-  - [ ] `permissions.yaml` (user + workspace externo) avaliado com deny-overrides, `match`/`exclude` e parser de shell composto.
-  - [ ] Os 3 modos de permissão funcionam e o estado *enforced/advisory* é visível por agente.
-  - [ ] Workspace não confiável não carrega nada de `.tarot/` e pergunta antes de shell/MCP.
+  - [x] `permissions.yaml` (user + workspace externo) avaliado com deny-overrides, `match`/`exclude` e parser de shell composto. *(`permissions/{permissionTypes,yamlLite,shellParser,presets,policyEngine}.ts` puros/testados (37 testes novos); `permissionsService.ts` carrega `tarot` (invariantes fixas) + `user` (`~/.tarot/settings/permissions.yaml`) + `workspace` (`~/.tarot-ide/workspace-roots/<hash>/permissions.yaml`, fora do repo, hash do path absoluto, só se o workspace for confiável) + `session` (em memória, "Always allow/deny"); `deny > ask > allow > evaluate` sem precedência entre escopos (o mais restritivo de qualquer escopo vence); glob completo (`*`/`**`/`?`/`{a,b}`) para `fs_read`/`fs_write`, wildcard só `*` para shell/web/mcp; `evaluate` sem classificador não contribui decisão (preset `approve-for-me` hoje equivale a "sem regras extras"). Escopos `administration` e `agent` ficam vazios até existir um perfil de administração e Custom Agents (M3.8b).)*
+  - [x] Os 3 modos de permissão funcionam e o estado *enforced/advisory* é visível por agente. *(`AutonomyMode` passa a `supervised | acceptFileChanges | approveForMe`, substituindo o toggle binário *Autopilot* do composer por um seletor de 3 opções (mesmo padrão do seletor de *Mode*); um ponto ao lado mostra *enforced* (teal — ações do próprio Tarot: hoje só hooks `command`) vs *advisory* (dourado — CLIs BYOA) com tooltip explicando a tradução. Só `agy` recebe hoje uma flag nativa traduzida (`--mode accept-edits`, já existente desde antes); `claude`/`codex` continuam 100% advisory — nenhuma flag de permissão nova foi adicionada a esses dois adaptadores neste ciclo, para não arriscar quebrar o modo `-p` headless sem confirmar o comportamento real dessas flags em produção.)*
+  - [x] Workspace não confiável não carrega nada de `.tarot/` e pergunta antes de shell/MCP. *(Hooks já paravam em workspace não confiável desde M3.7; agora `steeringService.resolveForTurn` e o provider `#steering` também checam `vscode.workspace.isTrusted` antes de ler `.tarot/steering/`. Toda execução de hook `command` passa pelo `policyEngine` via `permissionsService.createGatedRunCommand`: `deny` bloqueia sem rodar o processo, `ask` exibe um cartão de aprovação (Allow/Always Allow/Deny/Always Deny) — ou vira `deny` silencioso em gatilhos automáticos de arquivo (`headless: true`), evitando um pop-up a cada save. MCP ainda não existe no código (chega em M3.8b), então "perguntar antes de MCP" não se aplica ainda.)*
+  - *(Adiado, fora do DoD)*: o cartão de aprovação é hoje um `showWarningMessage` modal nativo do VS Code, não (ainda) um cartão desenhado no transcript do webview com o ícone `icons/arcana/05-the-hierophant.svg`; tradução de modos de permissão em flags nativas de `claude`/`codex`; política aplicada a git/checkpoints; herança de política por sub-agente (sem sub-agentes ainda). Esses itens chegam com M3.8b/M3.9a conforme os recursos que dependem deles existirem.
 
 ---
 

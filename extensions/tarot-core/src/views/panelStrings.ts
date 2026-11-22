@@ -52,7 +52,16 @@ export interface TarotPanelStrings {
 	readonly contextUsage: string;
 	readonly localAgentAria: string;
 	readonly modeAria: string;
-	readonly autopilotHint: string;
+	readonly autonomyAria: string;
+	readonly autonomyMenuHeader: string;
+	readonly autonomySupervisedTitle: string;
+	readonly autonomySupervisedDesc: string;
+	readonly autonomyAcceptTitle: string;
+	readonly autonomyAcceptDesc: string;
+	readonly autonomyApproveTitle: string;
+	readonly autonomyApproveDesc: string;
+	readonly enforcementEnforced: string;
+	readonly enforcementAdvisory: string;
 	readonly emptyTitle: string;
 	readonly emptySubtitle: string;
 	readonly modeVibeTitle: string;
@@ -121,7 +130,16 @@ export function getPanelStrings(): TarotPanelStrings {
 		contextUsage: vscode.l10n.t('Estimated context usage: {0}%'),
 		localAgentAria: vscode.l10n.t('Local agent'),
 		modeAria: vscode.l10n.t('Mode (Shift+Tab)'),
-		autopilotHint: vscode.l10n.t('Autopilot applies edits directly; disabled enables Supervised mode'),
+		autonomyAria: vscode.l10n.t('Permission mode'),
+		autonomyMenuHeader: vscode.l10n.t('Permission Mode'),
+		autonomySupervisedTitle: vscode.l10n.t('Supervised'),
+		autonomySupervisedDesc: vscode.l10n.t('Approve each turn; review file changes hunk by hunk.'),
+		autonomyAcceptTitle: vscode.l10n.t('Accept File Changes'),
+		autonomyAcceptDesc: vscode.l10n.t('Apply edits directly without per-turn approval.'),
+		autonomyApproveTitle: vscode.l10n.t('Approve For Me'),
+		autonomyApproveDesc: vscode.l10n.t('Auto-answer low-risk approvals from the permissions policy.'),
+		enforcementEnforced: vscode.l10n.t('Enforced by Tarot'),
+		enforcementAdvisory: vscode.l10n.t('Advisory — translated to {0} flags when supported'),
 		emptyTitle: vscode.l10n.t("Let's build"),
 		emptySubtitle: vscode.l10n.t('Choose a workflow or type # to attach context.'),
 		modeVibeTitle: vscode.l10n.t('Vibe'),

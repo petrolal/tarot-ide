@@ -27,7 +27,10 @@
 	const modePickerBtn = document.getElementById('btn-mode-picker');
 	const modePickerLabel = document.getElementById('mode-picker-label');
 	const modeMenuEl = document.getElementById('mode-menu');
-	const autopilotCheckbox = document.getElementById('autopilot-checkbox');
+	const autonomyPickerBtn = document.getElementById('btn-autonomy-picker');
+	const autonomyPickerLabel = document.getElementById('autonomy-picker-label');
+	const autonomyEnforcementDot = document.getElementById('autonomy-enforcement-dot');
+	const autonomyMenuEl = document.getElementById('autonomy-menu');
 	const promptInput = document.getElementById('prompt-input');
 	const sendBtn = document.getElementById('btn-send');
 	const iconSend = document.getElementById('icon-send');
@@ -54,7 +57,8 @@
 		agents: [],
 		activeAgentId: 'claude',
 		mode: 'vibe',
-		autonomy: 'autopilot',
+		autonomy: 'acceptFileChanges',
+		permissionEnforcement: { kind: 'advisory' },
 		isFocusMode: false,
 		isRunning: false,
 		activeSessionId: '',
@@ -161,6 +165,7 @@
 			modeMenuEl.classList.add('hidden');
 			contextMenuEl.classList.add('hidden');
 			slashMenuEl.classList.add('hidden');
+			autonomyMenuEl.classList.add('hidden');
 		}
 	}
 
@@ -171,6 +176,18 @@
 			modelMenuEl.classList.add('hidden');
 			contextMenuEl.classList.add('hidden');
 			slashMenuEl.classList.add('hidden');
+			autonomyMenuEl.classList.add('hidden');
+		}
+	}
+
+	function toggleAutonomyMenu(force) {
+		const show = typeof force === 'boolean' ? force : autonomyMenuEl.classList.contains('hidden');
+		autonomyMenuEl.classList.toggle('hidden', !show);
+		if (show) {
+			modelMenuEl.classList.add('hidden');
+			contextMenuEl.classList.add('hidden');
+			slashMenuEl.classList.add('hidden');
+			modeMenuEl.classList.add('hidden');
 		}
 	}
 
@@ -191,6 +208,22 @@
 		for (const item of modeMenuEl.querySelectorAll('.mode-menu-item')) {
 			item.classList.toggle('active', item.dataset.mode === (state.mode || 'vibe'));
 		}
+
+		const autonomyLabelMap = {
+			supervised: t('autonomySupervisedTitle'),
+			acceptFileChanges: t('autonomyAcceptTitle'),
+			approveForMe: t('autonomyApproveTitle'),
+		};
+		const autonomy = state.autonomy || 'acceptFileChanges';
+		autonomyPickerLabel.textContent = autonomyLabelMap[autonomy] || autonomyLabelMap.acceptFileChanges;
+		for (const item of autonomyMenuEl.querySelectorAll('.mode-menu-item')) {
+			item.classList.toggle('active', item.dataset.autonomy === autonomy);
+		}
+		const enforcement = state.permissionEnforcement || { kind: 'advisory' };
+		autonomyEnforcementDot.classList.toggle('enforced', enforcement.kind === 'enforced');
+		autonomyEnforcementDot.title = enforcement.kind === 'enforced'
+			? t('enforcementEnforced')
+			: t('enforcementAdvisory', enforcement.detail || activeAgent);
 
 		// Agent CLI pills
 		modelAgentPillsEl.textContent = '';
@@ -873,12 +906,20 @@
 		});
 	}
 
-	autopilotCheckbox.addEventListener('change', () => {
-		vscode.postMessage({
-			type: 'setAutonomy',
-			autonomy: autopilotCheckbox.checked ? 'autopilot' : 'supervised',
-		});
+	autonomyPickerBtn.addEventListener('click', e => {
+		e.stopPropagation();
+		toggleAutonomyMenu();
 	});
+
+	for (const item of autonomyMenuEl.querySelectorAll('.mode-menu-item')) {
+		item.addEventListener('click', () => {
+			const autonomy = item.dataset.autonomy;
+			toggleAutonomyMenu(false);
+			if (autonomy) {
+				vscode.postMessage({ type: 'setAutonomy', autonomy });
+			}
+		});
+	}
 
 	promptInput.addEventListener('input', () => {
 		autoResizeInput();
@@ -930,6 +971,9 @@
 		if (!modeMenuEl.contains(e.target) && !modePickerBtn.contains(e.target)) {
 			toggleModeMenu(false);
 		}
+		if (!autonomyMenuEl.contains(e.target) && !autonomyPickerBtn.contains(e.target)) {
+			toggleAutonomyMenu(false);
+		}
 	});
 
 	window.addEventListener('message', event => {
@@ -941,7 +985,6 @@
 		switch (msg.type) {
 			case 'state':
 				state = msg;
-				autopilotCheckbox.checked = state.autonomy !== 'supervised';
 				focusModeBtn.classList.toggle('active-focus', !!state.isFocusMode);
 				renderSessionTabs();
 				renderModelAndModePickers();

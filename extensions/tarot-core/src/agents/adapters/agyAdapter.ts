@@ -104,7 +104,7 @@ export class AgyAdapter implements AgentAdapter {
 		}
 		if (request.mode === 'plan' || request.mode === 'spec') {
 			args.push('--mode', 'plan');
-		} else if (request.autonomy === 'autopilot') {
+		} else if (request.autonomy === 'acceptFileChanges' || request.autonomy === 'approveForMe') {
 			args.push('--mode', 'accept-edits');
 		}
 		args.push(`--print=${prompt}`);
