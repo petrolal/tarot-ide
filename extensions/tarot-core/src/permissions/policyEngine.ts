@@ -105,6 +105,14 @@ function ruleMatchesValue(rule: PermissionRule, capability: Capability, value: s
 	if (rule.exclude && rule.exclude.some(p => matchesPattern(capability, p, value))) {
 		return false;
 	}
+	// A `match`-scoped `allow` rule (e.g. presets.ts's read-only-shell/dev-shell, or any
+	// user-written `match: ['cat *', ...]`) only looks safe because of what its glob names —
+	// `cat secrets.env > ~/.bashrc` still matches `cat *` but is a write, not a read. An
+	// unscoped `{ capability: 'all'|'shell', effect: 'allow' }` with no `match` (e.g. the
+	// allow-all preset) is a deliberate blanket grant and is deliberately NOT narrowed here.
+	if (capability === 'shell' && rule.effect === 'allow' && hasUnquotedRedirection(value)) {
+		return false;
+	}
 	return true;
 }
 

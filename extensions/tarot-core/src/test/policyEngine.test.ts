@@ -6,6 +6,7 @@
 import * as assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { PermissionScope } from '../permissions/permissionTypes';
+import { getPreset } from '../permissions/presets';
 import {
 	evaluateCapability, evaluateShellCommand, getEnforcementKind, TAROT_BUILTIN_ACTOR, TAROT_INVARIANT_RULES,
 } from '../permissions/policyEngine';
@@ -37,6 +38,28 @@ describe('policyEngine.evaluateCapability', () => {
 		assert.equal(evaluateCapability([], 'shell', 'git log < input.txt').effect, 'ask');
 		// A literal '>' inside a quoted argument is not redirection — still read-only.
 		assert.equal(evaluateCapability([], 'shell', 'git log --grep="> note"').effect, 'allow');
+	});
+
+	it('a match-scoped shell allow rule does not cover a redirection that escapes its own pattern', () => {
+		const scopes = [scope('user', [{ capability: 'shell', effect: 'allow', match: ['cat *', 'echo *'] }])];
+		assert.equal(evaluateCapability(scopes, 'shell', 'cat notes.txt').effect, 'allow');
+		assert.equal(evaluateCapability(scopes, 'shell', 'cat secrets.env > /tmp/exfil.txt').effect, 'ask');
+		assert.equal(evaluateCapability(scopes, 'shell', 'echo pwned > ~/.bashrc').effect, 'ask');
+	});
+
+	it('the read-only-shell and dev-shell presets do not auto-allow their own commands once redirected', () => {
+		const readOnly = [scope('user', getPreset('read-only-shell')!)];
+		assert.equal(evaluateCapability(readOnly, 'shell', 'cat package.json').effect, 'allow');
+		assert.equal(evaluateCapability(readOnly, 'shell', 'cat secrets.env > /tmp/exfil.txt').effect, 'ask');
+
+		const devShell = [scope('user', getPreset('dev-shell')!)];
+		assert.equal(evaluateCapability(devShell, 'shell', 'pnpm test').effect, 'allow');
+		assert.equal(evaluateCapability(devShell, 'shell', 'pnpm test > ~/.bashrc').effect, 'ask');
+	});
+
+	it('an unscoped allow-all rule (no match) is a deliberate blanket grant, not narrowed by redirection', () => {
+		const scopes = [scope('user', getPreset('allow-all')!)];
+		assert.equal(evaluateCapability(scopes, 'shell', 'cat secrets.env > /tmp/exfil.txt').effect, 'allow');
 	});
 
 	it('the most restrictive scope wins regardless of scope order (deny beats allow)', () => {
