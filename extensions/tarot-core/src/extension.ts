@@ -86,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
 	const agentPanelProvider = new TarotAgentPanelProvider(
+		context,
 		context.extensionUri,
 		runtimeManager,
 		sessionStore,

@@ -80,6 +80,10 @@ interface WebviewIncomingMessage {
 	readonly index?: number;
 }
 
+const SELECTED_MODEL_STATE_KEY = 'tarot.selectedModel';
+const SELECTED_EFFORT_STATE_KEY = 'tarot.selectedEffort';
+const VALID_EFFORTS: readonly ReasoningEffort[] = ['auto', 'low', 'medium', 'high', 'xhigh', 'max'];
+
 export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vscode.Disposable {
 	static readonly viewId = 'tarot.views.agentPanel';
 
@@ -100,6 +104,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
+		private readonly context: vscode.ExtensionContext,
 		private readonly extensionUri: vscode.Uri,
 		private readonly runtimeManager: AgentRuntimeManager,
 		private readonly sessionStore: TarotSessionStore,
@@ -112,6 +117,17 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.runGatedHookCommand = this.permissionsService.createGatedRunCommand(this.outputChannel);
+		// Restores the last model/effort the user picked (falls back to the 'auto' field
+		// initializer above when nothing was saved yet, same pattern as
+		// `runtimeManager.ts`'s ACTIVE_AGENT_STATE_KEY).
+		const savedModel = this.context.globalState.get<string>(SELECTED_MODEL_STATE_KEY);
+		if (savedModel && savedModel.trim()) {
+			this.selectedModel = savedModel.trim();
+		}
+		const savedEffort = this.context.globalState.get<ReasoningEffort>(SELECTED_EFFORT_STATE_KEY);
+		if (savedEffort && VALID_EFFORTS.includes(savedEffort)) {
+			this.selectedEffort = savedEffort;
+		}
 		this.disposables.push(
 			this.runtimeManager.onDidChangeAgents(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			this.runtimeManager.onDidChangeActiveAgent(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
@@ -507,6 +523,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					const session = this.sessionStore.getActiveSession(msg.agentId, this.mode, this.autonomy);
 					session.activeAgentId = msg.agentId;
 					this.selectedModel = 'auto';
+					await this.context.globalState.update(SELECTED_MODEL_STATE_KEY, this.selectedModel);
 					await this.refreshAvailableModels();
 					this.postState();
 				}
@@ -514,12 +531,14 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			case 'setModel':
 				if (typeof msg.model === 'string' && msg.model.trim()) {
 					this.selectedModel = msg.model.trim();
+					await this.context.globalState.update(SELECTED_MODEL_STATE_KEY, this.selectedModel);
 					this.postState();
 				}
 				break;
 			case 'setEffort':
-				if (msg.effort && ['auto', 'low', 'medium', 'high', 'xhigh', 'max'].includes(msg.effort)) {
+				if (msg.effort && VALID_EFFORTS.includes(msg.effort)) {
 					this.selectedEffort = msg.effort;
+					await this.context.globalState.update(SELECTED_EFFORT_STATE_KEY, this.selectedEffort);
 					this.postState();
 				}
 				break;
