@@ -106,6 +106,7 @@ export class HooksTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 			watcher.onDidCreate(() => this.refresh()),
 			watcher.onDidChange(() => this.refresh()),
 			watcher.onDidDelete(() => this.refresh()),
+			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
 		);
 	}
 
@@ -143,6 +144,10 @@ export class HooksTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
 		if (element?.children) {
 			return element.children;
+		}
+		// Never load .tarot/hooks/** content into the view until the workspace is trusted (AGENTS.md §2d).
+		if (!vscode.workspace.isTrusted) {
+			return [];
 		}
 		const root = getWorkspaceRoot();
 		const files = await this.hookEngine.discoverFiles(root);
@@ -198,6 +203,7 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 			agentsMdWatcher.onDidCreate(() => this.refresh()),
 			agentsMdWatcher.onDidChange(() => this.refresh()),
 			agentsMdWatcher.onDidDelete(() => this.refresh()),
+			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
 		);
 	}
 
@@ -233,6 +239,10 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
 		if (element?.children) {
 			return element.children;
+		}
+		// Never load .tarot/steering/** content into the view until the workspace is trusted (AGENTS.md §2d).
+		if (!vscode.workspace.isTrusted) {
+			return [];
 		}
 		const root = getWorkspaceRoot();
 		const docs = await this.steeringService.discover(root);
@@ -308,6 +318,7 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 			watcher.onDidCreate(() => this.refresh()),
 			watcher.onDidChange(() => this.refresh()),
 			watcher.onDidDelete(() => this.refresh()),
+			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
 		);
 	}
 
@@ -322,6 +333,10 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
 		if (element?.children) {
 			return element.children;
+		}
+		// Never load .tarot/specs/** content into the view until the workspace is trusted (AGENTS.md §2d).
+		if (!vscode.workspace.isTrusted) {
+			return [];
 		}
 		const root = getWorkspaceRoot();
 		if (!root) {

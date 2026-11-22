@@ -8,6 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { checkCommandLineLength } from './commandLineLimits';
 
 const COMMON_EXTRA_PATHS_UNIX = [
 	'.local/bin',
@@ -149,6 +150,15 @@ export function spawnStreaming(binaryPath: string, args: readonly string[], opti
 	return new Promise((resolve, reject) => {
 		if (options.token.isCancellationRequested) {
 			resolve(null);
+			return;
+		}
+
+		const lengthCheck = checkCommandLineLength(binaryPath, args);
+		if (!lengthCheck.ok) {
+			reject(new Error(
+				`Prompt too long for this platform's command line (${lengthCheck.totalChars} chars, limit ${lengthCheck.limit}). `
+				+ 'Remove some attached context or shorten the Steering docs and try again.',
+			));
 			return;
 		}
 

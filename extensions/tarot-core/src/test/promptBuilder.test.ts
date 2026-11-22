@@ -77,4 +77,22 @@ describe('promptBuilder', () => {
 		assert.match(out, /TS2322: type error/);
 		assert.match(out, /Assistant \(agy\): Hi there/);
 	});
+
+	it('truncates an oversized attachment or steering doc instead of embedding it whole', () => {
+		const out = buildEffectivePrompt({
+			prompt: 'Review this',
+			mode: 'vibe',
+			autonomy: 'acceptFileChanges',
+			cwd: '/tmp/workspace',
+			timeoutMs: 30_000,
+			systemContext: 'S'.repeat(60_000),
+			attachments: [
+				{ kind: 'file', label: 'huge.ts', path: '/tmp/huge.ts', selection: 'A'.repeat(60_000) },
+			],
+		});
+		assert.match(out, /truncated: \d+ more characters omitted/);
+		assert.ok(out.length < 150_000);
+		// The user's own instruction is never truncated, regardless of how large the context got.
+		assert.match(out, /Review this$/);
+	});
 });
