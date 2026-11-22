@@ -36,6 +36,22 @@ describe('promptBuilder', () => {
 		assert.match(out, /\[Project Steering Context\]\nAlways use pnpm\./);
 	});
 
+	it('includes auto-surfaced Spec context as its own section, separate from Steering', () => {
+		const out = buildEffectivePrompt({
+			prompt: 'implement the base code',
+			mode: 'vibe',
+			autonomy: 'acceptFileChanges',
+			cwd: '/tmp/workspace',
+			timeoutMs: 30_000,
+			systemContext: 'Always use pnpm.',
+			specContext: '## requirements.md\n- User wants a perfume shop landing page.',
+		});
+		assert.match(out, /\[Active Spec Context\]\n## requirements\.md/);
+		assert.match(out, /\[Project Steering Context\]\nAlways use pnpm\./);
+		// Each stays under its own header, not merged into the other's section.
+		assert.doesNotMatch(out, /\[Project Steering Context\]\n[^[]*requirements\.md/);
+	});
+
 	it('includes the Approve For Me block only in vibe/spec mode', () => {
 		const out = buildEffectivePrompt({
 			prompt: 'Add a helper',

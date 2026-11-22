@@ -86,6 +86,11 @@ export interface TarotPanelStrings {
 	readonly approved: string;
 	readonly elapsedTime: string;
 	readonly restoreCheckpoint: string;
+	readonly fileWriteGateTitle: string;
+	readonly fileWriteGateKeep: string;
+	readonly fileWriteGateRevert: string;
+	readonly fileWriteGateKept: string;
+	readonly fileWriteGateReverted: string;
 	readonly copy: string;
 	readonly copied: string;
 	readonly runAgentError: string;
@@ -164,6 +169,11 @@ export function getPanelStrings(): TarotPanelStrings {
 		approved: vscode.l10n.t('✓ Approved · {0}'),
 		elapsedTime: vscode.l10n.t('Elapsed time: {0}'),
 		restoreCheckpoint: vscode.l10n.t('↺ Restore Checkpoint'),
+		fileWriteGateTitle: vscode.l10n.t('This turn wrote to files your permissions policy asks about:'),
+		fileWriteGateKeep: vscode.l10n.t('Keep Changes'),
+		fileWriteGateRevert: vscode.l10n.t('Revert These Files'),
+		fileWriteGateKept: vscode.l10n.t('✓ Kept'),
+		fileWriteGateReverted: vscode.l10n.t('↺ Reverted'),
 		copy: vscode.l10n.t('Copy'),
 		copied: vscode.l10n.t('Copied!'),
 		runAgentError: vscode.l10n.t('Failed to run the agent.'),

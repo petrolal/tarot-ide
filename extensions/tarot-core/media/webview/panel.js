@@ -702,6 +702,57 @@
 				wrapper.appendChild(gateEl);
 			}
 
+			if (msg.role === 'assistant' && msg.fileWriteGate) {
+				const fwGate = msg.fileWriteGate;
+				const fwEl = document.createElement('div');
+				fwEl.className = `file-write-gate-card${fwGate.resolution ? ' resolved' : ''}`;
+
+				const title = document.createElement('div');
+				title.className = 'file-write-gate-title';
+				title.textContent = t('fileWriteGateTitle');
+				fwEl.appendChild(title);
+
+				const list = document.createElement('ul');
+				list.className = 'file-write-gate-list';
+				for (const relativePath of fwGate.files || []) {
+					const item = document.createElement('li');
+					item.textContent = relativePath;
+					list.appendChild(item);
+				}
+				fwEl.appendChild(list);
+
+				if (fwGate.resolution) {
+					const doneText = document.createElement('span');
+					doneText.className = 'file-write-gate-resolved';
+					doneText.textContent = fwGate.resolution === 'kept' ? t('fileWriteGateKept') : t('fileWriteGateReverted');
+					fwEl.appendChild(doneText);
+				} else {
+					const actions = document.createElement('div');
+					actions.className = 'file-write-gate-actions';
+
+					const keepBtn = document.createElement('button');
+					keepBtn.type = 'button';
+					keepBtn.className = 'file-write-gate-btn keep';
+					keepBtn.textContent = t('fileWriteGateKeep');
+					keepBtn.addEventListener('click', () => {
+						vscode.postMessage({ type: 'resolveFileWriteGate', messageId: msg.id, keep: true });
+					});
+					actions.appendChild(keepBtn);
+
+					const revertBtn = document.createElement('button');
+					revertBtn.type = 'button';
+					revertBtn.className = 'file-write-gate-btn revert';
+					revertBtn.textContent = t('fileWriteGateRevert');
+					revertBtn.addEventListener('click', () => {
+						vscode.postMessage({ type: 'resolveFileWriteGate', messageId: msg.id, keep: false });
+					});
+					actions.appendChild(revertBtn);
+
+					fwEl.appendChild(actions);
+				}
+				wrapper.appendChild(fwEl);
+			}
+
 			if (msg.role === 'assistant' && (msg.elapsedMs || msg.checkpointId || msg.totalTokens)) {
 				const footer = document.createElement('div');
 				footer.className = 'msg-footer';

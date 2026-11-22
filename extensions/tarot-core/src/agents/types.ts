@@ -60,6 +60,8 @@ export interface AgentRunRequest {
 	readonly effort?: ReasoningEffort;
 	readonly cwd: string;
 	readonly systemContext?: string;
+	/** Auto-surfaced `.tarot/specs/**` content for the Spec most relevant to this turn (active editor, or the only Spec in the workspace) — see `promptBuilder.ts`. */
+	readonly specContext?: string;
 	readonly attachments?: readonly AttachedContext[];
 	readonly conversationHistory?: readonly SessionMessage[];
 	readonly timeoutMs: number;
@@ -104,6 +106,19 @@ export interface SpecApprovalGate {
 	approved?: boolean;
 }
 
+/**
+ * Post-hoc `fs_write` review for files this turn actually changed and the permissions policy
+ * resolves to `ask` (Tarot cannot deny a BYOA agent's own write before it happens — see
+ * `policyEngine.ts::getEnforcementKind` — so this is the enforcement point: keep the write, or
+ * revert exactly these files back to the pre-turn checkpoint).
+ */
+export interface FileWriteApprovalGate {
+	readonly sessionId: string;
+	readonly checkpointId: string;
+	readonly files: readonly string[];
+	resolution?: 'kept' | 'reverted';
+}
+
 export interface SessionMessage {
 	readonly id: string;
 	readonly role: 'user' | 'assistant' | 'system';
@@ -116,6 +131,7 @@ export interface SessionMessage {
 	readonly appliedSteering?: readonly string[];
 	readonly taskProgress?: TaskProgressCard;
 	readonly approvalGate?: SpecApprovalGate;
+	readonly fileWriteGate?: FileWriteApprovalGate;
 	readonly elapsedMs?: number;
 	readonly totalTokens?: number;
 	readonly checkpointId?: string;

@@ -126,6 +126,52 @@ export class TarotCheckpointService {
 	}
 
 	/**
+	 * Reverts exactly `relativePaths` back to their pre-checkpoint state, leaving every other file
+	 * this turn touched untouched. Used by the post-turn `fs_write` approval card — unlike
+	 * `restoreCheckpoint`, this has no confirmation dialog (the card itself is the confirmation)
+	 * and never touches a path outside the given set.
+	 *
+	 * A path with no manifest entry is NOT necessarily a brand-new file: `collectDirtyFiles` only
+	 * snapshots files that were already dirty (or open+unsaved) *before* the turn, so a file that
+	 * was clean and got edited has no backup either — blindly deleting it would be real data loss
+	 * (same gap `getCheckpointDiff` already has for its read-only "View changes" diff). `git
+	 * checkout` is tried first for exactly this reason; only a path git does not know about (or no
+	 * git available) falls through to a delete, which is then actually safe.
+	 */
+	async restoreCheckpointFiles(workspaceRoot: string, sessionId: string, checkpointId: string, relativePaths: readonly string[]): Promise<boolean> {
+		const cpDir = path.join(workspaceRoot, '.tarot', 'checkpoints', sessionId, checkpointId);
+		const filesDir = path.join(cpDir, 'files');
+
+		let manifest: CheckpointManifest;
+		try {
+			manifest = JSON.parse(await fs.readFile(path.join(cpDir, 'manifest.json'), 'utf8')) as CheckpointManifest;
+		} catch {
+			return false;
+		}
+
+		const gitPath = await resolveBinaryPath('git');
+		const byPath = new Map(manifest.files.map(f => [f.relativePath, f]));
+		for (const rel of relativePaths) {
+			const targetAbs = path.join(workspaceRoot, rel);
+			const entry = byPath.get(rel);
+			if (entry?.existed && entry.backupName) {
+				await fs.mkdir(path.dirname(targetAbs), { recursive: true });
+				await fs.copyFile(path.join(filesDir, entry.backupName), targetAbs);
+				continue;
+			}
+			if (gitPath) {
+				const result = await execSimple(gitPath, ['-C', workspaceRoot, 'checkout', '--', rel]).catch(() => undefined);
+				if (result?.exitCode === 0) {
+					continue;
+				}
+			}
+			// Not in the manifest and git does not know it either: genuinely new, safe to delete.
+			await fs.rm(targetAbs, { force: true }).catch(() => undefined);
+		}
+		return true;
+	}
+
+	/**
 	 * Computes the per-task "View changes" diff: which files changed, were added or deleted
 	 * between the pre-task checkpoint snapshot and the current working tree.
 	 */

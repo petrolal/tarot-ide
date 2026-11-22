@@ -55,6 +55,10 @@ export function buildEffectivePrompt(request: AgentRunRequest): string {
 		parts.push(`[Project Steering Context]\n${truncateSection(request.systemContext.trim(), 'Steering Context')}`);
 	}
 
+	if (request.specContext && request.specContext.trim().length > 0) {
+		parts.push(`[Active Spec Context]\n${truncateSection(request.specContext.trim(), 'Spec Context')}`);
+	}
+
 	if (request.conversationHistory && request.conversationHistory.length > 0) {
 		const recent = request.conversationHistory.slice(-6);
 		const transcript = recent

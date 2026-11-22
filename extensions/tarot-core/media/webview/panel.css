@@ -727,6 +727,70 @@ body.vscode-light .pbt-save-rule-btn {
 	color: #4ADE80;
 }
 
+/* Post-turn fs_write Approval Gate */
+.file-write-gate-card {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 4px;
+	padding: 8px 10px;
+	border: 1px solid #8B5CF6;
+	border-radius: 8px;
+	background: rgba(109, 40, 217, 0.12);
+}
+
+.file-write-gate-title {
+	font-size: 11.5px;
+	font-weight: 600;
+}
+
+.file-write-gate-list {
+	margin: 0;
+	padding-left: 18px;
+	font-size: 11.5px;
+	font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.file-write-gate-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.file-write-gate-btn {
+	border-radius: 6px;
+	padding: 5px 11px;
+	font-size: 11.5px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.file-write-gate-btn.keep {
+	background: #6D28D9;
+	border: 1px solid #8B5CF6;
+	color: #FFFFFF;
+}
+
+.file-write-gate-btn.keep:hover {
+	background: #7C3AED;
+	border-color: #D4AF37;
+}
+
+.file-write-gate-btn.revert {
+	background: transparent;
+	border: 1px solid #F87171;
+	color: #F87171;
+}
+
+.file-write-gate-btn.revert:hover {
+	background: rgba(248, 113, 113, 0.12);
+}
+
+.file-write-gate-resolved {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: #4ADE80;
+}
+
 .msg-error {
 	color: #F87171;
 	font-size: 12px;
@@ -1546,6 +1610,7 @@ body.vscode-light .review-file-link {
 
 body.vscode-light .task-progress-item.done .task-item-icon,
 body.vscode-light .spec-gate-approved,
+body.vscode-light .file-write-gate-resolved,
 body.vscode-light .review-status.status-a,
 body.vscode-light .review-status.status-u {
 	color: #0D7377;

@@ -16,6 +16,7 @@ import {
 	AttachedContext,
 	AutonomyMode,
 	ContextProviderKind,
+	FileWriteApprovalGate,
 	ReasoningEffort,
 	SpecApprovalGate,
 	TaskProgressCard,
@@ -55,6 +56,7 @@ interface WebviewIncomingMessage {
 		| 'closeSession'
 		| 'restoreCheckpoint'
 		| 'approveSpecGate'
+		| 'resolveFileWriteGate'
 		| 'openInEditorTab'
 		| 'toggleFocusMode'
 		| 'openFileDiff'
@@ -76,6 +78,7 @@ interface WebviewIncomingMessage {
 	readonly messageId?: string;
 	readonly relativePath?: string;
 	readonly fileStatus?: ChangedFileInfo['status'];
+	readonly keep?: boolean;
 	readonly slashCommand?: string;
 	readonly index?: number;
 }
@@ -612,6 +615,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					await this.handleApproveSpecGate(msg.messageId);
 				}
 				break;
+			case 'resolveFileWriteGate':
+				if (msg.messageId && typeof msg.keep === 'boolean') {
+					await this.handleResolveFileWriteGate(msg.messageId, msg.keep);
+				}
+				break;
 			case 'openInEditorTab':
 				await this.openInEditorTab();
 				break;
@@ -804,6 +812,24 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		});
 	}
 
+	private async handleResolveFileWriteGate(messageId: string, keep: boolean): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+		const msg = session.messages.find(m => m.id === messageId);
+		if (!msg?.fileWriteGate || msg.fileWriteGate.resolution) {
+			return;
+		}
+		const gate = msg.fileWriteGate;
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!keep && cwd) {
+			await this.checkpointService.restoreCheckpointFiles(cwd, gate.sessionId, gate.checkpointId, gate.files);
+			await this.refreshChangedFiles();
+		}
+		gate.resolution = keep ? 'kept' : 'reverted';
+		await this.sessionStore.saveSession(session);
+		this.postState();
+	}
+
 	private async runPrompt(
 		prompt: string,
 		options?: {
@@ -885,6 +911,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			: { applied: [] };
 		const steeringContext = steeringResolution.formattedContext;
 		const appliedSteering = steeringResolution.applied.map(item => item.label);
+		// Same Workspace Trust gate as Steering above — a cloned repo's .tarot/specs/** must not
+		// auto-inject content before the user has trusted the workspace.
+		const specContext = vscode.workspace.isTrusted ? await this.resolveActiveSpecContext(cwd) : undefined;
 		let accumulatedText = '';
 		let accumulatedThought = '';
 		let hadError = false;
@@ -907,6 +936,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					effort: this.selectedEffort,
 					cwd,
 					systemContext: steeringContext,
+					specContext,
 					attachments: requestAttachments,
 					conversationHistory: historySnapshot,
 					timeoutMs: getTarotConfig().timeoutMs,
@@ -961,7 +991,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 			}
 
-			if (accumulatedText.trim().length > 0 || usedTools.length > 0 || taskProgress) {
+			const fileWriteGate = !wasCancelled && !hadError && checkpointId
+				? await this.reviewFileWritesForTurn(cwd, session.id, checkpointId)
+				: undefined;
+
+			if (accumulatedText.trim().length > 0 || usedTools.length > 0 || taskProgress || fileWriteGate) {
 				await this.sessionStore.appendMessage(session, {
 					role: 'assistant',
 					agentId,
@@ -972,6 +1006,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					appliedSteering: appliedSteering.length > 0 ? appliedSteering : undefined,
 					taskProgress,
 					approvalGate: !wasCancelled && !hadError ? options?.nextApprovalGate : undefined,
+					fileWriteGate,
 					elapsedMs,
 					totalTokens,
 					checkpointId,
@@ -1102,6 +1137,74 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	private async refreshAvailableModels(): Promise<void> {
 		this.availableModels = await this.runtimeManager.listModelsForAgent();
+	}
+
+	/**
+	 * Post-hoc `fs_write` enforcement for a completed turn (gap found in code review,
+	 * 2026-11-22): `fs_write` was defined in the policy schema but never evaluated anywhere, so
+	 * nothing ever actually gated what a BYOA agent wrote to disk. Tarot cannot deny the write
+	 * before it happens (`policyEngine.ts::getEnforcementKind`), but it CAN enforce the final
+	 * state — every file this turn's checkpoint diff shows as changed is evaluated: `deny`
+	 * reverts it immediately and silently (logged, not surfaced as a card — the policy already
+	 * said no), `ask` surfaces a real approval card naming the files, with a revert path that
+	 * actually works (`checkpointService.restoreCheckpointFiles`, scoped to exactly those files).
+	 */
+	private async reviewFileWritesForTurn(cwd: string, sessionId: string, checkpointId: string): Promise<FileWriteApprovalGate | undefined> {
+		const diff = await this.checkpointService.getCheckpointDiff(cwd, sessionId, checkpointId);
+		if (diff.length === 0) {
+			return undefined;
+		}
+		const denied: string[] = [];
+		const asked: string[] = [];
+		for (const entry of diff) {
+			const decision = await this.permissionsService.evaluate('fs_write', entry.relativePath);
+			if (decision.effect === 'deny') {
+				denied.push(entry.relativePath);
+			} else if (decision.effect === 'ask') {
+				// An explicit rule (a Tarot invariant like `.git/**`, or something the user wrote
+				// into permissions.yaml) always asks, regardless of autonomy mode — that is the
+				// point of configuring it. The bare "ask when nothing matches" default only asks
+				// in Supervised: Accept File Changes/Approve For Me chose to skip per-edit review
+				// for ordinary files, and this gate must not quietly reintroduce it for every turn.
+				if (!decision.defaulted || this.autonomy === 'supervised') {
+					asked.push(entry.relativePath);
+				}
+			}
+		}
+		if (denied.length > 0) {
+			await this.checkpointService.restoreCheckpointFiles(cwd, sessionId, checkpointId, denied);
+			this.outputChannel.appendLine(`[Permissions] fs_write denied, auto-reverted: ${denied.join(', ')}`);
+		}
+		if (asked.length === 0) {
+			return undefined;
+		}
+		return { sessionId, checkpointId, files: asked };
+	}
+
+	/**
+	 * Surfaces `.tarot/specs/**` content automatically, the same way Steering is auto-resolved,
+	 * so a plain chat turn is aware of an existing Spec instead of asking questions the user
+	 * already answered in requirements.md (gap found in code review, 2026-11-22). Prefers the
+	 * Spec that owns the active editor's file; falls back to the only Spec in the workspace when
+	 * there is exactly one; with 2+ unrelated Specs, lists their names instead of guessing which
+	 * one applies.
+	 */
+	private async resolveActiveSpecContext(root: string): Promise<string | undefined> {
+		const specs = await this.specService.listSpecs(root);
+		if (specs.length === 0) {
+			return undefined;
+		}
+		const activeFilePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+		const activeSpec = activeFilePath
+			? specs.find(s => activeFilePath === s.dirPath || activeFilePath.startsWith(s.dirPath + path.sep))
+			: undefined;
+		const target = activeSpec ?? (specs.length === 1 ? specs[0] : undefined);
+		if (target) {
+			const loaded = await this.specService.loadSpecContext(target.dirPath);
+			return loaded.contextText;
+		}
+		const list = specs.map(s => `- ${s.slug} (${s.taskSummary.done}/${s.taskSummary.total} tasks)`).join('\n');
+		return `Multiple Specs exist in this workspace and none matches the active editor. Ask the user which one applies instead of assuming:\n${list}`;
 	}
 
 	private postState(): void {
