@@ -84,11 +84,13 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
     - Respeitar *Workspace Trust* (`vscode.workspace.isTrusted`) antes de disparar Agent Hooks automáticos ou comandos de escrita no disco (`untrustedWorkspaces: "limited"` e `virtualWorkspaces: false` em `package.json`).
     - Configurações que apontam para executáveis locais (`tarot.agents.paths.*` e `tarot.agents.custom`) usam `"scope": "machine"` para impedir que um `.vscode/settings.json` clonado injete binários arbitrários; `tarot-core` declara `"extensionKind": ["workspace"]` para compatibilidade com `tarot-server`.
     - Em Webviews, aplicar CSP estrita (`nonce`), nunca usar `innerHTML` com conteúdo não sanitizado de saída de LLMs/CLIs.
+    - Ao classificar um comando `shell` como "seguro por padrão" (ex.: `git` somente-leitura em `policyEngine.ts`), **sempre checar redirecionamento não citado (`>`, `>>`, `<`) antes de liberar** — `git show ... > arquivo` é escrita, não leitura; um allowlist que olha só o subcomando permite escrita arbitrária sob o `allow` padrão (achado e corrigido em revisão de código, 2026-11-22; ver `policyEngine.ts::hasUnquotedRedirection`).
+    - Nunca montar o argv de um processo com prompt de tamanho ilimitado: todo adapter BYOA passa o prompt como argumento único de CLI, e `promptBuilder.ts` injeta conteúdo de Steering/anexos sem limite — validar o tamanho total (binário+argv) **antes** do `spawn`, com limite conservador por plataforma (bem mais estrito no Windows) em vez de deixar o SO falhar com `E2BIG`/`ENAMETOOLONG` (ver `agents/commandLineLimits.ts` + cap por seção em `promptBuilder.ts`).
 
 ### 3.4 Regras de Build e Validação
 11. **Usar sempre `pnpm`** (nunca `npm`). Preferir os scripts leves `pnpm run watch-tarot`, `pnpm run watch-tarot-fast`, `pnpm run watch-tarot-core` e `pnpm run compile-tarot`.
 12. **`tarot-core` não vai em `product.json -> builtInExtensions`**: aquele campo é apenas para extensões externas baixadas via GitHub/Marketplace; extensões locais em `extensions/` são registradas em `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml` e `build/npm/dirs.ts`.
-13. **Workspace Trust amplo**: nada em `.tarot/` (agents, steering, skills, MCP, workflows, hooks) é carregado/executado em workspace não confiável; permissões do workspace ficam **fora do repositório** e o agente nunca escreve nos próprios arquivos de permissões/settings (ver M3.8a).
+13. **Workspace Trust amplo**: nada em `.tarot/` (agents, steering, skills, MCP, workflows, hooks) é carregado/executado em workspace não confiável; permissões do workspace ficam **fora do repositório** e o agente nunca escreve nos próprios arquivos de permissões/settings (ver M3.8a). Isso inclui as TreeViews que listam esse conteúdo: `HooksTreeProvider`, `SteeringTreeProvider` (que também lista o `AGENTS.md` da raiz como Steering) e `SpecsTreeProvider` só populam depois de `vscode.workspace.isTrusted` ser verdadeiro, e atualizam (`refresh()`) ao evento `onDidGrantWorkspaceTrust` em vez de ficar travadas vazias até o próximo file-watcher disparar.
 
 ### 3.5 Regras de Idioma e Localização
 
@@ -207,10 +209,11 @@ extensions/tarot-core/
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
     │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort
-    │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento
-    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, histórico, anexos #)
-    │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json
-    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>)
+    │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento + guarda de tamanho de linha de comando antes do spawn (commandLineLimits.ts)
+    │   ├── commandLineLimits.ts        # Teto puro e testável (binário+argv) por plataforma — bem mais estrito no Windows — para falhar com erro claro em vez de E2BIG/ENAMETOOLONG do SO
+    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, histórico, anexos #); cada seção de Steering/anexo é truncada em 50k chars, nunca o prompt do usuário
+    │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json — grava a cada mensagem, mas nada ainda recarrega essas sessões no boot (History real fica para M3.8c)
+    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>); agente ativo persiste em globalState (ACTIVE_AGENT_STATE_KEY)
     │   └── adapters/                   # claudeAdapter, agyAdapter (--print=<prompt> + agy models), codexAdapter, customAdapter (--model/--effort)
     ├── context/
     │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
@@ -228,7 +231,7 @@ extensions/tarot-core/
     │   ├── yamlLite.ts                 # Parser YAML hand-rolled (mapeamentos/sequências/listas inline) — sem dependência `yaml`/`js-yaml`
     │   ├── shellParser.ts              # Split de comandos compostos (`;`/`&&`/`||`/`|`) respeitando quotes/subshells; bloqueia `$()`/backtick/heredoc como não-analisável
     │   ├── presets.ts                  # `allow-all`/`edit-workspace`/`read-workspace`/`read-all`/`read-only-shell`/`dev-shell`/`approve-for-me`
-    │   ├── policyEngine.ts             # Avaliação pura: `deny > ask > allow > evaluate`, sem precedência entre escopos, glob completo (fs) vs wildcard `*` (shell/web/mcp)
+    │   ├── policyEngine.ts             # Avaliação pura: `deny > ask > allow > evaluate`, sem precedência entre escopos, glob completo (fs) vs wildcard `*` (shell/web/mcp); allowlist de `git` somente-leitura rejeita redirecionamento não citado (`hasUnquotedRedirection`)
     │   ├── trustService.ts             # `vscode.workspace.isTrusted` + paths externos de `permissions.yaml` (user/workspace, hash do path fora do repo)
     │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, cartão de aprovação (Allow/Always Allow/Deny/Always Deny) e gate de hooks `command`
     ├── specs/
@@ -247,9 +250,9 @@ extensions/tarot-core/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git opcionais e isolados (criar/listar/aplicar por cópia/descartar) para tasks paralelas (M3.6.7+)
     └── views/
-        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks agrupado Workspace/Global com toggle + Play, Steering agrupado, Local Agents)
+        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks agrupado Workspace/Global com toggle + Play, Steering agrupado, Local Agents); Hooks/Steering/Specs só carregam `.tarot/**` com o workspace confiável
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
-        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js)
+        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js); modelo/effort selecionados persistem em globalState entre reinícios
 ```
 
 > **Contrato Webview ↔ Extension Host**: toda troca de estado e ações do `Tarot Agent` passa pelo protocolo `postMessage` centralizado em `src/views/agentPanelView.ts` (handler `_handleMessage` + `_postState`) e `media/webview/panel.js` (`window.addEventListener('message', ...)`). O catálogo de strings viaja no HTML inicial em `window.__tarotL10n` (ver §3.5).
