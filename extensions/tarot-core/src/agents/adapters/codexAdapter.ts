@@ -137,7 +137,11 @@ export class CodexAdapter implements AgentAdapter {
 					return true;
 				}
 				if (item.type === 'command_execution' && item.command) {
-					onEvent({ type: 'tool_start', toolName: `shell: ${item.command}` });
+					// Codex only reports `item.completed`, so by the time Tarot hears about this
+					// tool call it has already finished — start/end fire back to back.
+					const toolName = `shell: ${item.command}`;
+					onEvent({ type: 'tool_start', toolName });
+					onEvent({ type: 'tool_end', toolName });
 				}
 			}
 

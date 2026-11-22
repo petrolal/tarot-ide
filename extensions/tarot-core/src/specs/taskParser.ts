@@ -5,12 +5,29 @@
 
 import * as fs from 'node:fs/promises';
 
+export interface SpecTaskProperty {
+	readonly number: string;
+	readonly description: string;
+}
+
 export interface SpecTask {
 	readonly lineIndex: number;
 	readonly index: number;
 	readonly title: string;
 	readonly completed: boolean;
 	readonly rawLine: string;
+	/** Leading numbering extracted from the title (e.g. "2.1"), used as the dependency graph key. */
+	readonly numberLabel?: string;
+	/** `true` when the title carries the Kiro `*` optional marker right after the numbering. */
+	readonly optional: boolean;
+	/** `_Requirements: 1.1, 1.2_` references found in the detail lines below the task. */
+	readonly requirementRefs: readonly string[];
+	/** `_Depends: 1, 2.1_` explicit dependency annotation; drives `taskGraph` wave computation. */
+	readonly dependsOn: readonly string[];
+	/** `**Property N: ...**` metadata for Property-Based Testing tasks. */
+	readonly property?: SpecTaskProperty;
+	/** `**Validates: Requirements x.y**` metadata for PBT tasks. */
+	readonly validates: readonly string[];
 }
 
 export interface SpecTaskSummary {
@@ -20,6 +37,16 @@ export interface SpecTaskSummary {
 }
 
 const TASK_LINE_REGEX = /^(\s*-\s+\[)([ xX])(\]\s+)(.+)$/;
+const OPTIONAL_MARKER_REGEX = /^[\d.]+\.?\s*\*/;
+const NUMBER_LABEL_REGEX = /^(\d+(?:\.\d+)*)/;
+const REQUIREMENTS_REGEX = /_Requirements:\s*([^_]+)_/i;
+const DEPENDS_REGEX = /_Depends:\s*([^_]+)_/i;
+const PROPERTY_REGEX = /\*\*Property\s+(\d+):\s*([^*]+)\*\*/i;
+const VALIDATES_REGEX = /\*\*Validates:\s*Requirements\s*([^*]+)\*\*/i;
+
+function splitRefs(raw: string): string[] {
+	return raw.split(',').map(r => r.trim()).filter(Boolean);
+}
 
 export function parseTasksMarkdown(content: string): SpecTaskSummary {
 	const lines = content.split(/\r?\n/);
@@ -36,12 +63,47 @@ export function parseTasksMarkdown(content: string): SpecTaskSummary {
 		if (completed) {
 			done++;
 		}
+		const title = match[4].trim();
+		const numberLabel = title.match(NUMBER_LABEL_REGEX)?.[1];
+
+		// Detail lines: everything below this checkbox until the next one, used for
+		// `_Requirements:_`, `_Depends:_`, `**Property N:**` and `**Validates:**` metadata.
+		let requirementRefs: string[] = [];
+		let dependsOn: string[] = [];
+		let property: SpecTaskProperty | undefined;
+		let validates: string[] = [];
+		for (let j = i + 1; j < lines.length && !TASK_LINE_REGEX.test(lines[j]); j++) {
+			const detail = lines[j];
+			const reqMatch = detail.match(REQUIREMENTS_REGEX);
+			if (reqMatch) {
+				requirementRefs = requirementRefs.concat(splitRefs(reqMatch[1]));
+			}
+			const depMatch = detail.match(DEPENDS_REGEX);
+			if (depMatch) {
+				dependsOn = dependsOn.concat(splitRefs(depMatch[1]));
+			}
+			const propMatch = detail.match(PROPERTY_REGEX);
+			if (propMatch && !property) {
+				property = { number: propMatch[1].trim(), description: propMatch[2].trim() };
+			}
+			const validatesMatch = detail.match(VALIDATES_REGEX);
+			if (validatesMatch) {
+				validates = validates.concat(splitRefs(validatesMatch[1]));
+			}
+		}
+
 		tasks.push({
 			lineIndex: i,
 			index: tasks.length + 1,
-			title: match[4].trim(),
+			title,
 			completed,
 			rawLine,
+			numberLabel,
+			optional: OPTIONAL_MARKER_REGEX.test(title),
+			requirementRefs,
+			dependsOn,
+			property,
+			validates,
 		});
 	}
 

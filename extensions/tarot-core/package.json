@@ -155,12 +155,34 @@
         {
           "command": "tarot.agent.toggleFocusMode",
           "group": "navigation@100"
+        },
+        {
+          "command": "tarot.specs.runAllTasks",
+          "when": "resourceFilename == tasks.md",
+          "group": "navigation@50"
+        },
+        {
+          "command": "tarot.specs.syncFiles",
+          "when": "resourceFilename == tasks.md",
+          "group": "navigation@51"
         }
       ],
       "scm/title": [
         {
           "command": "tarot.git.generateCommitMessage",
           "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "tarot.hooks.runManual",
+          "when": "view == tarot.views.hooks && (viewItem == tarotHookEnabled || viewItem == tarotHookDisabled)",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.hooks.toggle",
+          "when": "view == tarot.views.hooks && (viewItem == tarotHookEnabled || viewItem == tarotHookDisabled)",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
@@ -174,6 +196,18 @@
         },
         {
           "command": "tarot.specs.runTaskWith",
+          "when": "false"
+        },
+        {
+          "command": "tarot.specs.viewTaskChanges",
+          "when": "false"
+        },
+        {
+          "command": "tarot.hooks.runManual",
+          "when": "false"
+        },
+        {
+          "command": "tarot.hooks.toggle",
           "when": "false"
         }
       ]
@@ -401,6 +435,36 @@
         "title": "%command.specs.runTaskWith.title%",
         "category": "Tarot IDE",
         "icon": "$(run-with-deps)"
+      },
+      {
+        "command": "tarot.specs.runAllTasks",
+        "title": "%command.specs.runAllTasks.title%",
+        "category": "Tarot IDE",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "tarot.specs.syncFiles",
+        "title": "%command.specs.syncFiles.title%",
+        "category": "Tarot IDE",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "tarot.specs.viewTaskChanges",
+        "title": "%command.specs.viewTaskChanges.title%",
+        "category": "Tarot IDE",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "tarot.hooks.runManual",
+        "title": "%command.hooks.runManual.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tarot.hooks.toggle",
+        "title": "%command.hooks.toggle.title%",
+        "category": "Tarot IDE",
+        "icon": "$(circle-slash)"
       },
       {
         "command": "tarot.specs.openPhase",

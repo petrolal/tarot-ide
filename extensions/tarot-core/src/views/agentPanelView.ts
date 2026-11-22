@@ -24,8 +24,14 @@ import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
 import { resolveContextProvider } from '../context/contextProviders';
 import { ChangedFileInfo, TarotGitReviewService } from '../git/gitReviewService';
+import { runHooksForTrigger, selectHooksForTrigger, TarotHookEngine } from '../hooks/hookEngine';
+import { runHookCommand } from '../hooks/hookRunner';
+import { HookDefinition } from '../hooks/hookTypes';
 import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
-import { markTaskCompletedInFile } from '../specs/taskParser';
+import { mergeTasksMarkdown } from '../specs/specSync';
+import { recordTaskCheckpoint } from '../specs/specTaskCheckpoints';
+import { markTaskCompletedInFile, SpecTask } from '../specs/taskParser';
+import { runTaskWaves } from '../specs/taskRunner';
 import { TarotSteeringService } from '../steering/steeringService';
 import { getPanelStrings } from './panelStrings';
 
@@ -87,6 +93,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private changedFiles: ChangedFileInfo[] = [];
 	private activeCancellation: vscode.CancellationTokenSource | undefined;
 	private runningSessionId: string | undefined;
+	private readonly queuedHookPrompts: string[] = [];
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
@@ -97,6 +104,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly steeringService: TarotSteeringService,
 		private readonly specService: TarotSpecService,
 		private readonly gitReviewService: TarotGitReviewService,
+		private readonly hookEngine: TarotHookEngine,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.disposables.push(
@@ -349,6 +357,95 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			vscode.window.showWarningMessage(vscode.l10n.t('Task not found in tasks.md.'));
 			return;
 		}
+		await this.runSpecTaskInternal(specDir, task);
+	}
+
+	/**
+	 * Runs **Run all Tasks**: groups incomplete, mandatory (unless `includeOptional`) tasks into
+	 * dependency-ordered waves (`taskGraph`/`taskRunner`) and executes them one by one — true
+	 * parallel execution needs multiple concurrent agent sessions, reused from `worktreeManager`
+	 * once M3.8c/M3.9a land multi-session support.
+	 */
+	async runAllSpecTasks(specDir: string, includeOptional: boolean): Promise<void> {
+		const spec = await this.specService.loadSpecContext(specDir);
+		const pending = spec.taskSummary.tasks.filter(t => !t.completed && (includeOptional || !t.optional));
+		if (pending.length === 0) {
+			vscode.window.showInformationMessage(vscode.l10n.t('No pending tasks to run in {0}.', spec.slug));
+			return;
+		}
+
+		await vscode.window.withProgress(
+			{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Tarot — Run all Tasks ({0})', spec.slug), cancellable: true },
+			async (progress, token) => {
+				let runIndex = 0;
+				const summary = await runTaskWaves(
+					pending,
+					async task => {
+						runIndex++;
+						if (token.isCancellationRequested) {
+							return false;
+						}
+						progress.report({ message: vscode.l10n.t('Task #{0}: {1} ({2}/{3})', task.index, task.title, runIndex, pending.length) });
+						return this.runSpecTaskInternal(specDir, task);
+					},
+					{ includeOptional },
+				);
+				const failed = summary.results.filter(r => r.status !== 'succeeded').length;
+				if (failed > 0) {
+					vscode.window.showWarningMessage(vscode.l10n.t('Run all Tasks finished with {0} task(s) failed or skipped (dependency not satisfied).', failed));
+				}
+			},
+		);
+	}
+
+	async runSyncFiles(specDir: string): Promise<void> {
+		const spec = await this.specService.loadSpecContext(specDir);
+		await this.setMode('spec');
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+
+		const tasksFilePath = path.join(specDir, 'tasks.md');
+		const previousTasksContent = await fs.readFile(tasksFilePath, 'utf8').catch(() => undefined);
+
+		await this.runPrompt(this.specService.buildSyncFilesPrompt(spec), {
+			displayPrompt: vscode.l10n.t('↻ Sync Files · {0}', spec.slug),
+			onCompleted: async () => {
+				if (previousTasksContent !== undefined) {
+					const regenerated = await fs.readFile(tasksFilePath, 'utf8').catch(() => undefined);
+					if (regenerated !== undefined && regenerated !== previousTasksContent) {
+						const merged = mergeTasksMarkdown(previousTasksContent, regenerated);
+						if (merged.content !== regenerated) {
+							await fs.writeFile(tasksFilePath, merged.content, 'utf8');
+						}
+					}
+				}
+				const reloaded = await this.specService.loadSpecContext(specDir);
+				if (reloaded.taskSummary.total === 0) {
+					return undefined;
+				}
+				return {
+					title: vscode.l10n.t('Synced task list · {0}', reloaded.slug),
+					done: reloaded.taskSummary.done,
+					total: reloaded.taskSummary.total,
+					items: reloaded.taskSummary.tasks.map(t => ({ label: t.title, completed: t.completed })),
+				};
+			},
+		});
+	}
+
+	private async runSpecTaskInternal(specDir: string, task: SpecTask): Promise<boolean> {
+		const spec = await this.specService.loadSpecContext(specDir);
+		const taskKey = task.numberLabel ?? String(task.index);
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(cwd) : [];
+
+		if (workspaceHooks.length > 0) {
+			const pre = await runHooksForTrigger(workspaceHooks, 'PreTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey });
+			this.logHookWarnings(pre.warnings);
+			if (pre.blocked) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Hook "{0}" blocked Task #{1}: {2}', pre.blockedBy?.name ?? '?', task.index, pre.blockReason ?? ''));
+				return false;
+			}
+		}
 
 		await this.setMode('spec');
 		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
@@ -356,10 +453,15 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const prompt = this.specService.buildTaskExecutionPrompt(spec, task);
 		const tasksFilePath = path.join(specDir, 'tasks.md');
 
-		await this.runPrompt(prompt, {
+		const succeeded = await this.runPrompt(prompt, {
 			displayPrompt: vscode.l10n.t('▶ Run Task #{0} ({1}): {2}', task.index, spec.slug, task.title),
+			onCheckpointCreated: async (checkpointId, sessionId) => {
+				if (checkpointId) {
+					await recordTaskCheckpoint(specDir, taskKey, { sessionId, checkpointId, createdAt: new Date().toISOString() });
+				}
+			},
 			onCompleted: async () => {
-				const updated = await markTaskCompletedInFile(tasksFilePath, lineIndex);
+				const updated = await markTaskCompletedInFile(tasksFilePath, task.lineIndex);
 				return {
 					title: vscode.l10n.t('Updated task list · {0}', spec.slug),
 					done: updated.done,
@@ -368,6 +470,17 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				};
 			},
 		});
+
+		if (workspaceHooks.length > 0) {
+			const post = await runHooksForTrigger(workspaceHooks, 'PostTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey });
+			this.logHookWarnings(post.warnings);
+			for (const action of post.agentActions) {
+				this.queuedHookPrompts.push(action.prompt);
+			}
+			await this.drainQueuedHookPrompts();
+		}
+
+		return succeeded;
 	}
 
 	private async handleMessage(msg: WebviewIncomingMessage): Promise<void> {
@@ -673,17 +786,18 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			displayPrompt?: string;
 			nextApprovalGate?: SpecApprovalGate;
 			onCompleted?: () => Promise<TaskProgressCard | undefined>;
+			onCheckpointCreated?: (checkpointId: string | undefined, sessionId: string) => Promise<void>;
 		},
-	): Promise<void> {
+	): Promise<boolean> {
 		if (this.runningSessionId) {
-			return;
+			return false;
 		}
 
 		const agentId = this.runtimeManager.getActiveAgentId();
 		const adapter = this.runtimeManager.getAdapter(agentId);
 		if (!adapter) {
 			this.postMessage({ type: 'streamError', content: vscode.l10n.t('No adapter found for {0}.', agentId) });
-			return;
+			return false;
 		}
 
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
@@ -691,6 +805,25 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		session.activeAgentId = agentId;
 		session.mode = this.mode;
 		session.autonomy = this.autonomy;
+
+		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath) : [];
+		let effectivePrompt = prompt;
+		if (workspaceHooks.length > 0) {
+			const promptSubmit = await runHooksForTrigger(
+				workspaceHooks,
+				'PromptSubmit',
+				{ cwd, session_id: session.id, user_prompt: prompt },
+				{ matchInput: prompt, inlineAgentPrompts: true },
+			);
+			if (promptSubmit.blocked) {
+				this.postMessage({ type: 'streamError', content: vscode.l10n.t('Blocked by hook "{0}": {1}', promptSubmit.blockedBy?.name ?? '?', promptSubmit.blockReason ?? '') });
+				return false;
+			}
+			if (promptSubmit.contextAppend.length > 0) {
+				effectivePrompt = `${prompt}\n\n${promptSubmit.contextAppend.join('\n\n')}`;
+			}
+			this.logHookWarnings(promptSubmit.warnings);
+		}
 
 		const historySnapshot = [...session.messages];
 		const requestAttachments = [...this.attachments];
@@ -706,6 +839,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const checkpointId = vscode.workspace.workspaceFolders?.[0]
 			? await this.checkpointService.createCheckpoint(cwd, session.id)
 			: undefined;
+		if (options?.onCheckpointCreated) {
+			await options.onCheckpointCreated(checkpointId, session.id);
+		}
 
 		const startedAt = Date.now();
 		this.runningSessionId = session.id;
@@ -726,6 +862,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		let hadError = false;
 		let totalTokens: number | undefined;
 		const usedTools: string[] = [];
+		let runSucceeded = false;
 
 		this.outputChannel.appendLine(
 			`[AgentPanel] Running ${adapter.id} (${this.mode}/${this.autonomy}) in ${cwd}` +
@@ -735,7 +872,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		try {
 			await adapter.run(
 				{
-					prompt,
+					prompt: effectivePrompt,
 					mode: this.mode,
 					autonomy: this.autonomy,
 					model: this.selectedModel,
@@ -756,6 +893,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					} else if (event.type === 'tool_start' && event.toolName) {
 						usedTools.push(event.toolName);
 						this.postMessage({ type: 'streamTool', toolName: event.toolName });
+						if (workspaceHooks.length > 0) {
+							void this.runPreToolUseHook(workspaceHooks, event.toolName, cwd, session.id);
+						}
+					} else if (event.type === 'tool_end' && event.toolName && workspaceHooks.length > 0) {
+						void this.runPostToolUseHook(workspaceHooks, event.toolName, cwd, session.id);
 					} else if (event.type === 'status') {
 						const usage = event.metadata?.usage as { total_tokens?: number } | undefined;
 						if (usage && typeof usage.total_tokens === 'number' && usage.total_tokens > 0) {
@@ -774,6 +916,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			);
 		} finally {
 			const wasCancelled = this.activeCancellation?.token.isCancellationRequested ?? false;
+			runSucceeded = !wasCancelled && !hadError;
 			const elapsedMs = Date.now() - startedAt;
 			this.runningSessionId = undefined;
 			if (this.activeCancellation) {
@@ -810,6 +953,87 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			this.postMessage({ type: 'streamEnd' });
 			await this.refreshChangedFiles();
 			this.postState();
+
+			if (!wasCancelled && workspaceHooks.length > 0) {
+				void this.runStopHooks(workspaceHooks, cwd, session.id);
+			}
+		}
+
+		return runSucceeded;
+	}
+
+	private async runPreToolUseHook(hooks: readonly HookDefinition[], toolName: string, cwd: string, sessionId: string): Promise<void> {
+		const result = await runHooksForTrigger(hooks, 'PreToolUse', { cwd, session_id: sessionId, tool_name: toolName }, { matchInput: toolName });
+		this.logHookWarnings(result.warnings);
+		if (result.blocked) {
+			this.outputChannel.appendLine(`[Hooks] PreToolUse "${result.blockedBy?.name}" denied tool "${toolName}" — cancelling the run.`);
+			this.postMessage({ type: 'streamError', content: vscode.l10n.t('Hook "{0}" blocked tool "{1}"; stopping the agent.', result.blockedBy?.name ?? '?', toolName) });
+			this.cancelActiveRun();
+		}
+		for (const agentAction of result.agentActions) {
+			this.queuedHookPrompts.push(agentAction.prompt);
+		}
+	}
+
+	private async runPostToolUseHook(hooks: readonly HookDefinition[], toolName: string, cwd: string, sessionId: string): Promise<void> {
+		const result = await runHooksForTrigger(hooks, 'PostToolUse', { cwd, session_id: sessionId, tool_name: toolName }, { matchInput: toolName });
+		this.logHookWarnings(result.warnings);
+		for (const action of result.agentActions) {
+			this.queuedHookPrompts.push(action.prompt);
+		}
+	}
+
+	private async runStopHooks(hooks: readonly HookDefinition[], cwd: string, sessionId: string): Promise<void> {
+		const selected = selectHooksForTrigger(hooks, 'Stop');
+		for (const hook of selected) {
+			if (hook.action.type === 'command' && hook.action.confirm) {
+				await this.runStopHookWithConfirm(hook, cwd, sessionId);
+				continue;
+			}
+			if (hook.action.type === 'command' && hook.action.command) {
+				const outcome = await runHookCommand(hook.action.command, { cwd, session_id: sessionId, hook_event_name: 'Stop' }, hook.timeout);
+				if (outcome.kind === 'warn') {
+					this.logHookWarnings([{ hook, message: outcome.stderr || `Hook "${hook.name}" exited with code ${outcome.exitCode}.` }]);
+				}
+			} else if (hook.action.type === 'agent' && hook.action.prompt) {
+				this.queuedHookPrompts.push(hook.action.prompt);
+			}
+		}
+
+		await this.drainQueuedHookPrompts();
+	}
+
+	private async drainQueuedHookPrompts(): Promise<void> {
+		if (this.queuedHookPrompts.length > 0 && !this.runningSessionId) {
+			const next = this.queuedHookPrompts.shift()!;
+			await this.runBatchPrompt(next, vscode.l10n.t('🪝 Hook follow-up'));
+		}
+	}
+
+	private async runStopHookWithConfirm(hook: HookDefinition, cwd: string, sessionId: string): Promise<void> {
+		const confirm = hook.action.confirm!;
+		const picked = await vscode.window.showInformationMessage(
+			confirm.question,
+			{ modal: false },
+			...confirm.options.map(o => o.label),
+		);
+		const option = confirm.options.find(o => o.label === picked);
+		if (!option) {
+			return;
+		}
+		const command = option.run ?? hook.action.command;
+		if (!command) {
+			return;
+		}
+		const outcome = await runHookCommand(command, { cwd, session_id: sessionId, hook_event_name: 'Stop' }, hook.timeout);
+		if (outcome.kind === 'warn') {
+			this.logHookWarnings([{ hook, message: outcome.stderr || `Hook "${hook.name}" exited with code ${outcome.exitCode}.` }]);
+		}
+	}
+
+	private logHookWarnings(warnings: readonly { hook: HookDefinition; message: string }[]): void {
+		for (const w of warnings) {
+			this.outputChannel.appendLine(`[Hooks] "${w.hook.name}" (${w.hook.trigger}): ${w.message}`);
 		}
 	}
 

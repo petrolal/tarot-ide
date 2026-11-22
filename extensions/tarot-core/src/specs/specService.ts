@@ -321,6 +321,20 @@ export class TarotSpecService {
 		);
 	}
 
+	buildSyncFilesPrompt(spec: LoadedSpecContext): string {
+		const relDir = `.tarot/specs/${spec.slug}`;
+		return (
+			`[Tarot Spec — Sync Files (${spec.slug})]\n` +
+			`\`requirements.md\`/\`design.md\` evoluíram desde a última geração de \`${relDir}/tasks.md\`. ` +
+			`Atualize \`${relDir}/tasks.md\` para refletir o estado atual:\n` +
+			`1. Preserve EXATAMENTE o texto das tarefas já concluídas (\`- [x] ...\`) que ainda fazem sentido, na mesma ordem relativa;\n` +
+			`2. Adicione tarefas novas para requisitos/design ainda não cobertos, marcando opcionais com \`*\` (ex.: \`- [ ] 5. *Tarefa opcional\`);\n` +
+			`3. Mantenha \`_Requirements: x.y_\` em cada tarefa e, quando houver dependência explícita entre tarefas independentes, anote \`_Depends: <número>_\`;\n` +
+			`4. Não remova tarefas concluídas mesmo que o escopo tenha mudado — se não fizerem mais sentido, apenas deixe-as no final sob um comentário.\n\n` +
+			`${spec.contextText}`
+		);
+	}
+
 	buildGenerateSpecFromChatPrompt(slug: string, transcript: string): string {
 		const relDir = `.tarot/specs/${slug}`;
 		return (

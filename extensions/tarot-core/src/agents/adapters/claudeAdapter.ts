@@ -81,6 +81,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 		}
 		let emittedText = false;
 		const stderrLines: string[] = [];
+		const pendingToolUses = new Map<string, string>();
 
 		onEvent({ type: 'status', content: vscode.l10n.t('Running Claude Code...') });
 
@@ -94,7 +95,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 					if (!trimmed) {
 						return;
 					}
-					if (this.handleStreamJsonLine(trimmed, onEvent)) {
+					if (this.handleStreamJsonLine(trimmed, onEvent, pendingToolUses)) {
 						emittedText = true;
 						return;
 					}
@@ -125,7 +126,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 		}
 	}
 
-	private handleStreamJsonLine(line: string, onEvent: (event: AgentEvent) => void): boolean {
+	private handleStreamJsonLine(line: string, onEvent: (event: AgentEvent) => void, pendingToolUses: Map<string, string>): boolean {
 		if (!line.startsWith('{')) {
 			return false;
 		}
@@ -134,17 +135,34 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 			const type = typeof payload.type === 'string' ? payload.type : '';
 
 			if (type === 'assistant') {
-				const message = payload.message as { content?: Array<{ type?: string; text?: string; name?: string }> } | undefined;
+				const message = payload.message as { content?: Array<{ type?: string; text?: string; name?: string; id?: string }> } | undefined;
 				let produced = false;
 				for (const block of message?.content ?? []) {
 					if (block.type === 'text' && block.text) {
 						onEvent({ type: 'text', content: block.text });
 						produced = true;
 					} else if (block.type === 'tool_use' && block.name) {
+						if (block.id) {
+							pendingToolUses.set(block.id, block.name);
+						}
 						onEvent({ type: 'tool_start', toolName: block.name });
 					}
 				}
 				return produced;
+			}
+
+			if (type === 'user') {
+				const message = payload.message as { content?: Array<{ type?: string; tool_use_id?: string; is_error?: boolean }> } | undefined;
+				for (const block of message?.content ?? []) {
+					if (block.type === 'tool_result' && block.tool_use_id) {
+						const toolName = pendingToolUses.get(block.tool_use_id);
+						pendingToolUses.delete(block.tool_use_id);
+						if (toolName) {
+							onEvent({ type: 'tool_end', toolName, metadata: { isError: !!block.is_error } });
+						}
+					}
+				}
+				return false;
 			}
 
 			if (type === 'content_block_delta') {

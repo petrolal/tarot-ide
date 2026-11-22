@@ -11,12 +11,15 @@ import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
+import { runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
+import { runHookCommand } from './hooks/hookRunner';
 import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
 import { SpecCreationKind, TarotSpecService } from './specs/specService';
+import { readTaskCheckpoint } from './specs/specTaskCheckpoints';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
-import { LocalAgentsTreeProvider, SpecsTreeProvider, SteeringTreeProvider, TarotWorkspaceFolderTreeProvider } from './views/tarotSidebarViews';
+import { HooksTreeProvider, LocalAgentsTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -26,6 +29,36 @@ async function ensureWorkspaceFolder(): Promise<string | undefined> {
 		vscode.window.showWarningMessage(vscode.l10n.t('Open a folder/workspace in Tarot IDE to create artifacts under .tarot/.'));
 	}
 	return root;
+}
+
+async function resolveSpecDirFromUriOrPick(uri: vscode.Uri | undefined, specService: TarotSpecService): Promise<string | undefined> {
+	if (uri) {
+		return path.dirname(uri.fsPath);
+	}
+	const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
+	if (activePath && activePath.replace(/\\/g, '/').includes('/.tarot/specs/')) {
+		return path.dirname(activePath);
+	}
+	const root = await ensureWorkspaceFolder();
+	if (!root) {
+		return undefined;
+	}
+	const specs = await specService.listSpecs(root);
+	if (specs.length === 0) {
+		vscode.window.showInformationMessage(vscode.l10n.t('No Specs found in .tarot/specs/.'));
+		return undefined;
+	}
+	const picked = await vscode.window.showQuickPick(
+		specs.map(s => ({ label: s.slug, description: s.kind, specDir: s.dirPath })),
+		{ title: vscode.l10n.t('Pick Spec') },
+	);
+	return picked?.specDir;
+}
+
+class TarotEmptyContentProvider implements vscode.TextDocumentContentProvider {
+	provideTextDocumentContent(): string {
+		return '';
+	}
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -38,12 +71,13 @@ export function activate(context: vscode.ExtensionContext): void {
 	const steeringService = new TarotSteeringService();
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
+	const hookEngine = new TarotHookEngine();
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 	const pendingReviewComments: MarkdownReviewComment[] = [];
 
 	// Left Sidebar (Kiro-style) TreeViews
 	const specsProvider = new SpecsTreeProvider(specService, context.extensionUri);
-	const hooksProvider = new TarotWorkspaceFolderTreeProvider('.tarot/hooks', 'hooks', context.extensionUri);
+	const hooksProvider = new HooksTreeProvider(hookEngine, context.extensionUri);
 	const steeringProvider = new SteeringTreeProvider(steeringService, context.extensionUri);
 	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager, context.extensionUri);
 
@@ -56,6 +90,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		steeringService,
 		specService,
 		gitReviewService,
+		hookEngine,
 		outputChannel,
 	);
 
@@ -69,6 +104,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		agentPanelProvider,
 		specCodeLensProvider,
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
+		vscode.workspace.registerTextDocumentContentProvider('tarot-empty', new TarotEmptyContentProvider()),
 		vscode.languages.registerCodeLensProvider(
 			{ language: 'markdown', pattern: '**/.tarot/specs/*/tasks.md' },
 			specCodeLensProvider,
@@ -222,6 +258,71 @@ export function activate(context: vscode.ExtensionContext): void {
 			await agentPanelProvider.runSpecTask(specDir, lineIndex, picked.agentId);
 			specsProvider.refresh();
 			specCodeLensProvider.refresh();
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.runAllTasks', async (uri?: vscode.Uri) => {
+			const specDir = await resolveSpecDirFromUriOrPick(uri, specService);
+			if (!specDir) {
+				return;
+			}
+			const picked = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('Keep optional tasks skipped (fast MVP)'), includeOptional: false },
+					{ label: vscode.l10n.t('Make every task mandatory'), includeOptional: true },
+				],
+				{ title: vscode.l10n.t('Run all Tasks — Optional Tasks (*)') },
+			);
+			if (!picked) {
+				return;
+			}
+			await agentPanelProvider.runAllSpecTasks(specDir, picked.includeOptional);
+			specsProvider.refresh();
+			specCodeLensProvider.refresh();
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.syncFiles', async (uri?: vscode.Uri) => {
+			const specDir = await resolveSpecDirFromUriOrPick(uri, specService);
+			if (!specDir) {
+				return;
+			}
+			await agentPanelProvider.runSyncFiles(specDir);
+			specsProvider.refresh();
+			specCodeLensProvider.refresh();
+		}),
+
+		vscode.commands.registerCommand('tarot.specs.viewTaskChanges', async (uri?: vscode.Uri, _lineIndex?: number, taskKey?: string) => {
+			if (!uri || !taskKey) {
+				return;
+			}
+			const specDir = path.dirname(uri.fsPath);
+			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!cwd) {
+				return;
+			}
+			const record = await readTaskCheckpoint(specDir, taskKey);
+			if (!record) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No recorded checkpoint for this task yet (it may predate M3.6.7).'));
+				return;
+			}
+			const diffEntries = await checkpointService.getCheckpointDiff(cwd, record.sessionId, record.checkpointId);
+			if (diffEntries.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No file changes detected for this task.'));
+				return;
+			}
+
+			const picked = diffEntries.length === 1
+				? diffEntries[0]
+				: (await vscode.window.showQuickPick(
+					diffEntries.map(e => ({ label: e.relativePath, description: e.status, entry: e })),
+					{ title: vscode.l10n.t('View changes — Task #{0}', taskKey) },
+				))?.entry;
+			if (!picked) {
+				return;
+			}
+
+			const leftUri = picked.backupAbsPath ? vscode.Uri.file(picked.backupAbsPath) : vscode.Uri.parse('tarot-empty:/before');
+			const rightUri = picked.status === 'deleted' ? vscode.Uri.parse('tarot-empty:/after') : vscode.Uri.file(path.join(cwd, picked.relativePath));
+			await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, vscode.l10n.t('Task #{0}: {1} ({2})', taskKey, picked.relativePath, picked.status));
 		}),
 
 		vscode.commands.registerCommand('tarot.specs.openPhase', async (filePath?: string) => {
@@ -510,6 +611,88 @@ export function activate(context: vscode.ExtensionContext): void {
 			const doc = await vscode.workspace.openTextDocument(filePath);
 			await vscode.window.showTextDocument(doc);
 		}),
+
+		vscode.commands.registerCommand('tarot.hooks.toggle', async (item?: { hook?: { sourceFile: string; name: string; enabled: boolean } }) => {
+			const hook = item?.hook;
+			if (!hook) {
+				return;
+			}
+			const nextEnabled = !hook.enabled;
+			const confirmLabel = nextEnabled ? vscode.l10n.t('Enable') : vscode.l10n.t('Disable');
+			const confirm = await vscode.window.showWarningMessage(
+				vscode.l10n.t('{0} hook "{1}" in {2}?', confirmLabel, hook.name, path.basename(hook.sourceFile)),
+				{ modal: true },
+				confirmLabel,
+			);
+			if (confirm !== confirmLabel) {
+				return;
+			}
+			const ok = await hookEngine.setHookEnabled(hook.sourceFile, hook.name, nextEnabled);
+			if (ok) {
+				hooksProvider.refresh();
+			} else {
+				vscode.window.showErrorMessage(vscode.l10n.t('Could not update hook "{0}".', hook.name));
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.hooks.runManual', async (item?: { hook?: { action: { type: 'command' | 'agent'; command?: string; prompt?: string }; name: string; timeout: number } }) => {
+			const hook = item?.hook;
+			if (!hook) {
+				return;
+			}
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before running hooks.'));
+				return;
+			}
+			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!root) {
+				return;
+			}
+			if (hook.action.type === 'agent' && hook.action.prompt) {
+				await agentPanelProvider.runBatchPrompt(hook.action.prompt, vscode.l10n.t('🪝 Hook: {0}', hook.name));
+				return;
+			}
+			if (hook.action.type === 'command' && hook.action.command) {
+				const outcome = await runHookCommand(hook.action.command, { cwd: root, hook_event_name: 'Manual' }, hook.timeout);
+				if (outcome.kind === 'ok') {
+					outputChannel!.appendLine(`[Hooks] "${hook.name}" (manual): ${outcome.stdout || '(no output)'}`);
+					vscode.window.showInformationMessage(vscode.l10n.t('Hook "{0}" ran successfully.', hook.name));
+				} else {
+					const message = outcome.kind === 'timeout' ? vscode.l10n.t('timed out') : outcome.stderr;
+					vscode.window.showWarningMessage(vscode.l10n.t('Hook "{0}" failed: {1}', hook.name, message || vscode.l10n.t('unknown error')));
+				}
+			}
+		}),
+	);
+
+	// File-triggered Agent Hooks (PostFileSave/PostFileCreate/PostFileDelete) — never run
+	// automatically in an untrusted workspace (AGENTS.md §2d).
+	const runFileTriggerHooks = async (trigger: 'PostFileSave' | 'PostFileCreate' | 'PostFileDelete', uri: vscode.Uri) => {
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!root || !vscode.workspace.isTrusted) {
+			return;
+		}
+		const relativePath = path.relative(root, uri.fsPath).replace(/\\/g, '/');
+		if (relativePath.startsWith('..') || relativePath.startsWith('.tarot/hooks')) {
+			return;
+		}
+		const hooks = await hookEngine.discover(root);
+		if (hooks.length === 0) {
+			return;
+		}
+		const result = await runHooksForTrigger(hooks, trigger, { cwd: root, file_path: relativePath }, { matchInput: relativePath });
+		for (const w of result.warnings) {
+			outputChannel!.appendLine(`[Hooks] "${w.hook.name}" (${trigger}): ${w.message}`);
+		}
+		for (const action of result.agentActions) {
+			await agentPanelProvider.runBatchPrompt(action.prompt.replace(/\{\{file\}\}/g, relativePath), vscode.l10n.t('🪝 Hook: {0}', action.hook.name));
+		}
+	};
+
+	context.subscriptions.push(
+		vscode.workspace.onDidSaveTextDocument(doc => { void runFileTriggerHooks('PostFileSave', doc.uri); }),
+		vscode.workspace.onDidCreateFiles(e => { for (const uri of e.files) { void runFileTriggerHooks('PostFileCreate', uri); } }),
+		vscode.workspace.onDidDeleteFiles(e => { for (const uri of e.files) { void runFileTriggerHooks('PostFileDelete', uri); } }),
 	);
 
 	// Initial background detection of local AI CLIs (claude, agy, codex, custom)

@@ -3,11 +3,12 @@
  *  Licensed under the GNU General Public License v3.0 (GPL-3.0). See LICENSE and NOTICE.md.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { AgentStatus } from '../agents/types';
+import { DiscoveredHookFile, TarotHookEngine } from '../hooks/hookEngine';
+import { HookDefinition } from '../hooks/hookTypes';
 import { TarotSpecService } from '../specs/specService';
 import { SteeringDocument, TarotSteeringService } from '../steering/steeringService';
 
@@ -80,17 +81,25 @@ export class LocalAgentsTreeProvider implements vscode.TreeDataProvider<AgentSta
 	}
 }
 
-export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
+class HookTreeItem extends SimpleTreeItem {
+	constructor(
+		label: string,
+		readonly hook: HookDefinition,
+	) {
+		super(label, vscode.TreeItemCollapsibleState.None, hook.sourceFile);
+	}
+}
+
+export class HooksTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
 	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
-		private readonly relativeDir: string,
-		private readonly kind: 'specs' | 'steering' | 'hooks',
+		private readonly hookEngine: TarotHookEngine,
 		private readonly extensionUri: vscode.Uri,
 	) {
-		const watcher = vscode.workspace.createFileSystemWatcher(`**/.tarot/${kind}/**`);
+		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/hooks/*.json');
 		this.disposables.push(
 			this._onDidChangeTreeData,
 			watcher,
@@ -108,86 +117,57 @@ export class TarotWorkspaceFolderTreeProvider implements vscode.TreeDataProvider
 		return element;
 	}
 
+	private toHookItem(file: DiscoveredHookFile, hook: HookDefinition): HookTreeItem {
+		const item = new HookTreeItem(hook.name, hook);
+		item.description = `${hook.trigger}${hook.enabled ? '' : vscode.l10n.t(' (disabled)')}`;
+		item.iconPath = hook.enabled
+			? arcanaIcon(this.extensionUri, '10-wheel-of-fortune.svg')
+			: new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('disabledForeground'));
+		item.tooltip = [
+			`${hook.name} (${file.scope})`,
+			vscode.l10n.t('Trigger: {0}', hook.trigger),
+			hook.matcher ? vscode.l10n.t('Matcher: {0}', hook.matcher) : undefined,
+			hook.description,
+			vscode.l10n.t('Action: {0}', hook.action.type),
+			vscode.l10n.t('Path: {0}', hook.sourceFile),
+		].filter(Boolean).join('\n');
+		item.contextValue = hook.enabled ? 'tarotHookEnabled' : 'tarotHookDisabled';
+		item.command = {
+			command: 'vscode.open',
+			title: vscode.l10n.t('Open Hook File'),
+			arguments: [vscode.Uri.file(hook.sourceFile)],
+		};
+		return item;
+	}
+
 	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
 		if (element?.children) {
 			return element.children;
 		}
 		const root = getWorkspaceRoot();
-		if (!root) {
+		const files = await this.hookEngine.discoverFiles(root);
+		if (files.length === 0) {
 			return [];
 		}
 
-		const targetDir = path.join(root, this.relativeDir);
-		try {
-			const entries = await fs.readdir(targetDir, { withFileTypes: true });
-			if (this.kind === 'specs') {
-				const dirs = entries.filter(e => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name));
-				const specItems: SimpleTreeItem[] = [];
-				for (const dir of dirs) {
-					const specPath = path.join(targetDir, dir.name);
-					const files = ['requirements.md', 'design.md', 'tasks.md'];
-					const children: SimpleTreeItem[] = [];
-					let progressDesc = '';
-
-					for (const fileName of files) {
-						const fullPath = path.join(specPath, fileName);
-						try {
-							const content = await fs.readFile(fullPath, 'utf8');
-							if (fileName === 'tasks.md') {
-								const total = (content.match(/^\s*-\s+\[[ xX]\]/gm) ?? []).length;
-								const done = (content.match(/^\s*-\s+\[[xX]\]/gm) ?? []).length;
-								if (total > 0) {
-									progressDesc = `${done}/${total} tasks`;
-								}
-							}
-							const child = new SimpleTreeItem(fileName, vscode.TreeItemCollapsibleState.None, fullPath);
-							child.iconPath = new vscode.ThemeIcon('markdown');
-							child.command = {
-								command: 'vscode.open',
-								title: vscode.l10n.t('Open File'),
-								arguments: [vscode.Uri.file(fullPath)],
-							};
-							children.push(child);
-						} catch {
-							// File does not exist yet
-						}
-					}
-
-					const specItem = new SimpleTreeItem(
-						dir.name,
-						children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-						specPath,
-						children,
-					);
-					specItem.description = progressDesc;
-					specItem.iconPath = arcanaIcon(this.extensionUri, '05-the-hierophant.svg');
-					specItems.push(specItem);
-				}
-				return specItems;
+		const groups: SimpleTreeItem[] = [];
+		for (const scope of ['workspace', 'global'] as const) {
+			const scopedFiles = files.filter(f => f.scope === scope);
+			const hookItems = scopedFiles.flatMap(f => f.hooks.map(h => this.toHookItem(f, h)));
+			if (hookItems.length === 0) {
+				continue;
 			}
-
-			const ext = this.kind === 'steering' ? '.md' : '.json';
-			const files = entries
-				.filter(e => e.isFile() && e.name.endsWith(ext))
-				.sort((a, b) => a.name.localeCompare(b.name));
-
-			return files.map(file => {
-				const fullPath = path.join(targetDir, file.name);
-				const item = new SimpleTreeItem(file.name, vscode.TreeItemCollapsibleState.None, fullPath);
-				item.iconPath = arcanaIcon(
-					this.extensionUri,
-					this.kind === 'steering' ? '02-high-priestess.svg' : '10-wheel-of-fortune.svg',
-				);
-				item.command = {
-					command: 'vscode.open',
-					title: vscode.l10n.t('Open File'),
-					arguments: [vscode.Uri.file(fullPath)],
-				};
-				return item;
-			});
-		} catch {
-			return [];
+			const group = new SimpleTreeItem(
+				scope === 'workspace' ? vscode.l10n.t('Workspace') : vscode.l10n.t('Global'),
+				vscode.TreeItemCollapsibleState.Expanded,
+				undefined,
+				hookItems,
+			);
+			group.description = scope === 'workspace' ? `.tarot/hooks (${hookItems.length})` : `~/.tarot/hooks (${hookItems.length})`;
+			group.iconPath = new vscode.ThemeIcon(scope === 'workspace' ? 'folder' : 'globe');
+			groups.push(group);
 		}
+		return groups;
 	}
 
 	dispose(): void {

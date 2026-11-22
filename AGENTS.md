@@ -49,7 +49,7 @@ O **Tarot IDE** é um fork do `microsoft/vscode` (Code - OSS `1.148.0`, branch d
 | `docs/MIGRATION_PLAN.md` | Antes de implementar qualquer marco: especificação, arquivos-alvo e critérios de aceite (DoD) por marco, Fase 4/5 e **matriz de conflitos de sincronização com o upstream**. |
 | `docs/KIRO_ARCHITECTURE_REFERENCE.md` | Ao tocar Specs, Steering, Hooks, Permissões, Workflows, Sessions ou UX do painel: referência validada da doc oficial do Kiro (Seção 4) e tabela Kiro × Tarot. |
 
-**Status do plano**: Fases 1–2 concluídas · Fase 3: **M3.1–M3.6.6 concluídos** (+ saneamento, temas Dark/Light Arcana, Model & Effort Popover, Arcana assets) · **próximo marco: M3.6.7** (Motor de Tarefas de Spec + `worktreeManager.ts`) → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10 · Fase 4 (empacotamento) planejada · Fase 5 opcional.
+**Status do plano**: Fases 1–2 concluídas · Fase 3: **M3.1–M3.7 concluídos** (+ saneamento, temas Dark/Light Arcana, Model & Effort Popover, Arcana assets, Motor de Tarefas de Spec com `taskGraph`/`taskRunner`/`specSync`/`worktreeManager.ts`, Agent Hooks Engine `v1` com `hooks/{hookEngine,hookTypes,hookRunner,hookMigration}.ts`) · **próximo marco: M3.8a** (Permissões Baseadas em Capacidades) → M3.8b/c → M3.9a/b/c → M3.10 · Fase 4 (empacotamento) planejada · Fase 5 opcional.
 Se este status divergir do `docs/MIGRATION_PLAN.md`, **o `MIGRATION_PLAN.md` vence**; atualize este arquivo.
 
 ## 4. Mapa Rápido do Repositório
@@ -61,7 +61,7 @@ Se este status divergir do `docs/MIGRATION_PLAN.md`, **o `MIGRATION_PLAN.md` ven
 
 ## 5. Fluxos Padronizados (prompts reutilizáveis em `.github/prompts/`)
 
-- `tarot-execute-milestone.prompt.md` — executa o próximo marco pendente do `MIGRATION_PLAN.md` (hoje: **M3.6.7**).
+- `tarot-execute-milestone.prompt.md` — executa o próximo marco pendente do `MIGRATION_PLAN.md` (hoje: **M3.8a**).
 - `tarot-new-feature.prompt.md` — nova funcionalidade isolada em `extensions/tarot-core/`.
 - `tarot-upstream-sync.prompt.md` — sincronização com tags do `microsoft/vscode` seguindo a matriz de conflitos.
 

@@ -214,21 +214,31 @@ extensions/tarot-core/
     ├── context/
     │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
     ├── checkpoints/
-    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/ e rollback 1-clique
+    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique e diff isolado por tarefa (getCheckpointDiff)
     ├── steering/
     │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
+    ├── hooks/
+    │   ├── hookTypes.ts                # Schema `v1` puro: parse/validação, triggers canônicos + aliases, `*`/matcher/confirm
+    │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook (pré-M3.6.6) para `v1`
+    │   ├── hookRunner.ts               # Executa `action.command` via `/bin/sh -c`/`cmd.exe /c` (nunca `shell: true` nativo), STDIN JSON, timeout, exit 0/2/outro
+    │   └── hookEngine.ts               # Descoberta hierárquica (.tarot/hooks + ~/.tarot/hooks), seleção por trigger/matcher e orquestração serial por hook
     ├── specs/
-    │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, PBT parser & stepper logic
+    │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, Sync Files e PBT parser & stepper logic
     │   ├── specStepper.ts              # CodeLens stepper clicável (1 Requirements › 2 Design › 3 Task list) + Analyze + Review
     │   ├── markdownReview.ts           # Formatação em lote de comentários inline em Specs Markdown
-    │   ├── taskParser.ts               # Parser e atualização automática de checklists `- [ ]`/`- [x]` em tasks.md
-    │   └── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... em .tarot/specs/*/tasks.md
+    │   ├── taskParser.ts               # Parser de checklists `- [ ]`/`- [x]` + opcionais `*`, `_Requirements:_`, `_Depends:_`, `**Property N**`/`**Validates:**`
+    │   ├── taskGraph.ts                # Grafo de dependências puro: agrupa tasks pendentes em ondas (Kahn) respeitando `_Depends:_`
+    │   ├── taskRunner.ts               # Orquestra "Run all Tasks" onda a onda, pulando dependentes de tarefas que falharam
+    │   ├── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... / ↺ View changes / ▶ Run all Tasks / ↻ Sync Files
+    │   ├── specSync.ts                 # Merge puro do Sync Files: preserva tarefas concluídas que a regeneração não reescreveu
+    │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json`: mapeia tarefa → checkpoint pré-execução
     ├── test/
-    │   └── *.test.ts                   # Suíte unitária pura (taskParser, promptBuilder, specService) rodando via `node --test`
+    │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, promptBuilder, specService) via `node --test`
     ├── git/
-    │   └── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
+    │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
+    │   └── worktreeManager.ts          # Worktrees Git opcionais e isolados (criar/listar/aplicar por cópia/descartar) para tasks paralelas (M3.6.7+)
     └── views/
-        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks, Steering agrupado, Local Agents)
+        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks agrupado Workspace/Global com toggle + Play, Steering agrupado, Local Agents)
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
         └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js)
 ```

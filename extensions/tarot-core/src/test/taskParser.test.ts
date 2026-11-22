@@ -32,6 +32,33 @@ describe('taskParser', () => {
 		assert.equal(summary.tasks[3].title, '3. *Write optional PBT');
 	});
 
+	it('parses optional marker, requirement refs, dependsOn and PBT metadata', () => {
+		const md = [
+			'# Tasks — demo',
+			'',
+			'- [ ] 1. Define contracts',
+			'  _Requirements: 1.1, 1.2_',
+			'- [ ] 2. *Add optional PBT',
+			'  _Depends: 1_',
+			'  **Property 1: idempotency**',
+			'  **Validates: Requirements 1.1, 2.3**',
+		].join('\n');
+
+		const summary = parseTasksMarkdown(md);
+		const [first, second] = summary.tasks;
+
+		assert.equal(first.numberLabel, '1');
+		assert.equal(first.optional, false);
+		assert.deepEqual(first.requirementRefs, ['1.1', '1.2']);
+		assert.deepEqual(first.dependsOn, []);
+
+		assert.equal(second.numberLabel, '2');
+		assert.equal(second.optional, true);
+		assert.deepEqual(second.dependsOn, ['1']);
+		assert.deepEqual(second.property, { number: '1', description: 'idempotency' });
+		assert.deepEqual(second.validates, ['1.1', '2.3']);
+	});
+
 	it('handles empty content and CRLF line endings', () => {
 		assert.deepEqual(parseTasksMarkdown(''), { total: 0, done: 0, tasks: [] });
 		const summary = parseTasksMarkdown('- [ ] First\r\n- [x] Second\r\n');

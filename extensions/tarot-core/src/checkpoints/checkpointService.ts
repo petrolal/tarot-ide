@@ -23,6 +23,13 @@ interface CheckpointManifest {
 	readonly files: readonly CheckpointFileEntry[];
 }
 
+export interface CheckpointDiffEntry {
+	readonly relativePath: string;
+	readonly status: 'added' | 'modified' | 'deleted';
+	/** Absolute path to the pre-checkpoint backup on disk; absent for freshly `added` files. */
+	readonly backupAbsPath?: string;
+}
+
 export class TarotCheckpointService {
 	/**
 	 * Captures a lightweight snapshot of currently modified/untracked files before an agent turn
@@ -118,6 +125,55 @@ export class TarotCheckpointService {
 		return true;
 	}
 
+	/**
+	 * Computes the per-task "View changes" diff: which files changed, were added or deleted
+	 * between the pre-task checkpoint snapshot and the current working tree.
+	 */
+	async getCheckpointDiff(workspaceRoot: string, sessionId: string, checkpointId: string): Promise<CheckpointDiffEntry[]> {
+		const cpDir = path.join(workspaceRoot, '.tarot', 'checkpoints', sessionId, checkpointId);
+		const filesDir = path.join(cpDir, 'files');
+
+		let manifest: CheckpointManifest;
+		try {
+			manifest = JSON.parse(await fs.readFile(path.join(cpDir, 'manifest.json'), 'utf8')) as CheckpointManifest;
+		} catch {
+			return [];
+		}
+
+		const entries = new Map<string, CheckpointDiffEntry>();
+		const manifestPaths = new Set(manifest.files.map(f => f.relativePath));
+
+		for (const entry of manifest.files) {
+			const abs = path.join(workspaceRoot, entry.relativePath);
+			const backupAbsPath = entry.backupName ? path.join(filesDir, entry.backupName) : undefined;
+			let existsNow = false;
+			try {
+				existsNow = (await fs.stat(abs)).isFile();
+			} catch {
+				existsNow = false;
+			}
+
+			if (entry.existed && backupAbsPath) {
+				if (!existsNow) {
+					entries.set(entry.relativePath, { relativePath: entry.relativePath, status: 'deleted', backupAbsPath });
+				} else if (!(await filesAreEqual(backupAbsPath, abs))) {
+					entries.set(entry.relativePath, { relativePath: entry.relativePath, status: 'modified', backupAbsPath });
+				}
+			} else if (!entry.existed && existsNow) {
+				entries.set(entry.relativePath, { relativePath: entry.relativePath, status: 'added' });
+			}
+		}
+
+		const currentDirty = await this.collectDirtyFiles(workspaceRoot);
+		for (const rel of currentDirty) {
+			if (!manifestPaths.has(rel) && !entries.has(rel)) {
+				entries.set(rel, { relativePath: rel, status: 'added' });
+			}
+		}
+
+		return Array.from(entries.values());
+	}
+
 	private async collectDirtyFiles(workspaceRoot: string): Promise<string[]> {
 		const files = new Set<string>();
 		const gitPath = await resolveBinaryPath('git');
@@ -145,5 +201,14 @@ export class TarotCheckpointService {
 		}
 
 		return Array.from(files).slice(0, 60);
+	}
+}
+
+async function filesAreEqual(pathA: string, pathB: string): Promise<boolean> {
+	try {
+		const [bufA, bufB] = await Promise.all([fs.readFile(pathA), fs.readFile(pathB)]);
+		return bufA.equals(bufB);
+	} catch {
+		return false;
 	}
 }

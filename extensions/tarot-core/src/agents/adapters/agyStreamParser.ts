@@ -99,7 +99,10 @@ export function parseAgyStreamLine(line: string, state: AgyStreamParseState): Ag
 			if (stepIndex >= 0) {
 				state.seenToolSteps.add(stepIndex);
 			}
+			// `step_update` is reported once per step with no separate completion event, so
+			// start/end fire together (same caveat as the Codex adapter).
 			events.push({ type: 'tool_start', toolName: toolLabel });
+			events.push({ type: 'tool_end', toolName: toolLabel });
 			events.push({ type: 'status', content: `Running ${toolLabel}...` });
 		}
 

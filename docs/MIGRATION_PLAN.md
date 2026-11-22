@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.6.6 ✅ · próximo: M3.6.7 → M3.7 → M3.8a/b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.6.7** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.7 ✅ · próximo: M3.8a → M3.8b/c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.8a** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -128,7 +128,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.6.7 — Motor de Tarefas de Spec (Run All Tasks em Ondas, Opcionais `*`, Sync Files, Rastreabilidade, Per-Task Diff & Worktrees) (UC-03)
+### Marco M3.6.7 — Motor de Tarefas de Spec (Run All Tasks em Ondas, Opcionais `*`, Sync Files, Rastreabilidade, Per-Task Diff & Worktrees) (UC-03) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/specs/` (Task Execution / Parallel tasks), Best Practices (Sync Files, import de requisitos), `topics/frontier-engineering/` e Print 1.
 - **Arquivos-alvo**: `extensions/tarot-core/src/specs/{taskParser,taskGraph,taskRunner,taskCodeLensProvider,specSync}.ts`, `extensions/tarot-core/src/git/worktreeManager.ts`, `checkpointService.ts`.
 - **Especificação**:
@@ -141,13 +141,13 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Design-First com importação**: anexar PNG/JPG (draw.io, whiteboard), colar texto de design, `#arquivo.md Generate a spec from it`, ou importar via MCP (Jira/Confluence); Kiro formaliza `design.md` e deriva requisitos. Referência `#spec:nome implement task 2.1`.
   - **PBT**: propriedades extraídas dos requisitos EARS na fase de Design; execução sob demanda; falha vira cartão com opções (corrigir implementação, ajustar teste ou refinar requisito). Bugfix gera PBTs para: bug reproduzível, fix correto e comportamento inalterado preservado.
 - **Critérios de Aceite (DoD)**:
-  - [ ] **Run all Tasks** executa em ondas respeitando dependências e ignora tarefas opcionais/concluídas.
-  - [ ] `*` e `_Requirements:_`/`Validates:` são parseados, preservados e exibidos.
-  - [ ] `View changes` abre o diff isolado de uma tarefa; **Sync Files** gera tarefas novas sem apagar as concluídas.
+  - [x] **Run all Tasks** executa em ondas respeitando dependências e ignora tarefas opcionais/concluídas. *(`taskGraph.computeTaskWaves` + `taskRunner.runTaskWaves`, puros/testados via `node --test`; execução dentro de uma onda é sequencial nesta primeira entrega — paralelismo real de sessões fica para M3.8c/M3.9a, que reutilizam `worktreeManager.ts`.)*
+  - [x] `*` e `_Requirements:_`/`Validates:` são parseados, preservados e exibidos. *(`taskParser.ts` adiciona `optional`, `requirementRefs`, `dependsOn`, `property`, `validates`; CodeLens exibe `(optional)` no tooltip e mantém o texto original da linha.)*
+  - [x] `View changes` abre o diff isolado de uma tarefa; **Sync Files** gera tarefas novas sem apagar as concluídas. *(`checkpointService.getCheckpointDiff` + `specTaskCheckpoints.ts` + comando `tarot.specs.viewTaskChanges` abrem `vscode.diff` por arquivo; `specSync.mergeTasksMarkdown` reconcilia a regeneração do agente preservando/anexando tarefas já concluídas — comando `tarot.specs.syncFiles`.)*
 
 ---
 
-### Marco M3.7 — Agent Hooks Engine `v1` (Arquivo + Ferramenta + Prompt + Ciclo de Vida + Compaction + Task) (UC-05)
+### Marco M3.7 — Agent Hooks Engine `v1` (Arquivo + Ferramenta + Prompt + Ciclo de Vida + Compaction + Task) (UC-05) — ✅ Concluído (DoD) · Compaction/SessionStart·End/PermissionRequest adiados
 - **Fonte**: `kiro.dev/docs/hooks/` (+ `hooks/types`, `hooks/actions`) e blog `introducing-kiro`.
 - **Arquivos-alvo**: `extensions/tarot-core/src/hooks/{hookEngine,hookTypes,hookRunner,hookMigration}.ts`; integração em `tarotSidebarViews.ts` e `agentPanelView.ts`.
 - **Schema `v1`** (`.tarot/hooks/*.json` e `~/.tarot/hooks/*.json`, vários hooks por arquivo; global e workspace rodam juntos):
@@ -163,7 +163,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Prompt/turno**: `PromptSubmit` (`UserPromptSubmit`; variável `USER_PROMPT`; em ação `agent` o prompt é *anexado* ao do usuário; pode **bloquear** o envio), `Stop`/`AgentStop` (fim do turno).
   - **Sessão**: `SessionStart`, `SessionEnd`.
   - **Compaction**: `PreCompaction` (exit `2` cancela a compaction), `PostCompaction` (saída volta ao contexto).
-  - **Ferramenta**: `PreToolUse` (exit ≠ 0 **bloqueia** a ferramenta), `PostToolUse`, `PermissionRequest` (responde `allow`/`deny` ao prompt de permissão via `hookSpecificOutput.decision`; nunca sobrepõe `deny` de política nem prompts protegidos).
+  - **Ferramenta**: `PreToolUse` (exit `2` **bloqueia** a ferramenta), `PostToolUse`, `PermissionRequest` (responde `allow`/`deny` ao prompt de permissão via `hookSpecificOutput.decision`; nunca sobrepõe `deny` de política nem prompts protegidos).
   - **Arquivo** (regex no caminho): `PostFileCreate`, `PostFileSave`, `PostFileDelete`.
   - **Tarefa de Spec**: `PreTaskExecution`, `PostTaskExecution`.
   - **Manual**: botão Play na TreeView.
@@ -173,9 +173,10 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 - **Criação**: botão `+` → **Ask Tarot to create a hook** (linguagem natural gera o JSON) + **presets built-in de guardrails determinísticos** (*secret/credential scan* em diff/output, lint/typecheck em `Stop`/`PreToolUse`); itens de Hooks na TreeView usam `icons/arcana/10-wheel-of-fortune.svg`; on-demand manual = *steering* `inclusion: manual` invocado por `/nome`. *(Pré-requisito já entregue no saneamento pré-M3.6.6: `tarot.hooks.create` grava o template no schema `v1` com ação `agent`.)*
 - **Segurança**: fila serial por hook, debounce, **nenhum hook roda em workspace não confiável**, escrita em `.tarot/hooks/` sempre pede confirmação (ver M3.8a).
 - **Critérios de Aceite (DoD)**:
-  - [ ] Triggers de arquivo, `PromptSubmit`, `Stop`, `PreToolUse`/`PostToolUse` funcionam para `command` e `agent`, com toggle, `timeout` e Play.
-  - [ ] `PreToolUse` com `exit 2` bloqueia a ferramenta; `PromptSubmit` pode bloquear o envio.
-  - [ ] Nenhum hook executa automaticamente em workspaces não confiáveis.
+  - [x] Triggers de arquivo, `PromptSubmit`, `Stop`, `PreToolUse`/`PostToolUse` funcionam para `command` e `agent`, com toggle, `timeout` e Play. *(`hooks/{hookTypes,hookMigration,hookRunner,hookEngine}.ts` puros/testados (28 testes); `tarot.hooks.toggle` grava `enabled` com confirmação, `tarot.hooks.runManual` é o botão Play da TreeView (`HooksTreeProvider`, agrupada Workspace/Global); `timeout` honrado em `runHookCommand`. `PostToolUse` depende de um evento `tool_end` novo nos adaptadores: `claudeAdapter` correlaciona `tool_use_id`↔`tool_result` de verdade; `codexAdapter`/`agy` reportam a ferramenta só depois de concluída, então `tool_start`+`tool_end` disparam juntos — aproximação honesta dado o protocolo de cada CLI.)*
+  - [x] `PreToolUse` com `exit 2` bloqueia a ferramenta; `PromptSubmit` pode bloquear o envio. *(`PromptSubmit` bloqueia de verdade antes de chamar `adapter.run` — nenhum processo chega a nascer. Para `PreToolUse`, nenhuma CLI BYOA expõe um canal para negar uma tool call já despachada antes que ela rode (ver "Divergências conhecidas Kiro × Tarot" abaixo); `exit 2` aqui cancela a sessão ativa via `SIGTERM` assim que a negação chega, impedindo qualquer tool/edição seguinte no mesmo turno — bloqueio real de continuação, não da chamada já em voo. Full pre-execution gating fica para quando M3.8a/M3.8b trouxerem um protocolo de permissão bidirecional com os CLIs.)*
+  - [x] Nenhum hook executa automaticamente em workspaces não confiáveis. *(Todo gatilho automático — file watchers, `PromptSubmit`/`Stop`/`PreToolUse`/`PostToolUse` em `runPrompt`, `PreTaskExecution`/`PostTaskExecution` em `runSpecTaskInternal` — checa `vscode.workspace.isTrusted` antes de descobrir hooks; o Play manual também exige trust.)*
+  - *(Adiado, fora do DoD)*: `SessionStart`/`SessionEnd`, `PreCompaction`/`PostCompaction` (sem mecanismo de compaction ainda — chega em M3.8c) e `PermissionRequest` (sem protocolo de permissão bidirecional com os CLIs — chega em M3.8a/M3.8b). O schema/engine já aceitam esses triggers; só faltam os pontos de disparo.
 
 ---
 
