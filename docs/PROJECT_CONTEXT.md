@@ -245,7 +245,7 @@ extensions/tarot-core/
     │   ├── taskGraph.ts                # Grafo de dependências puro: agrupa tasks pendentes em ondas (Kahn) respeitando `_Depends:_`
     │   ├── taskRunner.ts               # Orquestra "Run all Tasks" onda a onda, pulando dependentes de tarefas que falharam
     │   ├── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... / ↺ View changes / ▶ Run all Tasks / ↻ Sync Files
-    │   ├── specSync.ts                 # Merge puro do Sync Files: preserva tarefas concluídas que a regeneração não reescreveu
+    │   ├── specSync.ts                 # Merge puro do Sync Files: preserva tarefas concluídas que a regeneração não reescreveu; casa por numberLabel + titleSimilarity antes de cair pro título exato, pra sobreviver a reformulação normal de LLM sem herdar conclusão de um número reaproveitado por escopo novo
     │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json`: mapeia tarefa → checkpoint pré-execução
     ├── test/
     │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, hookMigration, promptBuilder, specService, permissionTypes, yamlLite, shellParser, policyEngine, presets, commandLineLimits) via `node --test`
