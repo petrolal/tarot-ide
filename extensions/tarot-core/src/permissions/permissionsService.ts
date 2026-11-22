@@ -72,17 +72,80 @@ export class TarotPermissionsService implements vscode.Disposable {
 
 	private scopesCache: readonly PermissionScope[] | undefined;
 	private sessionRules: PermissionRule[] = [];
+	private workspaceWatcher: vscode.FileSystemWatcher | undefined;
+	private watchedWorkspacePath: string | undefined;
+	/** Last reported errors per `permissions.yaml` path, so a toast only reappears when the errors actually change (e.g. the user fixed one typo but another rule is still malformed), not on every reload of an already-known-bad file. */
+	private readonly lastReportedErrors = new Map<string, string>();
 
-	constructor(private readonly trustService: TarotTrustService) {
+	constructor(
+		private readonly trustService: TarotTrustService,
+		private readonly outputChannel: vscode.OutputChannel,
+	) {
+		const userPath = this.trustService.getUserPermissionsPath();
+		const userWatcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(vscode.Uri.file(path.dirname(userPath)), path.basename(userPath)),
+		);
 		this.disposables.push(
 			trustService.onDidChangeTrust(() => this.invalidate()),
 			this.changeEmitter,
+			userWatcher,
+			userWatcher.onDidCreate(() => this.invalidate()),
+			userWatcher.onDidChange(() => this.invalidate()),
+			userWatcher.onDidDelete(() => this.invalidate()),
 		);
 	}
 
 	invalidate(): void {
 		this.scopesCache = undefined;
 		this.changeEmitter.fire();
+	}
+
+	private watchWorkspacePermissionsFile(workspacePath: string): void {
+		if (this.watchedWorkspacePath === workspacePath) {
+			return;
+		}
+		this.workspaceWatcher?.dispose();
+		this.watchedWorkspacePath = workspacePath;
+		this.workspaceWatcher = vscode.workspace.createFileSystemWatcher(
+			new vscode.RelativePattern(vscode.Uri.file(path.dirname(workspacePath)), path.basename(workspacePath)),
+		);
+		this.disposables.push(
+			this.workspaceWatcher,
+			this.workspaceWatcher.onDidCreate(() => this.invalidate()),
+			this.workspaceWatcher.onDidChange(() => this.invalidate()),
+			this.workspaceWatcher.onDidDelete(() => this.invalidate()),
+		);
+	}
+
+	/**
+	 * Parse errors from `permissionTypes.parsePermissionsDocument`/`yamlLite` were computed but
+	 * never surfaced anywhere — a typo silently dropped rules (or the whole file), with no sign
+	 * the configured policy was not actually in effect (gap found in code review, 2026-11-22).
+	 * Logs every error and shows one toast per file whose error set actually changed since the
+	 * last report, naming the file so the user can jump straight to fixing it.
+	 */
+	private reportLoadErrors(filePath: string, errors: readonly string[]): void {
+		const key = errors.join('\n');
+		if (errors.length === 0) {
+			this.lastReportedErrors.delete(filePath);
+			return;
+		}
+		if (this.lastReportedErrors.get(filePath) === key) {
+			return;
+		}
+		this.lastReportedErrors.set(filePath, key);
+		for (const error of errors) {
+			this.outputChannel.appendLine(`[Permissions] ${error}`);
+		}
+		const openLabel = vscode.l10n.t('Open File');
+		void vscode.window.showWarningMessage(
+			vscode.l10n.t('{0} rule(s) in {1} could not be loaded — see the Tarot IDE output channel for details. The rest of your permissions policy still applies.', errors.length, path.basename(filePath)),
+			openLabel,
+		).then(choice => {
+			if (choice === openLabel) {
+				void vscode.workspace.openTextDocument(filePath).then(doc => vscode.window.showTextDocument(doc));
+			}
+		});
 	}
 
 	async loadScopes(): Promise<readonly PermissionScope[]> {
@@ -93,12 +156,15 @@ export class TarotPermissionsService implements vscode.Disposable {
 
 		const userPath = this.trustService.getUserPermissionsPath();
 		const userFile = await loadPermissionsFile(userPath);
+		this.reportLoadErrors(userPath, userFile.errors);
 		scopes.push({ id: 'user', rules: userFile.rules, sourceFile: userPath });
 
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (workspaceRoot && this.trustService.isWorkspaceTrusted()) {
 			const workspacePath = this.trustService.getWorkspacePermissionsPath(workspaceRoot);
+			this.watchWorkspacePermissionsFile(workspacePath);
 			const workspaceFile = await loadPermissionsFile(workspacePath);
+			this.reportLoadErrors(workspacePath, workspaceFile.errors);
 			scopes.push({ id: 'workspace', rules: workspaceFile.rules, sourceFile: workspacePath });
 		}
 

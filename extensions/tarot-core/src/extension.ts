@@ -74,7 +74,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const gitReviewService = new TarotGitReviewService();
 	const hookEngine = new TarotHookEngine();
 	const trustService = new TarotTrustService();
-	const permissionsService = new TarotPermissionsService(trustService);
+	const permissionsService = new TarotPermissionsService(trustService, outputChannel!);
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 	const pendingReviewComments: MarkdownReviewComment[] = [];
 
