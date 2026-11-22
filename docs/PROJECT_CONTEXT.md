@@ -172,7 +172,8 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png`, ícones 64..1024px). |
 | `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml`, `build/npm/dirs.ts` | Modificados (1 linha cada) | Registro nativo da extensão built-in `extensions/tarot-core`. |
 | `src/vs/workbench/contrib/tarotSpecStepper/browser/*` & `src/vs/workbench/workbench.common.main.ts` | Novo (2 arquivos + 1 linha import) | Stepper visual nativo (ViewZone + OverlayWidget acima da linha 1 em `.tarot/specs/*/*.md`) com pills `[1 Requirements] › [2 Design] › [3 Task list]` + botões `Analyze` e `Review` (impossível via Extension API/CodeLens). |
-| `extensions/tarot-core/**` | Novo | Extensão built-in central do Tarot IDE (tema, ícones, walkthrough e futura engine agêntica Kiro/BYOA). |
+| `extensions/tarot-core/**` | Novo | Extensão built-in central do Tarot IDE (tema, ícones, walkthrough e engine agêntica Kiro/BYOA). |
+| `src/vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart.ts` | Modificado (1 getter) | `override get snap(): boolean { return true; }`, espelhando `sidebarPart.ts`: a Secondary Side Bar (painel `Tarot Agent`) agora fecha ao ser arrastada abaixo do limite, como a Side Bar esquerda — a classe base (`paneCompositePart.ts`) só permite isso condicionalmente, o que deixava o painel direito "encavalado" em vez de colapsar. Puro comportamento de grid/sash, impossível via Extension API. |
 | `LICENSE`, `LICENSE.txt`, `LICENSE-VSCODE-MIT.txt`, `NOTICE.md` | Novo / Modificado | Licença GNU GPL v3.0 do Tarot IDE (`Copyright (c) 2026 Lucas Petrola`), atribuição obrigatória em forks (GPLv3 §7(b)), nota de dual-licensing comercial e preservação integral da MIT da Microsoft. |
 | `docs/**` | Novo | Documentação de contexto (`PROJECT_CONTEXT.md`) e plano de migração (`MIGRATION_PLAN.md`). |
 

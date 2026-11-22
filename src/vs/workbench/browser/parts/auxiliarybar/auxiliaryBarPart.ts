@@ -56,6 +56,12 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
+	// Tarot: always allow drag-to-close, matching the left Side Bar (SidebarPart) instead of the
+	// base class's conditional snap (which only allows it while the pane composite bar has
+	// visible entries) — without this, dragging the Agent panel closed can leave it in a
+	// half-collapsed, overlapping state instead of hiding cleanly like the left side does.
+	override get snap(): boolean { return true; }
+
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
 		// The difference is minimal and keeps this function clean
