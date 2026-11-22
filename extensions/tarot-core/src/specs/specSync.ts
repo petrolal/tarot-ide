@@ -3,7 +3,7 @@
  *  Licensed under the GNU General Public License v3.0 (GPL-3.0). See LICENSE and NOTICE.md.
  *--------------------------------------------------------------------------------------------*/
 
-import { parseTasksMarkdown } from './taskParser';
+import { parseTasksMarkdown, SpecTask } from './taskParser';
 
 export interface MergedTasksResult {
 	readonly content: string;
@@ -14,42 +14,80 @@ function normalizeTitle(title: string): string {
 	return title.replace(/^[\d.]+\.?\s*\*?\s*/, '').trim().toLowerCase();
 }
 
+/**
+ * Word-overlap ratio (Jaccard) between two task titles, used only to confirm that a same-numbered
+ * task across a regeneration is the same task reworded, not a different task that happens to
+ * reuse the slot. `0` and `1` are the extremes (nothing in common / identical word sets).
+ */
+function titleSimilarity(a: string, b: string): number {
+	const wordsA = new Set(normalizeTitle(a).split(/\s+/).filter(Boolean));
+	const wordsB = new Set(normalizeTitle(b).split(/\s+/).filter(Boolean));
+	if (wordsA.size === 0 || wordsB.size === 0) {
+		return 0;
+	}
+	let intersection = 0;
+	for (const word of wordsA) {
+		if (wordsB.has(word)) {
+			intersection++;
+		}
+	}
+	const union = new Set([...wordsA, ...wordsB]).size;
+	return intersection / union;
+}
+
+/** Below this, a same-numbered task is treated as a genuinely different task, not a reword. */
+const TITLE_SIMILARITY_THRESHOLD = 0.35;
+
 const TASK_LINE_REGEX = /^(\s*-\s+\[)([ xX])(\]\s+)(.+)$/;
 
 /**
- * Reconciles a Sync Files regeneration of `tasks.md` against the previous content: tasks the
- * agent re-wrote that match a previously-completed task (by normalized title) are re-checked,
- * and previously-completed tasks that vanished from the regeneration are appended at the end
- * instead of being silently dropped — Specs must stay in sync with code without losing history.
+ * Reconciles a Sync Files regeneration of `tasks.md` against the previous content: a previously
+ * completed task is re-checked in the regeneration either by exact normalized-title match (tasks
+ * with no numbering) or — preferred when available — by `numberLabel` plus a title-similarity
+ * check (`titleSimilarity`). Matching by number alone would be wrong: the agent reusing a slot for
+ * an unrelated new task must NOT inherit the old task's completed status, so a same-numbered task
+ * whose title shares (almost) no words with the original is treated as a different task, not a
+ * reword — the original matching-by-exact-title-only behavior lost completion whenever the agent
+ * rephrased a completed task's title at all (normal LLM behavior), which is what this fixes.
+ * Previously-completed tasks that match nothing are appended at the end instead of being silently
+ * dropped — Specs must stay in sync with code without losing history.
  */
 export function mergeTasksMarkdown(previousContent: string, regeneratedContent: string): MergedTasksResult {
 	const previous = parseTasksMarkdown(previousContent);
+	const regenerated = parseTasksMarkdown(regeneratedContent);
 
-	const previousCompletedByTitle = new Map<string, boolean>();
+	const previousCompletedByNumber = new Map<string, SpecTask>();
+	const previousCompletedByTitle = new Map<string, SpecTask>();
 	for (const task of previous.tasks) {
-		if (task.completed) {
-			previousCompletedByTitle.set(normalizeTitle(task.title), true);
-		}
-	}
-
-	const matchedPreviousTitles = new Set<string>();
-	const lines = regeneratedContent.split(/\r?\n/);
-	for (let i = 0; i < lines.length; i++) {
-		const match = lines[i].match(TASK_LINE_REGEX);
-		if (!match) {
+		if (!task.completed) {
 			continue;
 		}
-		const title = match[4].trim();
-		const key = normalizeTitle(title);
-		if (previousCompletedByTitle.has(key)) {
-			matchedPreviousTitles.add(key);
-			if (match[2] === ' ') {
-				lines[i] = `${match[1]}x${match[3]}${match[4]}`;
+		if (task.numberLabel) {
+			previousCompletedByNumber.set(task.numberLabel, task);
+		}
+		previousCompletedByTitle.set(normalizeTitle(task.title), task);
+	}
+
+	const matchedPrevious = new Set<SpecTask>();
+	const lines = regeneratedContent.split(/\r?\n/);
+	for (const task of regenerated.tasks) {
+		const byNumber = task.numberLabel ? previousCompletedByNumber.get(task.numberLabel) : undefined;
+		const matched = (byNumber && titleSimilarity(byNumber.title, task.title) >= TITLE_SIMILARITY_THRESHOLD)
+			? byNumber
+			: previousCompletedByTitle.get(normalizeTitle(task.title));
+		if (!matched) {
+			continue;
+		}
+		matchedPrevious.add(matched);
+		if (!task.completed) {
+			const match = lines[task.lineIndex]?.match(TASK_LINE_REGEX);
+			if (match) {
+				lines[task.lineIndex] = `${match[1]}x${match[3]}${match[4]}`;
 			}
 		}
 	}
 
-	const preserved = previous.tasks.filter(t => t.completed && !matchedPreviousTitles.has(normalizeTitle(t.title)));
+	const preserved = previous.tasks.filter(t => t.completed && !matchedPrevious.has(t));
 	let content = lines.join('\n');
 	if (preserved.length > 0) {
 		const header = '\n## Preserved Completed Tasks (not regenerated by Sync Files)\n\n';
