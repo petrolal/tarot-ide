@@ -219,7 +219,7 @@ extensions/tarot-core/
     │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>); agente ativo persiste em globalState (ACTIVE_AGENT_STATE_KEY)
     │   └── adapters/                   # claudeAdapter (--permission-mode traduzido do autonomy/mode — plan/acceptEdits/auto; verificado ao vivo), agyAdapter (--print=<prompt> + agy models + --mode accept-edits; Supervised sem flag, não confirmado — ver Débitos Técnicos), codexAdapter (--sandbox/--approve-for-me/--skip-git-repo-check; só documentação, sem CLI local pra cross-check), customAdapter (--model/--effort)
     ├── context/
-    │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec)
+    │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec); #Git Diff distingue "clean" de falha real do `git` (checa exitCode)
     ├── checkpoints/
     │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique, diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles, git checkout como fallback antes de deletar); sem git, baseline de mtime/tamanho (scanWorkspaceFingerprint/diffAgainstBaseline) detecta mudanças que collectDirtyFiles não enxerga sozinho; exclusão de `.tarot/**` restrita a checkpoints/sessions (isTarotBookkeepingPath), nunca a pasta inteira
     ├── steering/
