@@ -70,4 +70,31 @@ describe('yamlLite', () => {
 	it('rejects tab indentation', () => {
 		assert.throws(() => parseYamlLite('version: 1\n\trules: []'), YamlLiteError);
 	});
+
+	it('parses literal (|, |-) and folded (>, >-) multi-line block scalars', () => {
+		const doc = parseYamlLite([
+			'version: 1',
+			'rules:',
+			'  - capability: fs_write',
+			'    effect: ask',
+			'    reason: |-',
+			'      Line one',
+			'      Line two # not a comment',
+			'  - capability: shell',
+			'    effect: deny',
+			'    reason: >-',
+			'      Folded line one',
+			'      folded line two',
+		].join('\n')) as { rules: Array<Record<string, unknown>> };
+		assert.equal(doc.rules[0].reason, 'Line one\nLine two # not a comment');
+		assert.equal(doc.rules[1].reason, 'Folded line one folded line two');
+	});
+
+	it('rejects unsupported YAML features (anchors, aliases, merge keys, flow mappings, multi-doc) clearly', () => {
+		assert.throws(() => parseYamlLite('base: &defaults\n  effect: deny'), /anchors/i);
+		assert.throws(() => parseYamlLite('rules:\n  - *defaults'), /aliases/i);
+		assert.throws(() => parseYamlLite('rules:\n  - <<: *defaults\n    effect: deny'), /merge keys/i);
+		assert.throws(() => parseYamlLite('rule: { capability: shell, effect: deny }'), /flow mappings/i);
+		assert.throws(() => parseYamlLite('---\nversion: 1'), /multi-document/i);
+	});
 });

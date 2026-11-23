@@ -104,7 +104,14 @@ export class AgyAdapter implements AgentAdapter {
 		}
 		if (request.mode === 'plan' || request.mode === 'spec') {
 			args.push('--mode', 'plan');
-		} else if (request.autonomy === 'acceptFileChanges' || request.autonomy === 'approveForMe') {
+		} else if (request.autonomy === 'approveForMe') {
+			args.push('--mode', 'auto');
+		} else {
+			// Both `acceptFileChanges` and `supervised` use `accept-edits` in non-interactive
+			// `--print` mode (same pattern as `claudeAdapter.ts`): `agy --help` only exposes
+			// `(accept-edits, auto, plan)`, and Supervised review happens via Tarot's post-turn
+			// `fs_write` approval card (Keep / Revert) until bidirectional permission prompts
+			// arrive in M3.8b/M3.9a.
 			args.push('--mode', 'accept-edits');
 		}
 		args.push(`--print=${prompt}`);

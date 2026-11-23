@@ -335,11 +335,12 @@ export class TarotSteeringService {
 				}
 
 				case 'manual': {
-					const refPattern = new RegExp(`#${doc.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\b|$)`, 'i');
+					const escapedId = doc.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const refPattern = new RegExp(`(?:^|\\s)[#/]${escapedId}(?:\\b|$)`, 'i');
 					if (refPattern.test(params.prompt)) {
 						applied.push({
 							doc,
-							reason: `manual (#${doc.id})`,
+							reason: `manual (/${doc.id})`,
 							label: `${doc.fileName} (manual)`,
 						});
 					}

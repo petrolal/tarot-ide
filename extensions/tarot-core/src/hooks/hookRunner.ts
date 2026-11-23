@@ -88,6 +88,9 @@ export function runHookCommand(command: string, context: HookRunContext, timeout
 			}
 		});
 
+		// A fast command (e.g. `echo ok` or `exit 1`) can exit before reading STDIN, causing an
+		// async EPIPE error event on `child.stdin` that `try/catch` around `.write()` cannot catch.
+		child.stdin.on('error', () => { /* ignore EPIPE if process exited early */ });
 		try {
 			const { extra, ...rest } = context;
 			child.stdin.write(JSON.stringify({ ...rest, ...extra }), 'utf8');

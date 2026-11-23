@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { computeTaskCheckpointKey } from './specTaskCheckpoints';
 import { parseTasksMarkdown } from './taskParser';
 
 export class SpecTaskCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
@@ -38,7 +39,7 @@ export class SpecTaskCodeLensProvider implements vscode.CodeLensProvider, vscode
 
 		for (const task of summary.tasks) {
 			const range = new vscode.Range(task.lineIndex, 0, task.lineIndex, 0);
-			const taskKey = task.numberLabel ?? String(task.index);
+			const taskKey = computeTaskCheckpointKey(task);
 			if (task.completed) {
 				lenses.push(
 					new vscode.CodeLens(range, {
@@ -49,7 +50,7 @@ export class SpecTaskCodeLensProvider implements vscode.CodeLensProvider, vscode
 					new vscode.CodeLens(range, {
 						title: vscode.l10n.t('↺ View changes'),
 						command: 'tarot.specs.viewTaskChanges',
-						arguments: [document.uri, task.lineIndex, taskKey],
+						arguments: [document.uri, task.lineIndex, taskKey, String(task.index)],
 						tooltip: vscode.l10n.t('Show the isolated diff produced by task #{0}', task.index),
 					}),
 				);

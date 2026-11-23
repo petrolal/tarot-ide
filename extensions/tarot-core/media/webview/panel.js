@@ -199,7 +199,8 @@
 
 		// Compact trigger label: e.g. "agy · Auto" or "agy · Gemini 4 Neon"
 		const matchedModel = models.find(m => m.id === selectedModel);
-		const modelDisplay = selectedModel === 'auto' ? 'Auto' : (matchedModel ? matchedModel.label : selectedModel);
+		const effectiveModel = (models.length > 0 && selectedModel !== 'auto' && !matchedModel) ? 'auto' : selectedModel;
+		const modelDisplay = effectiveModel === 'auto' ? 'Auto' : (matchedModel ? matchedModel.label : effectiveModel);
 		const effortSuffix = selectedEffort !== 'auto' ? ` · ${selectedEffort}` : '';
 		modelPickerLabel.textContent = `${activeAgent} · ${modelDisplay}${effortSuffix}`;
 
@@ -246,12 +247,12 @@
 		for (const m of allModels) {
 			const row = document.createElement('button');
 			row.type = 'button';
-			row.className = 'model-option-item' + (m.id === selectedModel ? ' active' : '');
+			row.className = 'model-option-item' + (m.id === effectiveModel ? ' active' : '');
 			const labelSpan = document.createElement('span');
 			labelSpan.className = 'model-option-label';
 			labelSpan.textContent = m.label;
 			row.appendChild(labelSpan);
-			if (m.id === selectedModel) {
+			if (m.id === effectiveModel) {
 				const check = document.createElement('span');
 				check.className = 'model-option-check';
 				check.textContent = '✓';
@@ -310,7 +311,7 @@
 	}
 
 	function appendInlineSegments(parent, text) {
-		const inlineRegex = /(`[^`\n]+`|\*\*[^*\n]+\*\*)/g;
+		const inlineRegex = /(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\((?:file:\/\/|https?:\/\/)[^)\s\n]+\))/g;
 		let last = 0;
 		let m;
 		while ((m = inlineRegex.exec(text)) !== null) {
@@ -323,10 +324,26 @@
 				code.className = 'inline-code';
 				code.textContent = token.slice(1, -1);
 				parent.appendChild(code);
-			} else {
+			} else if (token.startsWith('**')) {
 				const strong = document.createElement('strong');
 				strong.textContent = token.slice(2, -2);
 				parent.appendChild(strong);
+			} else {
+				const linkMatch = /^\[([^\]\n]+)\]\(((?:file:\/\/|https?:\/\/)[^)\s\n]+)\)$/.exec(token);
+				if (linkMatch) {
+					const linkBtn = document.createElement('button');
+					linkBtn.type = 'button';
+					linkBtn.className = 'transcript-link';
+					linkBtn.textContent = linkMatch[1];
+					linkBtn.title = linkMatch[2];
+					const targetUrl = linkMatch[2];
+					linkBtn.addEventListener('click', () => {
+						vscode.postMessage({ type: 'openLink', url: targetUrl });
+					});
+					parent.appendChild(linkBtn);
+				} else {
+					parent.appendChild(document.createTextNode(token));
+				}
 			}
 			last = inlineRegex.lastIndex;
 		}
@@ -872,6 +889,39 @@
 		}
 	}
 
+	function renderManualSteeringSlashItems() {
+		for (const old of slashMenuEl.querySelectorAll('[data-dynamic="steering"]')) {
+			old.remove();
+		}
+		const commands = Array.isArray(state.manualSteeringCommands) ? state.manualSteeringCommands : [];
+		for (const entry of commands) {
+			const btn = document.createElement('button');
+			btn.className = 'slash-menu-item';
+			btn.type = 'button';
+			btn.dataset.cmd = entry.command;
+			btn.dataset.dynamic = 'steering';
+
+			const tag = document.createElement('span');
+			tag.className = 'ctx-tag';
+			tag.textContent = entry.command;
+
+			const desc = document.createElement('span');
+			desc.className = 'ctx-desc';
+			desc.textContent = entry.description || entry.id;
+
+			btn.appendChild(tag);
+			btn.appendChild(desc);
+			btn.addEventListener('click', () => {
+				toggleSlashMenu(false);
+				promptInput.value = '';
+				autoResizeInput();
+				updateSendButtonState();
+				vscode.postMessage({ type: 'runSlashCommand', slashCommand: entry.command });
+			});
+			slashMenuEl.appendChild(btn);
+		}
+	}
+
 	function sendPrompt() {
 		if (state.isRunning) {
 			vscode.postMessage({ type: 'cancel' });
@@ -884,12 +934,16 @@
 		toggleContextMenu(false);
 		toggleSlashMenu(false);
 
-		const knownSlash = ['/spec', '/bugfix', '/plan', '/steering', '/review', '/focus', '/clear'];
-		if (knownSlash.includes(text.toLowerCase())) {
+		const knownSlash = ['/spec', '/quick-spec', '/generate-spec', '/bugfix', '/plan', '/steering', '/review', '/focus', '/clear'];
+		const firstToken = text.split(/\s+/, 1)[0].toLowerCase();
+		const manualCommands = Array.isArray(state.manualSteeringCommands)
+			? state.manualSteeringCommands.map(c => String(c.command || '').toLowerCase())
+			: [];
+		if (knownSlash.includes(text.toLowerCase()) || manualCommands.includes(firstToken)) {
 			promptInput.value = '';
 			autoResizeInput();
 			updateSendButtonState();
-			vscode.postMessage({ type: 'runSlashCommand', slashCommand: text.toLowerCase() });
+			vscode.postMessage({ type: 'runSlashCommand', slashCommand: text });
 			return;
 		}
 
@@ -1039,6 +1093,7 @@
 				focusModeBtn.classList.toggle('active-focus', !!state.isFocusMode);
 				renderSessionTabs();
 				renderModelAndModePickers();
+				renderManualSteeringSlashItems();
 				renderContextRing();
 				renderAttachments();
 				renderReviewBar();

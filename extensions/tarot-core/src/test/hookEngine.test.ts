@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { describe, it } from 'node:test';
-import { runHooksForTrigger, selectHooksForTrigger } from '../hooks/hookEngine';
+import { KeyedHookQueue, runHooksForTrigger, selectHooksForTrigger, TarotHookEngine } from '../hooks/hookEngine';
 import { HookCommandOutcome } from '../hooks/hookRunner';
 import { HookDefinition } from '../hooks/hookTypes';
 
@@ -90,5 +93,76 @@ describe('hookEngine.runHooksForTrigger', () => {
 		assert.equal(summary.blocked, false);
 		assert.equal(summary.warnings.length, 1);
 		assert.match(summary.warnings[0].message, /boom/);
+	});
+});
+
+describe('hookEngine.KeyedHookQueue', () => {
+	it('coalesces rapid consecutive saves for the same key into a single run', async () => {
+		const queue = new KeyedHookQueue(25);
+		let runs = 0;
+		const run = async () => { runs++; };
+		queue.enqueue('PostFileSave:/a.ts', run);
+		queue.enqueue('PostFileSave:/a.ts', run);
+		queue.enqueue('PostFileSave:/a.ts', run);
+		await new Promise(r => setTimeout(r, 80));
+		queue.dispose();
+		assert.equal(runs, 1);
+	});
+
+	it('never runs two executions for the same key concurrently and runs one trailing pass', async () => {
+		const queue = new KeyedHookQueue(15);
+		let active = 0;
+		let maxConcurrent = 0;
+		let completed = 0;
+		const task = async () => {
+			active++;
+			maxConcurrent = Math.max(maxConcurrent, active);
+			await new Promise(r => setTimeout(r, 40));
+			active--;
+			completed++;
+		};
+		queue.enqueue('PostFileSave:/a.ts', task);
+		await new Promise(r => setTimeout(r, 25)); // first run is now in flight
+		queue.enqueue('PostFileSave:/a.ts', task);
+		queue.enqueue('PostFileSave:/a.ts', task);
+		await new Promise(r => setTimeout(r, 150));
+		queue.dispose();
+		assert.equal(maxConcurrent, 1);
+		assert.equal(completed, 2);
+	});
+});
+
+describe('hookEngine.TarotHookEngine load error reporting', () => {
+	it('reports malformed hook files once per error set and clears once fixed', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-hooks-err-'));
+		const hooksDir = path.join(tmp, '.tarot', 'hooks');
+		await fs.mkdir(hooksDir, { recursive: true });
+		const badFile = path.join(hooksDir, 'broken.json');
+		await fs.writeFile(badFile, '{ not valid json', 'utf8');
+
+		const reported: Array<{ filePath: string; count: number }> = [];
+		const engine = new TarotHookEngine((filePath, errors) => {
+			if (filePath === badFile) {
+				reported.push({ filePath, count: errors.length });
+			}
+		});
+
+		try {
+			await engine.discoverFiles(tmp);
+			await engine.discoverFiles(tmp); // unchanged error set -> deduplicated
+			assert.equal(reported.length, 1);
+
+			// Fix the file -> clears tracked error state
+			await fs.writeFile(badFile, JSON.stringify({ version: 'v1', hooks: [] }), 'utf8');
+			await engine.discoverFiles(tmp);
+			assert.equal(reported.length, 1);
+
+			// Break again -> reported again
+			await fs.writeFile(badFile, '{ broken again', 'utf8');
+			await engine.discoverFiles(tmp);
+			assert.equal(reported.length, 2);
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
 	});
 });

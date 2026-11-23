@@ -12,7 +12,7 @@ import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { TarotWorktreeManager } from './git/worktreeManager';
-import { runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
+import { KeyedHookQueue, runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
 import { TarotPermissionsService } from './permissions/permissionsService';
 import { TarotTrustService } from './permissions/trustService';
 import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
@@ -74,7 +74,21 @@ export function activate(context: vscode.ExtensionContext): void {
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
 	const worktreeManager = new TarotWorktreeManager();
-	const hookEngine = new TarotHookEngine();
+	const hookEngine = new TarotHookEngine((filePath, errors) => {
+		for (const err of errors) {
+			outputChannel!.appendLine(`[Hooks] ${filePath}: ${err}`);
+		}
+		const openLabel = vscode.l10n.t('Open File');
+		void vscode.window.showWarningMessage(
+			vscode.l10n.t('{0} error(s) loading hooks from {1} — see the Tarot IDE output channel for details.', errors.length, path.basename(filePath)),
+			openLabel,
+		).then(choice => {
+			if (choice === openLabel) {
+				void vscode.workspace.openTextDocument(filePath).then(doc => vscode.window.showTextDocument(doc));
+			}
+		});
+	});
+	const fileHookQueue = new KeyedHookQueue(250);
 	const trustService = new TarotTrustService();
 	const permissionsService = new TarotPermissionsService(trustService, outputChannel!);
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
@@ -300,7 +314,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			specCodeLensProvider.refresh();
 		}),
 
-		vscode.commands.registerCommand('tarot.specs.viewTaskChanges', async (uri?: vscode.Uri, _lineIndex?: number, taskKey?: string) => {
+		vscode.commands.registerCommand('tarot.specs.viewTaskChanges', async (uri?: vscode.Uri, _lineIndex?: number, taskKey?: string, legacyTaskKey?: string) => {
 			if (!uri || !taskKey) {
 				return;
 			}
@@ -309,7 +323,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (!cwd) {
 				return;
 			}
-			const record = await readTaskCheckpoint(specDir, taskKey);
+			const record = await readTaskCheckpoint(specDir, taskKey, legacyTaskKey);
 			if (!record) {
 				vscode.window.showInformationMessage(vscode.l10n.t('No recorded checkpoint for this task yet (it may predate M3.6.7).'));
 				return;
@@ -736,9 +750,20 @@ export function activate(context: vscode.ExtensionContext): void {
 	};
 
 	context.subscriptions.push(
-		vscode.workspace.onDidSaveTextDocument(doc => { void runFileTriggerHooks('PostFileSave', doc.uri); }),
-		vscode.workspace.onDidCreateFiles(e => { for (const uri of e.files) { void runFileTriggerHooks('PostFileCreate', uri); } }),
-		vscode.workspace.onDidDeleteFiles(e => { for (const uri of e.files) { void runFileTriggerHooks('PostFileDelete', uri); } }),
+		{ dispose: () => fileHookQueue.dispose() },
+		vscode.workspace.onDidSaveTextDocument(doc => {
+			fileHookQueue.enqueue(`PostFileSave:${doc.uri.fsPath}`, () => runFileTriggerHooks('PostFileSave', doc.uri));
+		}),
+		vscode.workspace.onDidCreateFiles(e => {
+			for (const uri of e.files) {
+				fileHookQueue.enqueue(`PostFileCreate:${uri.fsPath}`, () => runFileTriggerHooks('PostFileCreate', uri));
+			}
+		}),
+		vscode.workspace.onDidDeleteFiles(e => {
+			for (const uri of e.files) {
+				fileHookQueue.enqueue(`PostFileDelete:${uri.fsPath}`, () => runFileTriggerHooks('PostFileDelete', uri));
+			}
+		}),
 	);
 
 	// Initial background detection of local AI CLIs (claude, agy, codex, custom)

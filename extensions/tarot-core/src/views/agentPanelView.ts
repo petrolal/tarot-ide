@@ -34,7 +34,7 @@ import { TarotPermissionsService } from '../permissions/permissionsService';
 import { describeAdvisoryTranslation, getEnforcementKind } from '../permissions/policyEngine';
 import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
 import { mergeTasksMarkdown } from '../specs/specSync';
-import { recordTaskCheckpoint } from '../specs/specTaskCheckpoints';
+import { computeTaskCheckpointKey, recordTaskCheckpoint } from '../specs/specTaskCheckpoints';
 import { markTaskCompletedInFile, SpecTask } from '../specs/taskParser';
 import { runTaskWaves } from '../specs/taskRunner';
 import { TarotSteeringService } from '../steering/steeringService';
@@ -66,9 +66,11 @@ interface WebviewIncomingMessage {
 		| 'refreshChangedFiles'
 		| 'runSlashCommand'
 		| 'saveSteeringRule'
+		| 'openLink'
 		| 'refreshAgents';
 	readonly prompt?: string;
 	readonly ruleText?: string;
+	readonly url?: string;
 	readonly agentId?: AgentId;
 	readonly model?: string;
 	readonly effort?: ReasoningEffort;
@@ -101,6 +103,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private selectedModel = 'auto';
 	private selectedEffort: ReasoningEffort = 'auto';
 	private availableModels: readonly AgentModelOption[] = [];
+	private manualSteeringCommands: Array<{ command: string; id: string; description: string }> = [];
 	private attachments: AttachedContext[] = [];
 	private changedFiles: ChangedFileInfo[] = [];
 	private activeCancellation: vscode.CancellationTokenSource | undefined;
@@ -137,7 +140,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.disposables.push(
 			this.runtimeManager.onDidChangeAgents(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			this.runtimeManager.onDidChangeActiveAgent(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
-			vscode.workspace.onDidSaveTextDocument(() => { void this.refreshChangedFiles(); }),
+			vscode.workspace.onDidGrantWorkspaceTrust(() => { void this.refreshManualSteeringCommands().then(() => this.postState()); }),
+			vscode.workspace.onDidSaveTextDocument(doc => {
+				void this.refreshChangedFiles();
+				if (doc.uri.fsPath.replace(/\\/g, '/').includes('/.tarot/steering/')) {
+					void this.refreshManualSteeringCommands().then(() => this.postState());
+				}
+			}),
 		);
 	}
 
@@ -480,7 +489,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	private async runSpecTaskInternal(specDir: string, task: SpecTask): Promise<boolean> {
 		const spec = await this.specService.loadSpecContext(specDir);
-		const taskKey = task.numberLabel ?? String(task.index);
+		const taskKey = computeTaskCheckpointKey(task);
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
 		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(cwd) : [];
 
@@ -563,6 +572,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			case 'ready':
 				await this.refreshChangedFiles();
 				await this.refreshAvailableModels();
+				await this.refreshManualSteeringCommands();
 				this.postState();
 				break;
 			case 'refreshAgents':
@@ -708,6 +718,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					await this.saveLearnedSteeringRule(msg.ruleText.trim());
 				}
 				break;
+			case 'openLink':
+				if (typeof msg.url === 'string' && msg.url.trim()) {
+					await this.openTranscriptLink(msg.url.trim());
+				}
+				break;
 			case 'cancel':
 				this.cancelActiveRun();
 				break;
@@ -772,7 +787,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		return [...files];
 	}
 
-	private async handleSlashCommand(cmd: string): Promise<void> {
+	private async handleSlashCommand(rawCmd: string): Promise<void> {
+		const trimmed = rawCmd.trim();
+		const spaceIdx = trimmed.search(/\s/);
+		const cmd = (spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx)).toLowerCase();
+		const args = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1).trim();
 		const activeAgent = this.runtimeManager.getActiveAgentId();
 		switch (cmd) {
 			case '/spec':
@@ -813,6 +832,54 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				await this.runPrompt('Revise as alterações atuais (#Git Diff) e quaisquer erros em #Problems. Aponte bugs, riscos de segurança e melhorias objetivas.');
 				break;
 			}
+			default: {
+				if (!cmd.startsWith('/') || !vscode.workspace.isTrusted) {
+					return;
+				}
+				const targetId = cmd.slice(1);
+				const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				const docs = await this.steeringService.discover(root);
+				const matched = docs.find(d => d.inclusion === 'manual' && d.id.toLowerCase() === targetId);
+				if (!matched) {
+					return;
+				}
+				this.addAttachment({
+					kind: 'steering',
+					label: matched.fileName,
+					path: matched.filePath,
+					content: matched.body,
+				});
+				const promptToRun = args || `Siga as instruções de steering em ${matched.fileName}.`;
+				await this.runPrompt(promptToRun, {
+					displayPrompt: args ? `/${matched.id} ${args}` : `/${matched.id}`,
+				});
+				break;
+			}
+		}
+	}
+
+	private async openTranscriptLink(rawUrl: string): Promise<void> {
+		if (/^https?:\/\//i.test(rawUrl)) {
+			await vscode.env.openExternal(vscode.Uri.parse(rawUrl));
+			return;
+		}
+		if (!/^file:\/\//i.test(rawUrl)) {
+			return;
+		}
+		try {
+			const parsed = vscode.Uri.parse(rawUrl);
+			let selection: vscode.Range | undefined;
+			const lineMatch = /^L(\d+)(?:-L?(\d+))?$/i.exec(parsed.fragment);
+			if (lineMatch) {
+				const startLine = Math.max(0, Number(lineMatch[1]) - 1);
+				const endLine = lineMatch[2] ? Math.max(startLine, Number(lineMatch[2]) - 1) : startLine;
+				selection = new vscode.Range(startLine, 0, endLine, 0);
+			}
+			const doc = await vscode.workspace.openTextDocument(parsed.with({ fragment: '' }));
+			await vscode.window.showTextDocument(doc, { preview: false, selection });
+		} catch (err) {
+			const detail = err instanceof Error ? err.message : String(err);
+			vscode.window.showWarningMessage(vscode.l10n.t('Could not open link {0}: {1}', rawUrl, detail));
 		}
 	}
 
@@ -1214,6 +1281,45 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	private async refreshAvailableModels(): Promise<void> {
 		this.availableModels = await this.runtimeManager.listModelsForAgent();
+		if (
+			this.selectedModel !== 'auto'
+			&& this.availableModels.length > 0
+			&& !this.availableModels.some(m => m.id === this.selectedModel)
+		) {
+			const staleModel = this.selectedModel;
+			this.selectedModel = 'auto';
+			await this.context.globalState.update(SELECTED_MODEL_STATE_KEY, 'auto');
+			this.outputChannel.appendLine(
+				`[AgentPanel] Saved model "${staleModel}" is no longer offered by ${this.runtimeManager.getActiveAgentId()}; falling back to Auto.`,
+			);
+		}
+	}
+
+	private async refreshManualSteeringCommands(): Promise<void> {
+		if (!vscode.workspace.isTrusted) {
+			this.manualSteeringCommands = [];
+			return;
+		}
+		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		const docs = await this.steeringService.discover(root);
+		const seen = new Set<string>();
+		const list: Array<{ command: string; id: string; description: string }> = [];
+		for (const doc of docs) {
+			if (doc.inclusion !== 'manual') {
+				continue;
+			}
+			const key = doc.id.toLowerCase();
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			list.push({
+				command: `/${doc.id}`,
+				id: doc.id,
+				description: doc.description || doc.fileName,
+			});
+		}
+		this.manualSteeringCommands = list;
 	}
 
 	/**
@@ -1318,6 +1424,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			activeSessionId: activeSession.id,
 			sessions,
 			attachments: this.attachments.map(a => ({ kind: a.kind, label: a.label })),
+			manualSteeringCommands: this.manualSteeringCommands,
 			changedFiles: this.changedFiles,
 			messages: activeSession.messages,
 			contextPercent: this.estimateContextPercent(activeSession.messages, this.attachments),

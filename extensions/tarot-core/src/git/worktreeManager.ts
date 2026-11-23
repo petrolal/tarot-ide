@@ -53,9 +53,21 @@ export class TarotWorktreeManager {
 		}
 
 		const manifest: WorktreeManifest = { id, branch, baseRef };
-		await fs.writeFile(manifestPath(worktreePath), JSON.stringify(manifest, null, 2), 'utf8').catch(() => undefined);
+		const worktree: TarotWorktree = { id, path: worktreePath, branch, baseRef };
+		try {
+			await this.writeManifest(worktreePath, manifest);
+		} catch {
+			// Never leave an orphan worktree/branch behind if the manifest could not be written:
+			// `listWorktrees` relies on the manifest, so an unmanifested directory would be invisible.
+			await this.discardWorktree(workspaceRoot, worktree);
+			return undefined;
+		}
 
-		return { id, path: worktreePath, branch, baseRef };
+		return worktree;
+	}
+
+	protected async writeManifest(worktreePath: string, manifest: WorktreeManifest): Promise<void> {
+		await fs.writeFile(manifestPath(worktreePath), JSON.stringify(manifest, null, 2), 'utf8');
 	}
 
 	async listWorktrees(workspaceRoot: string): Promise<TarotWorktree[]> {
@@ -146,10 +158,13 @@ export class TarotWorktreeManager {
 
 	async discardWorktree(workspaceRoot: string, worktree: TarotWorktree): Promise<void> {
 		const gitPath = await resolveBinaryPath('git');
-		if (!gitPath) {
-			return;
+		if (gitPath) {
+			await execSimple(gitPath, ['-C', workspaceRoot, 'worktree', 'remove', '--force', worktree.path], 15_000).catch(() => undefined);
 		}
-		await execSimple(gitPath, ['-C', workspaceRoot, 'worktree', 'remove', '--force', worktree.path], 15_000).catch(() => undefined);
-		await execSimple(gitPath, ['-C', workspaceRoot, 'branch', '-D', worktree.branch]).catch(() => undefined);
+		await fs.rm(worktree.path, { recursive: true, force: true }).catch(() => undefined);
+		if (gitPath) {
+			await execSimple(gitPath, ['-C', workspaceRoot, 'worktree', 'prune']).catch(() => undefined);
+			await execSimple(gitPath, ['-C', workspaceRoot, 'branch', '-D', worktree.branch]).catch(() => undefined);
+		}
 	}
 }

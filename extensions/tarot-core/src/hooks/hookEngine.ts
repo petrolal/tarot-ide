@@ -130,7 +130,74 @@ export async function runHooksForTrigger(
 	return { blocked: false, contextAppend, agentActions, warnings };
 }
 
+/**
+ * Debounces and serializes asynchronous hook executions per key (e.g. `PostFileSave:<path>`),
+ * so rapid consecutive file saves coalesce into a single run and never launch two instances of
+ * the same hook queue concurrently. Pure — unit-testable without `vscode`.
+ */
+export class KeyedHookQueue {
+	private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly inFlight = new Set<string>();
+	private readonly pendingAfterRun = new Map<string, () => Promise<void>>();
+	private disposed = false;
+
+	constructor(private readonly debounceMs = 250) { }
+
+	enqueue(key: string, task: () => Promise<void>): void {
+		if (this.disposed) {
+			return;
+		}
+		const existingTimer = this.timers.get(key);
+		if (existingTimer) {
+			clearTimeout(existingTimer);
+		}
+		const timer = setTimeout(() => {
+			this.timers.delete(key);
+			void this.dispatch(key, task);
+		}, this.debounceMs);
+		this.timers.set(key, timer);
+	}
+
+	private async dispatch(key: string, task: () => Promise<void>): Promise<void> {
+		if (this.disposed) {
+			return;
+		}
+		if (this.inFlight.has(key)) {
+			// Coalesce any number of saves while running into at most one trailing run.
+			this.pendingAfterRun.set(key, task);
+			return;
+		}
+		this.inFlight.add(key);
+		try {
+			await task();
+		} finally {
+			this.inFlight.delete(key);
+			const next = this.pendingAfterRun.get(key);
+			if (next && !this.disposed) {
+				this.pendingAfterRun.delete(key);
+				void this.dispatch(key, next);
+			}
+		}
+	}
+
+	dispose(): void {
+		this.disposed = true;
+		for (const timer of this.timers.values()) {
+			clearTimeout(timer);
+		}
+		this.timers.clear();
+		this.pendingAfterRun.clear();
+	}
+}
+
 export class TarotHookEngine {
+	/** Last reported error signature per hook file, so broken JSON is surfaced once per change. */
+	private readonly lastReportedErrors = new Map<string, string>();
+
+	constructor(
+		private readonly onLoadErrors?: (filePath: string, errors: readonly string[]) => void,
+	) { }
+
 	getGlobalHooksDir(): string {
 		return path.join(os.homedir(), '.tarot', 'hooks');
 	}
@@ -145,7 +212,33 @@ export class TarotHookEngine {
 		if (workspaceRoot) {
 			files.push(...await this.readHooksDirectory(this.getWorkspaceHooksDir(workspaceRoot), 'workspace'));
 		}
+		this.reportFileErrors(files);
 		return files;
+	}
+
+	private reportFileErrors(files: readonly DiscoveredHookFile[]): void {
+		if (!this.onLoadErrors) {
+			return;
+		}
+		const seenPaths = new Set<string>();
+		for (const file of files) {
+			seenPaths.add(file.sourceFile);
+			if (file.errors.length === 0) {
+				this.lastReportedErrors.delete(file.sourceFile);
+				continue;
+			}
+			const key = file.errors.join('\n');
+			if (this.lastReportedErrors.get(file.sourceFile) === key) {
+				continue;
+			}
+			this.lastReportedErrors.set(file.sourceFile, key);
+			this.onLoadErrors(file.sourceFile, file.errors);
+		}
+		for (const tracked of [...this.lastReportedErrors.keys()]) {
+			if (!seenPaths.has(tracked)) {
+				this.lastReportedErrors.delete(tracked);
+			}
+		}
 	}
 
 	async discover(workspaceRoot?: string): Promise<HookDefinition[]> {
