@@ -76,8 +76,10 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 			args.push('--model', request.model);
 		}
 		if (request.effort && request.effort !== 'auto') {
-			const claudeEffort = request.effort === 'xhigh' ? 'high' : request.effort;
-			args.push('--effort', claudeEffort);
+			// `claude --help` lists --effort as (low, medium, high, xhigh, max) natively — no
+			// downgrade needed (gap found in code review, 2026-11-22: this used to silently send
+			// 'high' whenever the user picked 'xhigh' in the Reasoning Effort popover).
+			args.push('--effort', request.effort);
 		}
 		// Without an explicit --permission-mode, `claude -p` runs in its own default ("manual"):
 		// with no interactive terminal and no --permission-prompt-tool configured, every file edit
