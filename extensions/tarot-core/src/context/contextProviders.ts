@@ -118,10 +118,24 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 			}
 			const statusRes = await execSimple(gitPath, ['-C', root, 'status', '--short']).catch(() => ({ exitCode: 1, stdout: '', stderr: '' }));
 			const diffRes = await execSimple(gitPath, ['-C', root, 'diff', 'HEAD']).catch(() => ({ exitCode: 1, stdout: '', stderr: '' }));
-			const combined = [
-				statusRes.stdout ? `## git status --short\n${statusRes.stdout}` : '## git status\nWorking tree clean.',
-				diffRes.stdout ? `## git diff HEAD\n${diffRes.stdout}` : '',
-			].filter(Boolean).join('\n\n');
+			// A non-zero exitCode (not a git repo, no commits yet, git failure) left stdout empty
+			// just like a genuinely clean tree would — the old fallback could not tell them apart
+			// and reported "Working tree clean." either way, feeding the agent active
+			// misinformation instead of surfacing that the command actually failed.
+			const parts: string[] = [];
+			if (statusRes.exitCode !== 0) {
+				parts.push(`## git status\n(git status failed: ${statusRes.stderr.trim() || `exit code ${statusRes.exitCode}`})`);
+			} else if (statusRes.stdout) {
+				parts.push(`## git status --short\n${statusRes.stdout}`);
+			} else {
+				parts.push('## git status\nWorking tree clean.');
+			}
+			if (diffRes.exitCode !== 0) {
+				parts.push(`## git diff HEAD\n(git diff failed: ${diffRes.stderr.trim() || `exit code ${diffRes.exitCode}`})`);
+			} else if (diffRes.stdout) {
+				parts.push(`## git diff HEAD\n${diffRes.stdout}`);
+			}
+			const combined = parts.join('\n\n');
 			return {
 				kind: 'gitDiff',
 				label: 'Git Diff',
