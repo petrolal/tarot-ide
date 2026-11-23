@@ -96,6 +96,17 @@ export class CodexAdapter implements AgentAdapter {
 		if (request.model && request.model !== 'auto') {
 			args.push('-m', request.model);
 		}
+		if (request.effort && request.effort !== 'auto') {
+			// codex has no dedicated --effort/--reasoning flag; the documented route is the
+			// model_reasoning_effort config key, overridable per run via --config (confirmed
+			// against developers.openai.com/codex/config-advanced). Accepted values there are
+			// minimal/low/medium/high/xhigh — codex has no 'max', so Tarot's highest level maps to
+			// its highest ('xhigh'). Gap found in code review, 2026-11-22: this flag was never
+			// passed at all, so Reasoning Effort had zero effect on codex. Same caveat as the
+			// sandbox flags above — sourced from docs only, not live-verified against the CLI.
+			const codexEffort = request.effort === 'max' ? 'xhigh' : request.effort;
+			args.push('--config', `model_reasoning_effort=${codexEffort}`);
+		}
 		args.push(prompt);
 		let emittedText = false;
 		const stderrLines: string[] = [];
