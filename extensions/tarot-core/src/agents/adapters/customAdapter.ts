@@ -44,16 +44,22 @@ export class CustomCliAdapter implements AgentAdapter {
 				resolvedPath,
 				version: version || 'installed',
 				installHint: this.installHint,
+				error: res.exitCode !== 0 ? (res.stderr || `Exited with code ${res.exitCode}`) : undefined,
 			};
-		} catch {
+		} catch (err) {
+			// A thrown execSimple (timeout, the binary hangs, permission denied, ENOENT surfacing
+			// late) is not "available" — claudeAdapter/codexAdapter already report `available:
+			// false` with `error` set for the same scenario; this previously reported `true`,
+			// showing a broken custom binary as "ready" (green) until the user actually tried to
+			// run it (gap found in code review, 2026-11-22).
 			return {
 				id: this.id,
 				displayName: this.displayName,
 				binary: this.binary,
-				available: true,
+				available: false,
 				resolvedPath,
-				version: 'custom',
 				installHint: this.installHint,
+				error: err instanceof Error ? err.message : String(err),
 			};
 		}
 	}
