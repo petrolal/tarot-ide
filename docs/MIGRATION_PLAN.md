@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.8a ✅ · próximo: M3.8b → M3.8c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.8b** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.8b ✅ · próximo: M3.8c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.8c** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -209,7 +209,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.8b — Skills, Custom Agents, Sub-agentes, Powers, MCP & Adaptador Universal ACP (UC-06)
+### Marco M3.8b — Skills, Custom Agents, Sub-agentes, Powers, MCP & Adaptador Universal ACP (UC-06) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/{skills,custom-agents,custom-agents/subagents,powers,mcp,steering}/` + Agent Client Protocol (ACP).
 - **Arquivos-alvo**: `extensions/tarot-core/src/{skills/skillsService,agents/customAgentService,agents/subagentManager,agents/adapters/acpAdapter,agents/agentCatalog,powers/powersService,mcp/mcpConfigService}.ts`; ajustes em `steeringService.ts` e `runtimeManager.ts`.
 - **Especificação**:
@@ -221,10 +221,10 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **MCP**: `.tarot/settings/mcp.json` + `~/.tarot/settings/mcp.json`, servidores locais (stdio) e remotos (URL + headers), TreeView **MCP Servers**, `#mcp`, sincronização com os CLIs.
   - **Steering (complementos de M3.5)**: modo `auto` exige `name`+`description`; `fileMatchPattern` aceita array; referências vivas `#[[file:<caminho>]]`; `AGENTS.md` também em **subdiretórios**; steering `manual`/`auto` aparecem como comandos `/`.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Skills carregam por *progressive disclosure*, são invocáveis por `/` e importáveis por URL/pasta.
-  - [ ] Custom agents aparecem no seletor agrupados por origem e respeitam `tools`/`permissions`.
-  - [ ] Sub-agente herda a política do pai (mais estrita vence) e roda com contexto isolado.
-  - [ ] TreeView lista MCP; `#mcp` e ativação de Powers por keyword funcionam.
+  - [x] Skills carregam por *progressive disclosure*, são invocáveis por `/` e importáveis por URL/pasta. *(`skills/skillsService.ts` + `tarot.skills.import` + integração em `agentPanelView.ts`; coberto por `skillsService.test.ts`.)*
+  - [x] Custom agents aparecem no seletor agrupados por origem e respeitam `tools`/`permissions`. *(`agents/customAgentService.ts` + `tarot.agents.createCustom` + seletor agrupado Built-in/User/Workspace em `panel.js` desabilitado durante execução + política combinada em `reviewFileWritesForTurn`; coberto por `customAgentService.test.ts`.)*
+  - [x] Sub-agente herda a política do pai (mais estrita vence) e roda com contexto isolado. *(`agents/subagentManager.ts`: `evaluateSubagentCapability`, `validateSubagentDag` com validação de review loops/ciclos e `runSubagentDag` paralelo por onda; coberto por `subagentManager.test.ts`.)*
+  - [x] TreeView lista MCP; `#mcp` e ativação de Powers por keyword funcionam. *(`mcp/mcpConfigService.ts`, `McpServersTreeProvider` em `tarot.views.mcp`, `#mcp` em `contextProviders.ts`/composer, `powers/powersService.ts` com `matchPowersForPrompt`, além de `agents/agentCatalog.ts` + `agents/adapters/acpAdapter.ts` e complementos de `steeringService.ts`; coberto por `powersAndMcp.test.ts`.)*
 
 ---
 
