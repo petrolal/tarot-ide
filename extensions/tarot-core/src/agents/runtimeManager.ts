@@ -5,10 +5,12 @@
 
 import * as vscode from 'vscode';
 import { getTarotConfig } from '../config/tarotConfig';
+import { AcpAgentAdapter } from './adapters/acpAdapter';
 import { AgyAdapter } from './adapters/agyAdapter';
 import { ClaudeCodeAdapter } from './adapters/claudeAdapter';
 import { CodexAdapter } from './adapters/codexAdapter';
 import { CustomCliAdapter } from './adapters/customAdapter';
+import { ACP_AGENT_CATALOG } from './agentCatalog';
 import { AgentAdapter, AgentId, AgentModelOption, AgentStatus } from './types';
 
 const ACTIVE_AGENT_STATE_KEY = 'tarot.activeAgentId';
@@ -62,7 +64,23 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		}
 		for (const custom of getTarotConfig().customAgents) {
 			if (!this.adapters.has(custom.id)) {
-				this.adapters.set(custom.id, new CustomCliAdapter(custom));
+				if (custom.protocol === 'acp') {
+					this.adapters.set(custom.id, new AcpAgentAdapter({
+						id: custom.id,
+						displayName: custom.displayName,
+						binary: custom.binary,
+						acpArgs: custom.args ?? ['acp'],
+						versionArgs: custom.versionArgs ?? ['--version'],
+						installHint: `Ensure ${custom.binary} is installed and on PATH.`,
+					}));
+				} else {
+					this.adapters.set(custom.id, new CustomCliAdapter(custom));
+				}
+			}
+		}
+		for (const entry of ACP_AGENT_CATALOG) {
+			if (!this.adapters.has(entry.id)) {
+				this.adapters.set(entry.id, new AcpAgentAdapter(entry));
 			}
 		}
 	}
@@ -71,7 +89,10 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		this.modelCache.clear();
 		this.rebuildAdapters();
 		const detected = await Promise.all(Array.from(this.adapters.values()).map(a => a.detect()));
-		this.statuses = detected;
+		const catalogIds = new Set(ACP_AGENT_CATALOG.map(e => e.id));
+		// Always show the 3 built-in CLIs and user-configured custom agents; only surface
+		// declarative ACP catalog entries that are actually installed on PATH.
+		this.statuses = detected.filter(s => !catalogIds.has(s.id) || s.available);
 
 		const saved = this.context.globalState.get<AgentId>(ACTIVE_AGENT_STATE_KEY);
 		const configuredDefault = getTarotConfig().defaultAgent;

@@ -7,9 +7,11 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { BUILT_IN_AGENT_PROFILES, CustomAgentProfile, TarotCustomAgentService } from '../agents/customAgentService';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { TarotSessionStore } from '../agents/sessionStore';
+import { evaluateSubagentCapability } from '../agents/subagentManager';
 import {
 	AgentId,
 	AgentMode,
@@ -30,8 +32,11 @@ import { TarotWorktree, TarotWorktreeManager } from '../git/worktreeManager';
 import { runHooksForTrigger, selectHooksForTrigger, TarotHookEngine } from '../hooks/hookEngine';
 import { runHookCommand } from '../hooks/hookRunner';
 import { HookDefinition } from '../hooks/hookTypes';
+import { TarotMcpConfigService } from '../mcp/mcpConfigService';
 import { TarotPermissionsService } from '../permissions/permissionsService';
 import { describeAdvisoryTranslation, getEnforcementKind } from '../permissions/policyEngine';
+import { matchPowersForPrompt, TarotPowersService } from '../powers/powersService';
+import { resolveSkillsForPrompt, TarotSkillsService } from '../skills/skillsService';
 import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
 import { mergeTasksMarkdown } from '../specs/specSync';
 import { computeTaskCheckpointKey, recordTaskCheckpoint } from '../specs/specTaskCheckpoints';
@@ -67,10 +72,12 @@ interface WebviewIncomingMessage {
 		| 'runSlashCommand'
 		| 'saveSteeringRule'
 		| 'openLink'
+		| 'selectProfile'
 		| 'refreshAgents';
 	readonly prompt?: string;
 	readonly ruleText?: string;
 	readonly url?: string;
+	readonly profileId?: string;
 	readonly agentId?: AgentId;
 	readonly model?: string;
 	readonly effort?: ReasoningEffort;
@@ -103,6 +110,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private selectedModel = 'auto';
 	private selectedEffort: ReasoningEffort = 'auto';
 	private availableModels: readonly AgentModelOption[] = [];
+	private agentProfiles: CustomAgentProfile[] = [...BUILT_IN_AGENT_PROFILES];
+	private activeProfileId = 'default';
 	private manualSteeringCommands: Array<{ command: string; id: string; description: string }> = [];
 	private attachments: AttachedContext[] = [];
 	private changedFiles: ChangedFileInfo[] = [];
@@ -123,6 +132,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly hookEngine: TarotHookEngine,
 		private readonly permissionsService: TarotPermissionsService,
 		private readonly worktreeManager: TarotWorktreeManager,
+		private readonly skillsService: TarotSkillsService,
+		private readonly customAgentService: TarotCustomAgentService,
+		private readonly powersService: TarotPowersService,
+		private readonly mcpConfigService: TarotMcpConfigService,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.runGatedHookCommand = this.permissionsService.createGatedRunCommand(this.outputChannel);
@@ -140,11 +153,12 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.disposables.push(
 			this.runtimeManager.onDidChangeAgents(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			this.runtimeManager.onDidChangeActiveAgent(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
-			vscode.workspace.onDidGrantWorkspaceTrust(() => { void this.refreshManualSteeringCommands().then(() => this.postState()); }),
+			vscode.workspace.onDidGrantWorkspaceTrust(() => { void this.refreshDynamicCatalogs().then(() => this.postState()); }),
 			vscode.workspace.onDidSaveTextDocument(doc => {
 				void this.refreshChangedFiles();
-				if (doc.uri.fsPath.replace(/\\/g, '/').includes('/.tarot/steering/')) {
-					void this.refreshManualSteeringCommands().then(() => this.postState());
+				const norm = doc.uri.fsPath.replace(/\\/g, '/');
+				if (norm.includes('/.tarot/steering/') || norm.includes('/.tarot/skills/') || norm.includes('/.tarot/agents/')) {
+					void this.refreshDynamicCatalogs().then(() => this.postState());
 				}
 			}),
 		);
@@ -173,6 +187,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	async setMode(mode: AgentMode): Promise<void> {
 		this.mode = mode;
+		this.activeProfileId = mode === 'vibe' ? 'default' : mode;
 		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
 		session.mode = mode;
 		this.postState();
@@ -572,7 +587,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			case 'ready':
 				await this.refreshChangedFiles();
 				await this.refreshAvailableModels();
-				await this.refreshManualSteeringCommands();
+				await this.refreshDynamicCatalogs();
 				this.postState();
 				break;
 			case 'refreshAgents':
@@ -723,6 +738,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					await this.openTranscriptLink(msg.url.trim());
 				}
 				break;
+			case 'selectProfile':
+				if (typeof msg.profileId === 'string' && !this.runningSessionId) {
+					await this.selectAgentProfile(msg.profileId);
+				}
+				break;
 			case 'cancel':
 				this.cancelActiveRun();
 				break;
@@ -838,8 +858,18 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 				const targetId = cmd.slice(1);
 				const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+				const skills = await this.skillsService.discover(root);
+				const matchedSkill = skills.find(s => s.id.toLowerCase() === targetId || s.name.toLowerCase() === targetId);
+				if (matchedSkill) {
+					const promptToRun = args || `Aplique a skill "${matchedSkill.name}" (/${matchedSkill.id}).`;
+					await this.runPrompt(promptToRun, {
+						displayPrompt: args ? `/${matchedSkill.id} ${args}` : `/${matchedSkill.id}`,
+						explicitSkillIds: [matchedSkill.id],
+					});
+					return;
+				}
 				const docs = await this.steeringService.discover(root);
-				const matched = docs.find(d => d.inclusion === 'manual' && d.id.toLowerCase() === targetId);
+				const matched = docs.find(d => (d.inclusion === 'manual' || d.inclusion === 'auto') && d.id.toLowerCase() === targetId);
 				if (!matched) {
 					return;
 				}
@@ -856,6 +886,37 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				break;
 			}
 		}
+	}
+
+	private async selectAgentProfile(profileId: string): Promise<void> {
+		const profile = this.agentProfiles.find(p => p.id === profileId);
+		if (!profile) {
+			return;
+		}
+		if (profile.id === 'quick-spec') {
+			await vscode.commands.executeCommand('tarot.specs.quickSpec');
+			return;
+		}
+		if (profile.id === 'bug-fix') {
+			await vscode.commands.executeCommand('tarot.specs.create');
+			return;
+		}
+		this.activeProfileId = profile.id;
+		if (profile.id === 'default') {
+			this.mode = 'vibe';
+		} else if (profile.id === 'spec') {
+			this.mode = 'spec';
+		} else if (profile.id === 'plan') {
+			this.mode = 'plan';
+		} else {
+			this.mode = 'vibe';
+		}
+		if (profile.model) {
+			this.selectedModel = profile.model;
+		}
+		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+		session.mode = this.mode;
+		this.postState();
 	}
 
 	private async openTranscriptLink(rawUrl: string): Promise<void> {
@@ -962,6 +1023,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			onCheckpointCreated?: (checkpointId: string | undefined, sessionId: string) => Promise<void>;
 			/** Runs the agent (and its checkpoint/fs_write review) here instead of the workspace root — a worktree, for task isolation. Spec/Steering resolution always stays rooted at the real workspace regardless. */
 			execCwd?: string;
+			/** Explicit skill IDs invoked via `/skill` to force full body injection. */
+			explicitSkillIds?: readonly string[];
 		},
 	): Promise<boolean> {
 		if (this.runningSessionId) {
@@ -1025,8 +1088,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postState();
 		this.postMessage({ type: 'streamStart', agentId, agentName: adapter.displayName, sessionId: session.id });
 
-		// Steering lives under .tarot/steering/ — never loaded in an untrusted workspace (AGENTS.md
-		// §2d / MIGRATION_PLAN.md M3.8a), since a cloned repo could otherwise prompt-inject instructions.
+		const activeProfile = this.agentProfiles.find(p => p.id === this.activeProfileId);
+
+		// Steering, Skills, Powers and Custom Agents under `.tarot/` are never loaded in an
+		// untrusted workspace (AGENTS.md §2d / MIGRATION_PLAN.md M3.8a-b).
 		const steeringResolution = vscode.workspace.isTrusted
 			? await this.steeringService.resolveForTurn({
 				workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
@@ -1035,7 +1100,52 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				attachments: requestAttachments,
 			})
 			: { applied: [] };
-		const steeringContext = steeringResolution.formattedContext;
+
+		const systemContextSections: string[] = [];
+		if (activeProfile && activeProfile.origin !== 'builtIn') {
+			const lines: string[] = [`### Active Custom Agent: ${activeProfile.name} (${activeProfile.origin})`];
+			if (activeProfile.tools && activeProfile.tools.length > 0) {
+				lines.push(`Allowed tools: ${activeProfile.tools.join(', ')}`);
+			}
+			if (activeProfile.excludedTools && activeProfile.excludedTools.length > 0) {
+				lines.push(`Excluded tools (do not use): ${activeProfile.excludedTools.join(', ')}`);
+			}
+			if (activeProfile.prompt) {
+				lines.push(activeProfile.prompt);
+			}
+			systemContextSections.push(lines.join('\n'));
+		}
+
+		if (steeringResolution.formattedContext) {
+			systemContextSections.push(steeringResolution.formattedContext);
+		}
+
+		if (vscode.workspace.isTrusted) {
+			const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			const powerActivation = activeProfile?.includePowers !== false
+				? matchPowersForPrompt(await this.powersService.discover(wsRoot), prompt)
+				: { activePowers: [], skills: [], mcpServers: [] };
+			if (powerActivation.summaryContext) {
+				systemContextSections.push(powerActivation.summaryContext);
+			}
+			const skills = await this.skillsService.discover(wsRoot, powerActivation.skills);
+			const skillsResolution = resolveSkillsForPrompt(skills, prompt, { explicitSkillIds: options?.explicitSkillIds });
+			if (skillsResolution.catalogContext) {
+				systemContextSections.push(skillsResolution.catalogContext);
+			}
+			if (skillsResolution.activeContext) {
+				systemContextSections.push(skillsResolution.activeContext);
+			}
+			if (activeProfile?.includeMcpJson !== false) {
+				const { servers } = await this.mcpConfigService.discover(wsRoot, powerActivation.mcpServers);
+				const enabledServers = servers.filter(s => s.enabled);
+				if (enabledServers.length > 0) {
+					systemContextSections.push(`Configured MCP Servers: ${enabledServers.map(s => `${s.name} (${s.transport})`).join(', ')}`);
+				}
+			}
+		}
+
+		const steeringContext = systemContextSections.length > 0 ? systemContextSections.join('\n\n') : undefined;
 		const appliedSteering = steeringResolution.applied.map(item => item.label);
 		// Same Workspace Trust gate as Steering above — a cloned repo's .tarot/specs/** must not
 		// auto-inject content before the user has trusted the workspace.
@@ -1295,17 +1405,37 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 	}
 
-	private async refreshManualSteeringCommands(): Promise<void> {
+	private async refreshDynamicCatalogs(): Promise<void> {
 		if (!vscode.workspace.isTrusted) {
+			this.agentProfiles = [...BUILT_IN_AGENT_PROFILES];
 			this.manualSteeringCommands = [];
 			return;
 		}
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-		const docs = await this.steeringService.discover(root);
+		this.agentProfiles = await this.customAgentService.discover(root);
+
 		const seen = new Set<string>();
 		const list: Array<{ command: string; id: string; description: string }> = [];
+
+		// Skills invoked via `/<id>` (M3.8b)
+		const skills = await this.skillsService.discover(root);
+		for (const skill of skills) {
+			const key = skill.id.toLowerCase();
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+			list.push({
+				command: `/${skill.id}`,
+				id: skill.id,
+				description: skill.description ? `[skill] ${skill.description}` : `[skill] ${skill.name}`,
+			});
+		}
+
+		// Manual and auto steering docs invoked via `/<id>` (M3.8b)
+		const docs = await this.steeringService.discover(root);
 		for (const doc of docs) {
-			if (doc.inclusion !== 'manual') {
+			if (doc.inclusion !== 'manual' && doc.inclusion !== 'auto') {
 				continue;
 			}
 			const key = doc.id.toLowerCase();
@@ -1337,10 +1467,14 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		if (diff.length === 0) {
 			return undefined;
 		}
+		const activeProfile = this.agentProfiles.find(p => p.id === this.activeProfileId);
+		const parentScopes = activeProfile?.permissions?.length ? await this.permissionsService.loadScopes() : undefined;
 		const denied: string[] = [];
 		const asked: string[] = [];
 		for (const entry of diff) {
-			const decision = await this.permissionsService.evaluate('fs_write', entry.relativePath);
+			const decision = parentScopes
+				? evaluateSubagentCapability(parentScopes, activeProfile?.permissions, 'fs_write', entry.relativePath)
+				: await this.permissionsService.evaluate('fs_write', entry.relativePath);
 			if (decision.effect === 'deny') {
 				denied.push(entry.relativePath);
 			} else if (decision.effect === 'ask') {
@@ -1417,6 +1551,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			selectedModel: this.selectedModel,
 			selectedEffort: this.selectedEffort,
 			mode: this.mode,
+			activeProfileId: this.activeProfileId,
+			agentProfiles: this.agentProfiles.map(p => ({ id: p.id, name: p.name, description: p.description, origin: p.origin })),
 			autonomy: this.autonomy,
 			permissionEnforcement: { kind: getEnforcementKind(activeAgentId), detail: describeAdvisoryTranslation(activeAgentId) },
 			isFocusMode: this.isFocusMode,
@@ -1513,6 +1649,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				<button class="context-menu-item" type="button" data-kind="codebase"><span class="ctx-tag">#Codebase</span><span class="ctx-desc">${s.contextCodebaseDesc}</span></button>
 				<button class="context-menu-item" type="button" data-kind="terminal"><span class="ctx-tag">#Terminal</span><span class="ctx-desc">${s.contextTerminalDesc}</span></button>
 				<button class="context-menu-item" type="button" data-kind="steering"><span class="ctx-tag">#Steering</span><span class="ctx-desc">${s.contextSteeringDesc}</span></button>
+				<button class="context-menu-item" type="button" data-kind="mcp"><span class="ctx-tag">#MCP</span><span class="ctx-desc">${s.contextMcpDesc}</span></button>
 			</div>
 
 			<div id="slash-menu" class="context-popup hidden" role="menu">

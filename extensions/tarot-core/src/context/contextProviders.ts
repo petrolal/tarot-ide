@@ -8,12 +8,14 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AttachedContext, ContextProviderKind } from '../agents/types';
+import { formatMcpContext, TarotMcpConfigService } from '../mcp/mcpConfigService';
 import { TarotSpecService } from '../specs/specService';
 import { TarotSteeringService } from '../steering/steeringService';
 
 const MAX_CONTENT_CHARS = 12_000;
 const steeringService = new TarotSteeringService();
 const specService = new TarotSpecService();
+const mcpConfigService = new TarotMcpConfigService();
 
 function truncate(text: string, max = MAX_CONTENT_CHARS): string {
 	if (text.length <= max) {
@@ -228,6 +230,40 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				label: `steering/${picked.doc.fileName}`,
 				path: picked.doc.filePath,
 				content: truncate(picked.doc.body || picked.doc.raw),
+			};
+		}
+
+		case 'mcp': {
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before loading MCP server configurations.'));
+				return undefined;
+			}
+			const { servers } = await mcpConfigService.discover(root);
+			if (servers.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No MCP servers found in .tarot/settings/mcp.json or ~/.tarot/settings/mcp.json.'));
+				return undefined;
+			}
+			const picked = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('All MCP Servers ({0})', servers.length), description: vscode.l10n.t('Attach summary of all configured servers'), server: undefined },
+					...servers.map(s => ({
+						label: s.name,
+						description: `${s.scope} · ${s.transport}${s.enabled ? '' : ' (disabled)'}`,
+						detail: s.transport === 'remote' ? s.url : `${s.command} ${(s.args ?? []).join(' ')}`.trim(),
+						server: s,
+					})),
+				],
+				{ title: vscode.l10n.t('#MCP — Pick an MCP Server') },
+			);
+			if (!picked) {
+				return undefined;
+			}
+			const selectedServers = picked.server ? [picked.server] : servers;
+			return {
+				kind: 'mcp',
+				label: picked.server ? `mcp/${picked.server.name}` : `mcp (${servers.length})`,
+				path: picked.server?.sourceFile,
+				content: truncate(formatMcpContext(selectedServers)),
 			};
 		}
 	}

@@ -9,6 +9,7 @@ import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { AgentStatus } from '../agents/types';
 import { DiscoveredHookFile, TarotHookEngine } from '../hooks/hookEngine';
 import { HookDefinition } from '../hooks/hookTypes';
+import { McpServerConfig, TarotMcpConfigService } from '../mcp/mcpConfigService';
 import { TarotSpecService } from '../specs/specService';
 import { SteeringDocument, TarotSteeringService } from '../steering/steeringService';
 
@@ -377,6 +378,96 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 			item.tooltip = `${vscode.l10n.t('Spec: {0}', spec.slug)}\n${vscode.l10n.t('Type: {0}', spec.kind)}\n${vscode.l10n.t('Progress: {0}', progress)}`;
 			return item;
 		});
+	}
+
+	dispose(): void {
+		for (const d of this.disposables) {
+			d.dispose();
+		}
+	}
+}
+
+export class McpServersTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
+	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+	private readonly disposables: vscode.Disposable[] = [];
+
+	constructor(
+		private readonly mcpService: TarotMcpConfigService,
+		private readonly extensionUri: vscode.Uri,
+	) {
+		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/settings/mcp.json');
+		this.disposables.push(
+			this._onDidChangeTreeData,
+			watcher,
+			watcher.onDidCreate(() => this.refresh()),
+			watcher.onDidChange(() => this.refresh()),
+			watcher.onDidDelete(() => this.refresh()),
+			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
+		);
+	}
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
+		return element;
+	}
+
+	private toServerItem(server: McpServerConfig): SimpleTreeItem {
+		const item = new SimpleTreeItem(server.name, vscode.TreeItemCollapsibleState.None, server.sourceFile);
+		item.description = `${server.transport}${server.enabled ? '' : vscode.l10n.t(' (disabled)')}`;
+		item.iconPath = server.enabled
+			? arcanaIcon(this.extensionUri, '02-high-priestess.svg')
+			: new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('disabledForeground'));
+		item.tooltip = [
+			`${server.name} (${server.scope})`,
+			vscode.l10n.t('Transport: {0}', server.transport),
+			server.transport === 'remote'
+				? vscode.l10n.t('URL: {0}', server.url ?? '')
+				: vscode.l10n.t('Command: {0}', `${server.command ?? ''} ${(server.args ?? []).join(' ')}`.trim()),
+			vscode.l10n.t('Path: {0}', server.sourceFile),
+		].join('\n');
+		item.command = {
+			command: 'vscode.open',
+			title: vscode.l10n.t('Open MCP Config'),
+			arguments: [vscode.Uri.file(server.sourceFile)],
+		};
+		return item;
+	}
+
+	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
+		if (element?.children) {
+			return element.children;
+		}
+		// Never load .tarot/settings/mcp.json until the workspace is trusted (AGENTS.md §2d).
+		if (!vscode.workspace.isTrusted) {
+			return [];
+		}
+		const root = getWorkspaceRoot();
+		const { servers } = await this.mcpService.discover(root);
+		if (servers.length === 0) {
+			return [];
+		}
+
+		const groups: SimpleTreeItem[] = [];
+		for (const scope of ['workspace', 'global'] as const) {
+			const scoped = servers.filter(s => s.scope === scope);
+			if (scoped.length === 0) {
+				continue;
+			}
+			const group = new SimpleTreeItem(
+				scope === 'workspace' ? vscode.l10n.t('Workspace') : vscode.l10n.t('Global'),
+				vscode.TreeItemCollapsibleState.Expanded,
+				undefined,
+				scoped.map(s => this.toServerItem(s)),
+			);
+			group.description = scope === 'workspace' ? `.tarot/settings/mcp.json (${scoped.length})` : `~/.tarot/settings/mcp.json (${scoped.length})`;
+			group.iconPath = new vscode.ThemeIcon(scope === 'workspace' ? 'folder' : 'globe');
+			groups.push(group);
+		}
+		return groups;
 	}
 
 	dispose(): void {

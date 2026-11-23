@@ -13,6 +13,7 @@ export type SteeringInclusion = 'always' | 'fileMatch' | 'auto' | 'manual';
 
 export interface SteeringDocument {
 	id: string;
+	name?: string;
 	fileName: string;
 	filePath: string;
 	scope: SteeringScope;
@@ -43,6 +44,7 @@ const STOPWORDS = new Set([
 
 export function parseSteeringFrontmatter(raw: string): {
 	inclusion: SteeringInclusion;
+	name?: string;
 	fileMatchPattern?: string;
 	description?: string;
 	body: string;
@@ -55,6 +57,7 @@ export function parseSteeringFrontmatter(raw: string): {
 	const yamlBlock = match[1];
 	const body = match[2].trim();
 	let inclusion: SteeringInclusion = 'always';
+	let name: string | undefined;
 	let fileMatchPattern: string | undefined;
 	let description: string | undefined;
 
@@ -75,8 +78,15 @@ export function parseSteeringFrontmatter(raw: string): {
 			if (rawVal === 'always' || rawVal === 'fileMatch' || rawVal === 'auto' || rawVal === 'manual') {
 				inclusion = rawVal;
 			}
+		} else if (key === 'name' && rawVal.length > 0) {
+			name = rawVal;
 		} else if (key === 'fileMatchPattern') {
-			if (rawVal.length > 0) {
+			if (rawVal.startsWith('[') && rawVal.endsWith(']')) {
+				const patterns = rawVal.slice(1, -1).split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+				if (patterns.length > 0) {
+					fileMatchPattern = patterns.join(',');
+				}
+			} else if (rawVal.length > 0) {
 				fileMatchPattern = rawVal;
 			} else {
 				// Support simple YAML array on subsequent indented lines
@@ -94,7 +104,38 @@ export function parseSteeringFrontmatter(raw: string): {
 		}
 	}
 
-	return { inclusion, fileMatchPattern, description, body };
+	return { inclusion, name, fileMatchPattern, description, body };
+}
+
+/**
+ * Expands live `#[[file:<relativePath>]]` references inside a steering document body (M3.8b),
+ * strictly confined within `workspaceRoot` to prevent path traversal outside the repository.
+ */
+export async function expandLiveFileReferences(body: string, workspaceRoot?: string): Promise<string> {
+	if (!workspaceRoot || !body.includes('#[[file:')) {
+		return body;
+	}
+	const rootAbs = path.resolve(workspaceRoot);
+	const regex = /#\[\[file:([^\]\n]+)\]\]/g;
+	const matches = [...body.matchAll(regex)];
+	if (matches.length === 0) {
+		return body;
+	}
+	let result = body;
+	for (const m of matches) {
+		const rel = m[1].trim();
+		const target = path.resolve(rootAbs, rel);
+		if (target !== rootAbs && !target.startsWith(rootAbs + path.sep)) {
+			continue;
+		}
+		try {
+			const content = (await fs.readFile(target, 'utf8')).slice(0, 12_000);
+			result = result.replace(m[0], `\n\`\`\`\n// ${rel}\n${content}\n\`\`\`\n`);
+		} catch {
+			// Leave reference intact if file does not exist
+		}
+	}
+	return result;
 }
 
 function globToRegExp(glob: string): RegExp {
@@ -182,27 +223,10 @@ export class TarotSteeringService {
 	async discover(workspaceRoot?: string): Promise<SteeringDocument[]> {
 		const docs: SteeringDocument[] = [];
 
-		// 1. Root AGENTS.md (Kiro & cross-agent standard)
+		// 1. Root & nested AGENTS.md (Kiro & cross-agent standard; M3.8b adds subdirectory support)
 		if (workspaceRoot) {
-			const agentsMdPath = path.join(workspaceRoot, 'AGENTS.md');
-			try {
-				const raw = await fs.readFile(agentsMdPath, 'utf8');
-				if (raw.trim().length > 0) {
-					const parsed = parseSteeringFrontmatter(raw);
-					docs.push({
-						id: 'AGENTS',
-						fileName: 'AGENTS.md',
-						filePath: agentsMdPath,
-						scope: 'agentsMd',
-						inclusion: 'always',
-						description: parsed.description ?? 'Repository root agent instructions',
-						body: parsed.body,
-						raw,
-					});
-				}
-			} catch {
-				// Optional
-			}
+			const nestedAgents = await this.discoverAgentsMdFiles(workspaceRoot);
+			docs.push(...nestedAgents);
 		}
 
 		// 2. Global ~/.tarot/steering/*.md
@@ -216,6 +240,51 @@ export class TarotSteeringService {
 		}
 
 		return docs;
+	}
+
+	private async discoverAgentsMdFiles(workspaceRoot: string, maxDepth = 3): Promise<SteeringDocument[]> {
+		const SKIP_DIRS = new Set(['.git', 'node_modules', '.tarot', 'out', 'dist', '.build']);
+		const found: SteeringDocument[] = [];
+		const walk = async (dir: string, depth: number) => {
+			let entries;
+			try {
+				entries = await fs.readdir(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+			for (const entry of entries) {
+				if (entry.isFile() && entry.name === 'AGENTS.md') {
+					const fullPath = path.join(dir, entry.name);
+					try {
+						const raw = await fs.readFile(fullPath, 'utf8');
+						if (raw.trim().length === 0) {
+							continue;
+						}
+						const parsed = parseSteeringFrontmatter(raw);
+						const relDir = path.relative(workspaceRoot, dir).replace(/\\/g, '/');
+						const isRoot = relDir === '' || relDir === '.';
+						found.push({
+							id: isRoot ? 'AGENTS' : `${relDir}/AGENTS`,
+							name: parsed.name,
+							fileName: isRoot ? 'AGENTS.md' : `${relDir}/AGENTS.md`,
+							filePath: fullPath,
+							scope: 'agentsMd',
+							inclusion: isRoot ? 'always' : 'fileMatch',
+							fileMatchPattern: isRoot ? undefined : `${relDir}/**`,
+							description: parsed.description ?? (isRoot ? 'Repository root agent instructions' : `Directory instructions for ${relDir}`),
+							body: parsed.body,
+							raw,
+						});
+					} catch {
+						// Skip unreadable AGENTS.md
+					}
+				} else if (entry.isDirectory() && depth < maxDepth && !SKIP_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+					await walk(path.join(dir, entry.name), depth + 1);
+				}
+			}
+		};
+		await walk(workspaceRoot, 0);
+		return found;
 	}
 
 	private async readSteeringDirectory(dirPath: string, scope: 'global' | 'workspace'): Promise<SteeringDocument[]> {
@@ -233,6 +302,7 @@ export class TarotSteeringService {
 					const parsed = parseSteeringFrontmatter(raw);
 					results.push({
 						id: entry.name.replace(/\.md$/i, ''),
+						name: parsed.name,
 						fileName: entry.name,
 						filePath: fullPath,
 						scope,
@@ -316,15 +386,23 @@ export class TarotSteeringService {
 				}
 
 				case 'auto': {
-					const explicitRef = promptLower.includes(`#${doc.id.toLowerCase()}`) || promptLower.includes(doc.id.toLowerCase());
-					const descTokens = tokenize(`${doc.id} ${doc.description ?? ''}`);
+					// M3.8b: `auto` steering requires `name` + `description` to auto-match on prompt
+					// tokens (explicit `/id` or `#id` still works).
+					const escapedId = doc.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+					const explicitRef = new RegExp(`(?:^|\\s)[#/]${escapedId}(?:\\b|$)`, 'i').test(params.prompt)
+						|| promptLower.includes(`#${doc.id.toLowerCase()}`);
 					let overlap = 0;
-					for (const token of descTokens) {
-						if (promptTokens.has(token)) {
-							overlap++;
+					let descTokensSize = 0;
+					if (doc.name && doc.description) {
+						const descTokens = tokenize(`${doc.id} ${doc.name} ${doc.description}`);
+						descTokensSize = descTokens.size;
+						for (const token of descTokens) {
+							if (promptTokens.has(token)) {
+								overlap++;
+							}
 						}
 					}
-					if (explicitRef || overlap >= 2 || (descTokens.size <= 2 && overlap >= 1)) {
+					if (explicitRef || (doc.name && doc.description && (overlap >= 2 || (descTokensSize <= 2 && overlap >= 1)))) {
 						applied.push({
 							doc,
 							reason: 'auto (relevante ao prompt)',
@@ -350,9 +428,14 @@ export class TarotSteeringService {
 		}
 
 		// Only serialize docs that aren't already injected verbatim via attached #Steering
-		const blocks = applied
-			.filter(item => !attachedSteeringPaths.has(item.doc.filePath))
-			.map(item => `### ${item.doc.fileName} [${item.doc.scope} · ${item.reason}]\n${item.doc.body}`);
+		const blocks: string[] = [];
+		for (const item of applied) {
+			if (attachedSteeringPaths.has(item.doc.filePath)) {
+				continue;
+			}
+			const expandedBody = await expandLiveFileReferences(item.doc.body, params.workspaceRoot);
+			blocks.push(`### ${item.doc.fileName} [${item.doc.scope} · ${item.reason}]\n${expandedBody}`);
+		}
 
 		return {
 			applied,

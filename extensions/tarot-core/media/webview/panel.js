@@ -205,9 +205,55 @@
 		modelPickerLabel.textContent = `${activeAgent} · ${modelDisplay}${effortSuffix}`;
 
 		const modeMap = { vibe: 'Default', spec: 'Spec', plan: 'Plan' };
-		modePickerLabel.textContent = modeMap[state.mode] || 'Default';
+		const profiles = Array.isArray(state.agentProfiles) ? state.agentProfiles : [];
+		const activeProfileId = state.activeProfileId || (state.mode === 'vibe' ? 'default' : state.mode || 'default');
+		const activeProfile = profiles.find(p => p.id === activeProfileId);
+		modePickerLabel.textContent = (activeProfile && activeProfile.origin !== 'builtIn')
+			? activeProfile.name
+			: (modeMap[state.mode] || 'Default');
+		modePickerBtn.disabled = !!state.isRunning;
+
+		for (const old of modeMenuEl.querySelectorAll('[data-dynamic="profile"]')) {
+			old.remove();
+		}
 		for (const item of modeMenuEl.querySelectorAll('.mode-menu-item')) {
-			item.classList.toggle('active', item.dataset.mode === (state.mode || 'vibe'));
+			const isBuiltInActive = (!activeProfile || activeProfile.origin === 'builtIn')
+				&& item.dataset.mode === (state.mode || 'vibe');
+			item.classList.toggle('active', isBuiltInActive);
+		}
+		for (const group of [
+			{ origin: 'workspace', title: 'Workspace Agents' },
+			{ origin: 'user', title: 'User Agents' },
+		]) {
+			const groupProfiles = profiles.filter(p => p.origin === group.origin);
+			if (groupProfiles.length === 0) {
+				continue;
+			}
+			const header = document.createElement('div');
+			header.className = 'context-popup-header';
+			header.dataset.dynamic = 'profile';
+			header.textContent = group.title;
+			modeMenuEl.appendChild(header);
+
+			for (const p of groupProfiles) {
+				const btn = document.createElement('button');
+				btn.className = 'mode-menu-item' + (p.id === activeProfileId ? ' active' : '');
+				btn.type = 'button';
+				btn.dataset.dynamic = 'profile';
+				const tag = document.createElement('span');
+				tag.className = 'ctx-tag';
+				tag.textContent = p.name;
+				const desc = document.createElement('span');
+				desc.className = 'ctx-desc';
+				desc.textContent = p.description || p.id;
+				btn.appendChild(tag);
+				btn.appendChild(desc);
+				btn.addEventListener('click', () => {
+					toggleModeMenu(false);
+					vscode.postMessage({ type: 'selectProfile', profileId: p.id });
+				});
+				modeMenuEl.appendChild(btn);
+			}
 		}
 
 		const autonomyLabelMap = {

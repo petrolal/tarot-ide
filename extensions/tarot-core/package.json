@@ -93,6 +93,10 @@
         {
           "id": "tarot.views.agents",
           "name": "%view.agents.name%"
+        },
+        {
+          "id": "tarot.views.mcp",
+          "name": "%view.mcp.name%"
         }
       ],
       "tarot-agent-sidebar": [
@@ -115,6 +119,10 @@
       {
         "view": "tarot.views.steering",
         "contents": "%viewsWelcome.steering.contents%"
+      },
+      {
+        "view": "tarot.views.mcp",
+        "contents": "%viewsWelcome.mcp.contents%"
       }
     ],
     "menus": {
@@ -142,6 +150,11 @@
         {
           "command": "tarot.agents.refresh",
           "when": "view == tarot.views.agents",
+          "group": "navigation"
+        },
+        {
+          "command": "tarot.mcp.openConfig",
+          "when": "view == tarot.views.mcp",
           "group": "navigation"
         }
       ],
@@ -302,6 +315,14 @@
               },
               "binary": {
                 "type": "string"
+              },
+              "protocol": {
+                "type": "string",
+                "enum": [
+                  "cli",
+                  "acp"
+                ],
+                "default": "cli"
               },
               "args": {
                 "type": "array",
@@ -548,6 +569,30 @@
         "icon": {
           "light": "icons/arcana/light/10-wheel-of-fortune.svg",
           "dark": "icons/arcana/10-wheel-of-fortune.svg"
+        }
+      },
+      {
+        "command": "tarot.skills.import",
+        "title": "%command.skills.import.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/02-high-priestess.svg",
+          "dark": "icons/arcana/02-high-priestess.svg"
+        }
+      },
+      {
+        "command": "tarot.mcp.openConfig",
+        "title": "%command.mcp.openConfig.title%",
+        "category": "Tarot IDE",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "tarot.agents.createCustom",
+        "title": "%command.agents.createCustom.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/01-the-magician.svg",
+          "dark": "icons/arcana/01-the-magician.svg"
         }
       }
     ]

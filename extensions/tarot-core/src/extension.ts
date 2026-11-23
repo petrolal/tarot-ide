@@ -6,6 +6,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { TarotCustomAgentService } from './agents/customAgentService';
 import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
@@ -13,15 +14,18 @@ import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { TarotWorktreeManager } from './git/worktreeManager';
 import { KeyedHookQueue, runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
+import { TarotMcpConfigService } from './mcp/mcpConfigService';
 import { TarotPermissionsService } from './permissions/permissionsService';
 import { TarotTrustService } from './permissions/trustService';
+import { TarotPowersService } from './powers/powersService';
+import { TarotSkillsService } from './skills/skillsService';
 import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
 import { SpecCreationKind, TarotSpecService } from './specs/specService';
 import { readTaskCheckpoint } from './specs/specTaskCheckpoints';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
-import { HooksTreeProvider, LocalAgentsTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
+import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -74,6 +78,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
 	const worktreeManager = new TarotWorktreeManager();
+	const skillsService = new TarotSkillsService();
+	const customAgentService = new TarotCustomAgentService();
+	const powersService = new TarotPowersService(skillsService);
+	const mcpConfigService = new TarotMcpConfigService();
 	const hookEngine = new TarotHookEngine((filePath, errors) => {
 		for (const err of errors) {
 			outputChannel!.appendLine(`[Hooks] ${filePath}: ${err}`);
@@ -99,6 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const hooksProvider = new HooksTreeProvider(hookEngine, context.extensionUri);
 	const steeringProvider = new SteeringTreeProvider(steeringService, context.extensionUri);
 	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager, context.extensionUri);
+	const mcpProvider = new McpServersTreeProvider(mcpConfigService, context.extensionUri);
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
 	const agentPanelProvider = new TarotAgentPanelProvider(
@@ -113,6 +122,10 @@ export function activate(context: vscode.ExtensionContext): void {
 		hookEngine,
 		permissionsService,
 		worktreeManager,
+		skillsService,
+		customAgentService,
+		powersService,
+		mcpConfigService,
 		outputChannel,
 	);
 
@@ -125,6 +138,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		hooksProvider,
 		steeringProvider,
 		agentsProvider,
+		mcpProvider,
 		agentPanelProvider,
 		specCodeLensProvider,
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
@@ -137,6 +151,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerTreeDataProvider('tarot.views.hooks', hooksProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.steering', steeringProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.agents', agentsProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.mcp', mcpProvider),
 		vscode.window.registerWebviewViewProvider(TarotAgentPanelProvider.viewId, agentPanelProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
@@ -715,6 +730,158 @@ export function activate(context: vscode.ExtensionContext): void {
 			} catch {
 				await fs.writeFile(filePath, 'version: 1\nrules: []\n', 'utf8');
 			}
+			const doc = await vscode.workspace.openTextDocument(filePath);
+			await vscode.window.showTextDocument(doc);
+		}),
+
+		vscode.commands.registerCommand('tarot.skills.import', async () => {
+			const scopePick = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('Workspace (.tarot/skills/)'), scope: 'workspace' as const },
+					{ label: vscode.l10n.t('Global (~/.tarot/skills/)'), scope: 'global' as const },
+				],
+				{ title: vscode.l10n.t('Import Skill — Target Scope') },
+			);
+			if (!scopePick) {
+				return;
+			}
+			let targetDir: string;
+			if (scopePick.scope === 'workspace') {
+				const root = await ensureWorkspaceFolder();
+				if (!root) {
+					return;
+				}
+				targetDir = skillsService.getWorkspaceSkillsDir(root);
+			} else {
+				targetDir = skillsService.getGlobalSkillsDir();
+			}
+
+			const sourcePick = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('Local Folder (containing SKILL.md)'), sourceKind: 'local' as const },
+					{ label: vscode.l10n.t('GitHub / GitLab Repository URL'), sourceKind: 'git' as const },
+				],
+				{ title: vscode.l10n.t('Import Skill — Source') },
+			);
+			if (!sourcePick) {
+				return;
+			}
+			try {
+				let imported;
+				if (sourcePick.sourceKind === 'local') {
+					const picked = await vscode.window.showOpenDialog({
+						canSelectFiles: false,
+						canSelectFolders: true,
+						canSelectMany: false,
+						openLabel: vscode.l10n.t('Select Skill Folder'),
+					});
+					if (!picked?.[0]) {
+						return;
+					}
+					imported = await skillsService.importFromLocalFolder(picked[0].fsPath, targetDir);
+				} else {
+					const url = await vscode.window.showInputBox({
+						title: vscode.l10n.t('Import Skill from Git URL'),
+						prompt: vscode.l10n.t('Enter a GitHub or GitLab repository URL (subpath /tree/<branch>/<path> supported)'),
+						placeHolder: 'https://github.com/org/repo/tree/main/skills/my-skill',
+					});
+					if (!url?.trim()) {
+						return;
+					}
+					imported = await skillsService.importFromGitUrl(url.trim(), targetDir);
+				}
+				vscode.window.showInformationMessage(vscode.l10n.t('Imported skill "{0}".', imported.name));
+				const doc = await vscode.workspace.openTextDocument(imported.skillFilePath);
+				await vscode.window.showTextDocument(doc);
+			} catch (err) {
+				vscode.window.showErrorMessage(vscode.l10n.t('Could not import skill: {0}', err instanceof Error ? err.message : String(err)));
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.mcp.openConfig', async () => {
+			const scopePick = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('Workspace (.tarot/settings/mcp.json)'), scope: 'workspace' as const },
+					{ label: vscode.l10n.t('Global (~/.tarot/settings/mcp.json)'), scope: 'global' as const },
+				],
+				{ title: vscode.l10n.t('Open MCP Configuration') },
+			);
+			if (!scopePick) {
+				return;
+			}
+			let filePath: string;
+			if (scopePick.scope === 'workspace') {
+				const root = await ensureWorkspaceFolder();
+				if (!root) {
+					return;
+				}
+				if (!trustService.requireTrustedOrWarn(vscode.l10n.t('Trust this workspace before editing .tarot/settings/mcp.json.'))) {
+					return;
+				}
+				filePath = mcpConfigService.getWorkspaceMcpConfigPath(root);
+			} else {
+				filePath = mcpConfigService.getGlobalMcpConfigPath();
+			}
+			await fs.mkdir(path.dirname(filePath), { recursive: true });
+			try {
+				await fs.access(filePath);
+			} catch {
+				await fs.writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2) + '\n', 'utf8');
+			}
+			mcpProvider.refresh();
+			const doc = await vscode.workspace.openTextDocument(filePath);
+			await vscode.window.showTextDocument(doc);
+		}),
+
+		vscode.commands.registerCommand('tarot.agents.createCustom', async () => {
+			const scopePick = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('Workspace (.tarot/agents/)'), scope: 'workspace' as const },
+					{ label: vscode.l10n.t('User (~/.tarot/agents/)'), scope: 'user' as const },
+				],
+				{ title: vscode.l10n.t('New Custom Agent — Scope') },
+			);
+			if (!scopePick) {
+				return;
+			}
+			let targetDir: string;
+			if (scopePick.scope === 'workspace') {
+				const root = await ensureWorkspaceFolder();
+				if (!root) {
+					return;
+				}
+				targetDir = customAgentService.getWorkspaceAgentsDir(root);
+			} else {
+				targetDir = customAgentService.getUserAgentsDir();
+			}
+			const rawName = await vscode.window.showInputBox({
+				title: vscode.l10n.t('New Custom Agent'),
+				prompt: vscode.l10n.t('Agent identifier (subfolders supported, e.g. reviewer or team/planner)'),
+				placeHolder: 'reviewer',
+			});
+			if (!rawName?.trim()) {
+				return;
+			}
+			const cleanId = rawName.trim().replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9/_-]+/g, '-');
+			if (!cleanId) {
+				return;
+			}
+			const filePath = path.join(targetDir, `${cleanId}.md`);
+			await fs.mkdir(path.dirname(filePath), { recursive: true });
+			const content = [
+				'---',
+				`name: "${cleanId}"`,
+				'description: "Agente especializado personalizado"',
+				'includeMcpJson: true',
+				'includePowers: true',
+				'---',
+				'',
+				`# Custom Agent — ${cleanId}`,
+				'',
+				'Descreva o papel, as restrições e o estilo de resposta deste agente.',
+				'',
+			].join('\n');
+			await fs.writeFile(filePath, content, 'utf8');
 			const doc = await vscode.workspace.openTextDocument(filePath);
 			await vscode.window.showTextDocument(doc);
 		}),

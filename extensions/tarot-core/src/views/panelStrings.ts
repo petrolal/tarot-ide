@@ -34,6 +34,7 @@ export interface TarotPanelStrings {
 	readonly contextCodebaseDesc: string;
 	readonly contextTerminalDesc: string;
 	readonly contextSteeringDesc: string;
+	readonly contextMcpDesc: string;
 	readonly slashCommandsTitle: string;
 	readonly slashSpecDesc: string;
 	readonly slashQuickSpecDesc: string;
@@ -117,6 +118,7 @@ export function getPanelStrings(): TarotPanelStrings {
 		contextCodebaseDesc: vscode.l10n.t('Workspace file map'),
 		contextTerminalDesc: vscode.l10n.t('Active terminal context'),
 		contextSteeringDesc: vscode.l10n.t('Steering document (workspace/global)'),
+		contextMcpDesc: vscode.l10n.t('MCP server configuration (workspace/global)'),
 		slashCommandsTitle: vscode.l10n.t('Slash Commands (/)'),
 		slashSpecDesc: vscode.l10n.t('Create a new Feature or Bugfix Spec (EARS)'),
 		slashQuickSpecDesc: vscode.l10n.t('Generate requirements, design and tasks in one pass (no gates)'),
