@@ -7,6 +7,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { TarotSessionStore } from '../agents/sessionStore';
 import {
@@ -25,6 +26,7 @@ import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
 import { resolveContextProvider } from '../context/contextProviders';
 import { ChangedFileInfo, TarotGitReviewService } from '../git/gitReviewService';
+import { TarotWorktree, TarotWorktreeManager } from '../git/worktreeManager';
 import { runHooksForTrigger, selectHooksForTrigger, TarotHookEngine } from '../hooks/hookEngine';
 import { runHookCommand } from '../hooks/hookRunner';
 import { HookDefinition } from '../hooks/hookTypes';
@@ -117,6 +119,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		private readonly gitReviewService: TarotGitReviewService,
 		private readonly hookEngine: TarotHookEngine,
 		private readonly permissionsService: TarotPermissionsService,
+		private readonly worktreeManager: TarotWorktreeManager,
 		private readonly outputChannel: vscode.OutputChannel,
 	) {
 		this.runGatedHookCommand = this.permissionsService.createGatedRunCommand(this.outputChannel);
@@ -456,6 +459,25 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		});
 	}
 
+	/**
+	 * `worktreeManager.createWorktree` starts from `git rev-parse HEAD` — if the main tree has
+	 * uncommitted changes, a worktree built from HEAD would silently give the agent a stale,
+	 * incomplete view of the code (missing exactly the in-progress edits a Spec task is most
+	 * likely to build on). Isolation is skipped rather than risking that; the task then runs
+	 * directly against the workspace, exactly as it did before this was wired up.
+	 */
+	private async canUseIsolatedWorktree(workspaceRoot: string): Promise<boolean> {
+		if (!vscode.workspace.isTrusted) {
+			return false;
+		}
+		const gitPath = await resolveBinaryPath('git');
+		if (!gitPath) {
+			return false;
+		}
+		const res = await execSimple(gitPath, ['-C', workspaceRoot, 'status', '--porcelain']).catch(() => undefined);
+		return res?.exitCode === 0 && res.stdout.trim().length === 0;
+	}
+
 	private async runSpecTaskInternal(specDir: string, task: SpecTask): Promise<boolean> {
 		const spec = await this.specService.loadSpecContext(specDir);
 		const taskKey = task.numberLabel ?? String(task.index);
@@ -477,8 +499,21 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const prompt = this.specService.buildTaskExecutionPrompt(spec, task);
 		const tasksFilePath = path.join(specDir, 'tasks.md');
 
+		// Isolate the task's edits in a disposable worktree when it's safe to (M3.6.7 shipped
+		// `worktreeManager.ts` but nothing ever called it — gap found in code review,
+		// 2026-11-22): a failed or cancelled task then never touches the real workspace at all,
+		// instead of needing a manual "Restore Checkpoint"; a successful one is merged back
+		// atomically via `applyWorktree`. The interactive per-file fs_write "ask" card is skipped
+		// for an isolated run — its Revert button depends on the checkpoint the worktree holds,
+		// which is gone once discarded — so a hard `deny` rule is instead enforced directly as an
+		// apply-time filter below; an `ask` rule has no isolated-run equivalent yet.
+		const worktree: TarotWorktree | undefined = await this.canUseIsolatedWorktree(cwd)
+			? await this.worktreeManager.createWorktree(cwd, taskKey)
+			: undefined;
+
 		const succeeded = await this.runPrompt(prompt, {
 			displayPrompt: vscode.l10n.t('▶ Run Task #{0} ({1}): {2}', task.index, spec.slug, task.title),
+			execCwd: worktree?.path,
 			onCheckpointCreated: async (checkpointId, sessionId) => {
 				if (checkpointId) {
 					await recordTaskCheckpoint(specDir, taskKey, { sessionId, checkpointId, createdAt: new Date().toISOString() });
@@ -494,6 +529,21 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				};
 			},
 		});
+
+		if (worktree) {
+			if (succeeded) {
+				await this.worktreeManager.applyWorktree(cwd, worktree, async relativePath => {
+					const decision = await this.permissionsService.evaluate('fs_write', relativePath);
+					if (decision.effect === 'deny') {
+						this.outputChannel.appendLine(`[Permissions] fs_write denied, not applied from isolated task worktree: ${relativePath}`);
+						return false;
+					}
+					return true;
+				});
+			}
+			await this.worktreeManager.discardWorktree(cwd, worktree);
+			await this.refreshChangedFiles();
+		}
 
 		if (workspaceHooks.length > 0) {
 			const post = await runHooksForTrigger(workspaceHooks, 'PostTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey, runCommand: this.runGatedHookCommand });
@@ -843,6 +893,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			nextApprovalGate?: SpecApprovalGate;
 			onCompleted?: () => Promise<TaskProgressCard | undefined>;
 			onCheckpointCreated?: (checkpointId: string | undefined, sessionId: string) => Promise<void>;
+			/** Runs the agent (and its checkpoint/fs_write review) here instead of the workspace root — a worktree, for task isolation. Spec/Steering resolution always stays rooted at the real workspace regardless. */
+			execCwd?: string;
 		},
 	): Promise<boolean> {
 		if (this.runningSessionId) {
@@ -856,7 +908,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			return false;
 		}
 
-		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		const cwd = options?.execCwd ?? workspaceRoot;
 		const session = this.sessionStore.getActiveSession(agentId, this.mode, this.autonomy);
 		session.activeAgentId = agentId;
 		session.mode = this.mode;
@@ -919,7 +972,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const appliedSteering = steeringResolution.applied.map(item => item.label);
 		// Same Workspace Trust gate as Steering above — a cloned repo's .tarot/specs/** must not
 		// auto-inject content before the user has trusted the workspace.
-		const specContext = vscode.workspace.isTrusted ? await this.resolveActiveSpecContext(cwd) : undefined;
+		const specContext = vscode.workspace.isTrusted ? await this.resolveActiveSpecContext(workspaceRoot) : undefined;
 		let accumulatedText = '';
 		let accumulatedThought = '';
 		let hadError = false;

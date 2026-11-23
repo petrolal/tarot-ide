@@ -11,6 +11,7 @@ import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
+import { TarotWorktreeManager } from './git/worktreeManager';
 import { runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
 import { TarotPermissionsService } from './permissions/permissionsService';
 import { TarotTrustService } from './permissions/trustService';
@@ -72,6 +73,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const steeringService = new TarotSteeringService();
 	const specService = new TarotSpecService();
 	const gitReviewService = new TarotGitReviewService();
+	const worktreeManager = new TarotWorktreeManager();
 	const hookEngine = new TarotHookEngine();
 	const trustService = new TarotTrustService();
 	const permissionsService = new TarotPermissionsService(trustService, outputChannel!);
@@ -96,6 +98,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		gitReviewService,
 		hookEngine,
 		permissionsService,
+		worktreeManager,
 		outputChannel,
 	);
 

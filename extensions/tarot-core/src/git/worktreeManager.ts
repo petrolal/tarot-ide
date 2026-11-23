@@ -84,30 +84,56 @@ export class TarotWorktreeManager {
 	 * Copies every file that differs between the worktree's base ref and its current working
 	 * tree back into `workspaceRoot`. Uses a plain copy (like `checkpointService`'s restore)
 	 * rather than `git merge`, so it never produces conflict markers.
+	 *
+	 * `git diff --name-status <baseRef>` alone only reports **tracked** files — a brand new file
+	 * the agent created (the common case: implementing a task from scratch) is untracked and
+	 * invisible to it, so `git status --porcelain` is also consulted to catch those. `shouldApply`
+	 * lets the caller veto copying a specific path (e.g. a hard `fs_write` deny rule) without this
+	 * module needing to depend on the permissions engine itself.
 	 */
-	async applyWorktree(workspaceRoot: string, worktree: TarotWorktree): Promise<boolean> {
+	async applyWorktree(workspaceRoot: string, worktree: TarotWorktree, shouldApply?: (relativePath: string) => Promise<boolean>): Promise<boolean> {
 		const gitPath = await resolveBinaryPath('git');
 		if (!gitPath) {
 			return false;
 		}
 
+		const changes = new Map<string, 'modified' | 'deleted'>();
+
 		const diffRes = await execSimple(gitPath, ['-C', worktree.path, 'diff', '--name-status', worktree.baseRef]).catch(() => undefined);
-		if (!diffRes || diffRes.exitCode !== 0) {
+		if (diffRes?.exitCode === 0) {
+			for (const line of diffRes.stdout.split('\n')) {
+				const trimmed = line.trim();
+				if (!trimmed) {
+					continue;
+				}
+				const [status, ...rest] = trimmed.split('\t');
+				const relativePath = rest[rest.length - 1];
+				if (relativePath) {
+					changes.set(relativePath, status.startsWith('D') ? 'deleted' : 'modified');
+				}
+			}
+		}
+
+		const statusRes = await execSimple(gitPath, ['-C', worktree.path, 'status', '--porcelain']).catch(() => undefined);
+		if (statusRes?.exitCode === 0) {
+			for (const line of statusRes.stdout.split('\n')) {
+				const trimmed = line.slice(3).trim();
+				if (trimmed && !changes.has(trimmed)) {
+					changes.set(trimmed, 'modified');
+				}
+			}
+		}
+
+		if (diffRes?.exitCode !== 0 && statusRes?.exitCode !== 0) {
 			return false;
 		}
 
-		for (const line of diffRes.stdout.split('\n')) {
-			const trimmed = line.trim();
-			if (!trimmed) {
-				continue;
-			}
-			const [status, ...rest] = trimmed.split('\t');
-			const relativePath = rest[rest.length - 1];
-			if (!relativePath) {
+		for (const [relativePath, kind] of changes) {
+			if (shouldApply && !(await shouldApply(relativePath))) {
 				continue;
 			}
 			const targetAbs = path.join(workspaceRoot, relativePath);
-			if (status.startsWith('D')) {
+			if (kind === 'deleted') {
 				await fs.rm(targetAbs, { force: true }).catch(() => undefined);
 			} else {
 				await fs.mkdir(path.dirname(targetAbs), { recursive: true });
