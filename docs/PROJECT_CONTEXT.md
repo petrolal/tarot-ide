@@ -204,7 +204,7 @@ extensions/tarot-core/
 │   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar (preservado intacto)
 │   ├── tarot-{workflows,powers,skills,crew}-icon.svg # Ícones monocromáticos dos 4 novos containers dedicados da Activity Bar (Workflows, Powers, Skills & Agents, Tarot Crew)
 │   ├── arcana/{*.png,arcana-manifest.json} # Adição complementar: 8 cartas ilustradas dos Arcanos Maiores + manifesto
-│   └── webview/{panel,workflow,focusMode}.{css,js} # UIs CSP-estritas (zero innerHTML) do Painel Agêntico, Workflow Run Editor e Tarot Agent Mode (3 painéis)
+│   └── webview/{panel,workflow,focusMode}.{css,js} + safeMarkdown.js # UIs CSP-estritas (zero innerHTML) do Painel Agêntico, Workflow Timeline Kiro, Tarot Agent Focus Mode (3 painéis com streaming ao vivo) e renderizador Markdown DOM seguro compartilhado
 ├── recipes/                            # M3.9a/b — 7 recipes bundled (*.workflow.json: investigate, feature-pipeline, publish-pr, semantic-review-multi-model, autoresearch, goal, ralph)
 ├── package.json                        # Manifesto (tema, ícones, 5 containers na Activity Bar esquerda + Secondary Side Bar direita, comandos e settings tarot.*, submenus, keybindings, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
