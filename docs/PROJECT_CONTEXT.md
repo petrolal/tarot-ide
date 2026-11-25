@@ -177,7 +177,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 | `src/vs/workbench/browser/media/code-icon.svg`, `src/vs/sessions/browser/media/vscode-icon.svg`, `src/vs/workbench/browser/parts/editor/media/letterpress-*.svg` | Modificados | Emblema vetorial da carta Tarot IDE na titlebar, banners, Welcome, Sessions e marca d'água do editor vazio. |
 | `resources/{linux,win32,darwin,server}/**` | Modificados | Ícones do SO/janela/web e manifestos (`code.desktop`, `code.appdata.xml`, `VisualElementsManifest.xml`, `manifest.json`). |
 | `resources/tarot/**` | Novo | Assets mestres de marca (`logo.png`, `splash.png`, ícones 64..1024px). |
-| `build/gulpfile.extensions.ts`, `pnpm-workspace.yaml`, `build/npm/dirs.ts`, `pnpm-lock.yaml` | Modificados | Registro nativo da extensão built-in `extensions/tarot-core` e lockfile correspondente (`pnpm-lock.yaml` nunca deve ser resolvido manualmente em merges). |
+| `build/gulpfile.extensions.ts`, `build/gulpfile.vscode.ts`, `build/gulpfile.vscode.linux.ts`, `pnpm-workspace.yaml`, `build/npm/dirs.ts`, `pnpm-lock.yaml` | Modificados | Registro nativo da extensão built-in `extensions/tarot-core`, lockfile correspondente (`pnpm-lock.yaml` nunca deve ser resolvido manualmente em merges) e guarda `hasDefaultChatAgent` impedindo empacotamento de Copilot SDK/shim/symlink em produção. |
 | `AGENTS.md`, `README.md`, `.github/copilot-instructions.md`, `.github/{instructions,prompts}/tarot-*` | Modificados / Novos | Documentação de entrada do repositório/agentes, cabeçalho de precedência em `.github/copilot-instructions.md` e instruções/prompts reutilizáveis do Tarot. |
 | `src/vs/workbench/contrib/tarotSpecStepper/browser/*` & `src/vs/workbench/workbench.common.main.ts` | Novo (2 arquivos + 1 linha import) | Stepper visual nativo (ViewZone + OverlayWidget acima da linha 1 em `.tarot/specs/*/*.md`) com pills `[1 Requirements] › [2 Design] › [3 Task list]` + botões `Analyze` e `Review` (impossível via Extension API/CodeLens). |
 | `extensions/tarot-core/**` | Novo | Extensão built-in central do Tarot IDE (tema, ícones, walkthrough e engine agêntica Kiro/BYOA). |
@@ -285,6 +285,7 @@ extensions/tarot-core/
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
         ├── panelProtocol.ts            # Union discriminada tipada + guarda runtime para protocolo postMessage do painel
         ├── panelHtml.ts                # Template HTML CSP-estrito com escapeHtml e catálogo l10n/Arcana do painel
+        ├── turnContextBuilder.ts       # Montagem de systemContext por turno (Custom Agent + resources, Steering, Powers, Skills, MCP) com gate Workspace Trust
         └── agentPanelView.ts           # WebviewView Kiro (abas, History, Fork, Restore arquivos+contexto, medidor real + compaction, links Markdown clicáveis, seletor agrupado de Custom Agents, Skills/Powers/Steering `/nome`, fallback de modelo morto, Pre-PR Review)
 ```
 
