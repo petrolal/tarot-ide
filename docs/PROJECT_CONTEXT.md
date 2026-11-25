@@ -254,7 +254,6 @@ extensions/tarot-core/
     │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, aprovação e gate de hooks `command`; watcher + toast deduplicado
     ├── specs/
     │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, Sync Files e PBT parser & stepper logic
-    │   ├── specStepper.ts              # CodeLens stepper clicável (1 Requirements › 2 Design › 3 Task list) + Analyze + Review
     │   ├── markdownReview.ts           # Formatação em lote de comentários inline em Specs Markdown
     │   ├── taskParser.ts               # Parser de checklists `- [ ]`/`- [x]` + opcionais `*`, `_Requirements:_`, `_Depends:_`, `**Property N**`/`**Validates:**`
     │   ├── taskGraph.ts                # Grafo de dependências puro: agrupa tasks pendentes em ondas (Kahn)
@@ -271,7 +270,7 @@ extensions/tarot-core/
     │   ├── runStore.ts                 # Persistência de runs/checkpoints em `.tarot/workflows/runs/<id>.json`
     │   └── workflowEngine.ts           # Execução com checkpoint por fronteira, pause cooperativa, retomada pós-reinício e `updateWorkflow`
     ├── test/
-    │   └── *.test.ts                   # 36 suítes / 121 testes unitários puros via `node --test` (sem importar `vscode`)
+    │   └── *.test.ts                   # 39 suítes / 131 testes unitários puros via `node --test` (sem importar `vscode`)
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks
@@ -281,6 +280,8 @@ extensions/tarot-core/
         ├── recipesView.ts              # M3.9b — TreeView `RECIPES` (Workspace/Global/Bundled) com ação inline `▷`
         ├── workflowRunEditor.ts        # M3.9b — Aba WebviewPanel `Workflow: <nome>` (árvore dockada, Follow, Go to active, Pause/Resume/Stop, + Add loops, Message step)
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
+        ├── panelProtocol.ts            # Union discriminada tipada + guarda runtime para protocolo postMessage do painel
+        ├── panelHtml.ts                # Template HTML CSP-estrito com escapeHtml e catálogo l10n/Arcana do painel
         └── agentPanelView.ts           # WebviewView Kiro (abas, History, Fork, Restore arquivos+contexto, medidor real + compaction, links Markdown clicáveis, seletor agrupado de Custom Agents, Skills/Powers/Steering `/nome`, fallback de modelo morto, Pre-PR Review)
 ```
 
