@@ -1,0 +1,23 @@
+{
+  "name": "publish-pr",
+  "description": "Prepara e publica um Pull Request verde e revisado (nunca realiza merge automático).",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "step",
+      "id": "validate",
+      "agent": "wf-coder",
+      "prompt": "Valide build, testes e lint das alterações atuais para o PR: {{input}}. Não faça merge.",
+      "captureOutput": true
+    },
+    {
+      "type": "step",
+      "id": "submit-pr",
+      "agent": "wf-pr-submitter",
+      "prompt": "Prepare o título, descrição e resumo de evidências do PR com base na validação abaixo (sem realizar merge):\n\n{{previous.output}}",
+      "captureOutput": true
+    }
+  ]
+}

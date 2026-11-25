@@ -1074,6 +1074,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				this.attachments = [];
 				this.postState();
 				break;
+			case '/workflow-run':
+				await vscode.commands.executeCommand('tarot.workflows.run');
+				break;
 			case '/review': {
 				const diffAtt = await resolveContextProvider('gitDiff');
 				const probAtt = await resolveContextProvider('problems');

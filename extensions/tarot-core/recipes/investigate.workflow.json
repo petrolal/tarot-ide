@@ -1,0 +1,23 @@
+{
+  "name": "investigate",
+  "description": "Investiga a causa raiz de um problema sem alterar arquivos e produz um relatório estruturado.",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "step",
+      "id": "gather",
+      "agent": "wf-auto-researcher",
+      "prompt": "Investigue o problema abaixo no repositório sem modificar arquivos:\n\n{{input}}\n\nListe os arquivos relevantes, evidências e hipóteses principais.",
+      "captureOutput": true
+    },
+    {
+      "type": "step",
+      "id": "synthesize",
+      "agent": "wf-planner",
+      "prompt": "Com base na investigação abaixo, sintetize a causa raiz provável, os riscos e o plano mínimo de correção:\n\n{{previous.output}}",
+      "captureOutput": true
+    }
+  ]
+}

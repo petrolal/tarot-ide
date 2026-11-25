@@ -1,0 +1,37 @@
+{
+  "name": "semantic-review-multi-model",
+  "description": "Revisão semântica paralela por múltiplos revisores e consolidação final.",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "parallel",
+      "id": "reviewers",
+      "joinPolicy": "allSettled",
+      "branches": [
+        {
+          "type": "step",
+          "id": "review-correctness",
+          "agent": "semantic_reviewer",
+          "prompt": "Revise corretude lógica, edge cases e contratos do escopo: {{input}}",
+          "captureOutput": true
+        },
+        {
+          "type": "step",
+          "id": "review-security",
+          "agent": "wf-design-reviewer",
+          "prompt": "Revise segurança, permissões, validação de entradas e regressões do escopo: {{input}}",
+          "captureOutput": true
+        }
+      ]
+    },
+    {
+      "type": "step",
+      "id": "aggregate",
+      "agent": "wf-review-aggregator",
+      "prompt": "Consolide os achados das duas revisões semânticas abaixo em uma lista priorizada:\n\nCorretude:\n{{review-correctness.output}}\n\nSegurança:\n{{review-security.output}}",
+      "captureOutput": true
+    }
+  ]
+}

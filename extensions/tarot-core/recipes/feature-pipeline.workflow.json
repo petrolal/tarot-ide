@@ -1,0 +1,48 @@
+{
+  "name": "feature-pipeline",
+  "description": "Pipeline completo de feature: planejamento, design, revisão em loop (máx 2), implementação e validação.",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "step",
+      "id": "plan",
+      "agent": "wf-planner",
+      "prompt": "Planeje a feature solicitada e liste requisitos EARS e critérios de aceite:\n\n{{input}}",
+      "captureOutput": true
+    },
+    {
+      "type": "step",
+      "id": "design",
+      "agent": "wf-design",
+      "prompt": "Proponha o design técnico detalhado para o plano abaixo:\n\n{{previous.output}}",
+      "captureOutput": true
+    },
+    {
+      "type": "repeat",
+      "id": "review-loop",
+      "maxIterations": 2,
+      "onMaxIterations": "pause",
+      "stopCondition": {
+        "containsText": "APPROVED"
+      },
+      "steps": [
+        {
+          "type": "step",
+          "id": "implement",
+          "agent": "wf-coder",
+          "prompt": "Implemente a feature seguindo o design abaixo e execute os testes:\n\n{{design.output}}",
+          "captureOutput": true
+        },
+        {
+          "type": "step",
+          "id": "review",
+          "agent": "wf-design-reviewer",
+          "prompt": "Revise a implementação abaixo quanto a corretude, segurança e testes. Responda APPROVED se estiver pronto, ou liste correções obrigatórias:\n\n{{previous.output}}",
+          "captureOutput": true
+        }
+      ]
+    }
+  ]
+}

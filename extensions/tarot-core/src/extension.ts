@@ -26,6 +26,11 @@ import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
+import { TarotRecipeLoader } from './workflows/recipeLoader';
+import { validateWorkflow } from './workflows/recipeValidator';
+import { TarotWorkflowRunStore } from './workflows/runStore';
+import { TarotWorkflowEngine } from './workflows/workflowEngine';
+import { WorkflowRecipe } from './workflows/workflowTypes';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -82,6 +87,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	const customAgentService = new TarotCustomAgentService();
 	const powersService = new TarotPowersService(skillsService);
 	const mcpConfigService = new TarotMcpConfigService();
+	const recipeLoader = new TarotRecipeLoader(path.join(context.extensionUri.fsPath, 'recipes'));
+	const workflowRunStore = new TarotWorkflowRunStore();
+	const workflowEngine = new TarotWorkflowEngine(workflowRunStore);
 	const hookEngine = new TarotHookEngine((filePath, errors) => {
 		for (const err of errors) {
 			outputChannel!.appendLine(`[Hooks] ${filePath}: ${err}`);
@@ -223,6 +231,133 @@ export function activate(context: vscode.ExtensionContext): void {
 
 		vscode.commands.registerCommand('tarot.git.prePrReview', async () => {
 			await agentPanelProvider.runPrePrReview();
+		}),
+
+		vscode.commands.registerCommand('tarot.workflows.validate', async () => {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Open a .workflow.json or .workflow.yaml file to validate.'));
+				return;
+			}
+			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			try {
+				const raw = editor.document.uri.fsPath.endsWith('.json')
+					? JSON.parse(editor.document.getText()) as WorkflowRecipe
+					: undefined;
+				if (!raw) {
+					vscode.window.showInformationMessage(vscode.l10n.t('Use .workflow.json or run discovery to validate YAML recipes.'));
+					return;
+				}
+				const result = validateWorkflow(raw, root);
+				if (result.valid) {
+					vscode.window.showInformationMessage(vscode.l10n.t('Workflow "{0}" is valid ({1} steps, depth {2}).', raw.name, result.staticStepCount, result.maxDepth));
+				} else {
+					outputChannel!.appendLine(`[Workflows] Validation errors in ${editor.document.fileName}:\n${result.errors.join('\n')}`);
+					vscode.window.showErrorMessage(vscode.l10n.t('Workflow validation failed with {0} error(s). See Tarot IDE output channel.', result.errors.length));
+				}
+			} catch (err) {
+				vscode.window.showErrorMessage(vscode.l10n.t('Invalid workflow file: {0}', err instanceof Error ? err.message : String(err)));
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.workflows.run', async () => {
+			const enabled = vscode.workspace.getConfiguration('tarot.workflows').get<boolean>('enabled', false);
+			if (!enabled) {
+				const enableLabel = vscode.l10n.t('Enable Workflows');
+				const pick = await vscode.window.showInformationMessage(
+					vscode.l10n.t('Workflows are opt-in (tarot.workflows.enabled). Enable them now?'),
+					enableLabel,
+				);
+				if (pick !== enableLabel) {
+					return;
+				}
+				await vscode.workspace.getConfiguration('tarot.workflows').update('enabled', true, vscode.ConfigurationTarget.Global);
+			}
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+			if (discovery.recipes.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No workflow recipes found.'));
+				return;
+			}
+			const picked = await vscode.window.showQuickPick(
+				discovery.recipes.map(r => ({
+					label: r.name,
+					description: r.scope,
+					detail: r.recipe.description,
+					loaded: r,
+				})),
+				{ title: vscode.l10n.t('Run Workflow Recipe') },
+			);
+			if (!picked) {
+				return;
+			}
+			const taskInput = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Workflow "{0}" — Task Input', picked.loaded.name),
+				prompt: vscode.l10n.t('Describe the task for this workflow run'),
+			});
+			if (!taskInput?.trim()) {
+				return;
+			}
+
+			const approveLabel = vscode.l10n.t('Run Workflow');
+			const confirm = await vscode.window.showInformationMessage(
+				vscode.l10n.t('Approve running workflow "{0}" ({1})?', picked.loaded.name, picked.loaded.scope),
+				{ modal: true },
+				approveLabel,
+			);
+			if (confirm !== approveLabel) {
+				return;
+			}
+
+			const activeAgentId = runtimeManager.getActiveAgentId();
+			await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Workflow: {0}', picked.loaded.name), cancellable: true },
+				async (progress, token) => {
+					const runState = await workflowEngine.run(
+						picked.loaded.recipe,
+						root,
+						{ task: taskInput.trim(), input: taskInput.trim() },
+						{
+							shouldAbort: () => token.isCancellationRequested,
+							executeStep: async req => {
+								progress.report({ message: vscode.l10n.t('Step {0} ({1})', req.step.id, req.step.agent) });
+								const targetAdapter = runtimeManager.getAdapter(req.step.agent) ?? runtimeManager.getAdapter(activeAgentId);
+								if (!targetAdapter) {
+									return { ok: false, output: `No agent adapter available for "${req.step.agent}".` };
+								}
+								let output = '';
+								let hadErr = false;
+								await targetAdapter.run(
+									{
+										prompt: req.resolvedPrompt,
+										mode: 'vibe',
+										autonomy: 'acceptFileChanges',
+										model: req.modelId,
+										effort: req.effortLevel,
+										cwd: req.workspaceRoot,
+										timeoutMs: vscode.workspace.getConfiguration('tarot.agents').get<number>('timeoutMs', 300_000),
+									},
+									ev => {
+										if (ev.type === 'text' && ev.content) {
+											output += ev.content;
+										} else if (ev.type === 'error' && ev.content) {
+											hadErr = true;
+											output += `\n[Error] ${ev.content}`;
+										}
+									},
+									token,
+								);
+								return { ok: !hadErr && !token.isCancellationRequested, output: output.trim() };
+							},
+						},
+					);
+					outputChannel!.appendLine(`[Workflows] Run ${runState.id} (${runState.recipeName}) finished with status: ${runState.status}`);
+					vscode.window.showInformationMessage(vscode.l10n.t('Workflow "{0}" finished: {1}.', runState.recipeName, runState.status));
+				},
+			);
 		}),
 
 		vscode.commands.registerCommand('tarot.agent.openInEditorTab', async () => {

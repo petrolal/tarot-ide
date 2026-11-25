@@ -304,6 +304,21 @@
           "maximum": 20,
           "description": "%config.compaction.excludeMessages.description%"
         },
+        "tarot.workflows.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.workflows.enabled.description%"
+        },
+        "tarot.workflows.useWorkflows": {
+          "type": "string",
+          "default": "onlyWhenAsked",
+          "enum": [
+            "onlyWhenAsked",
+            "onlyForLargeTasks",
+            "asMuchAsPossible"
+          ],
+          "description": "%config.workflows.useWorkflows.description%"
+        },
         "tarot.specs.defaultWorkflow": {
           "type": "string",
           "default": "ask",
@@ -696,6 +711,21 @@
         "title": "%command.git.prePrReview.title%",
         "category": "Tarot IDE",
         "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "tarot.workflows.run",
+        "title": "%command.workflows.run.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/10-wheel-of-fortune.svg",
+          "dark": "icons/arcana/10-wheel-of-fortune.svg"
+        }
+      },
+      {
+        "command": "tarot.workflows.validate",
+        "title": "%command.workflows.validate.title%",
+        "category": "Tarot IDE",
+        "icon": "$(check-all)"
       }
     ]
   },
