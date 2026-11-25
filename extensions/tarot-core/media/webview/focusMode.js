@@ -286,7 +286,11 @@
 		}
 
 		modeSelect.value = activeSession.mode || 'vibe';
-		autonomySelect.value = activeSession.autonomy || 'acceptFileChanges';
+		const rawAutonomy = activeSession.autonomy || 'acceptFileChanges';
+		autonomySelect.value = rawAutonomy === 'autopilot' ? 'acceptFileChanges' : rawAutonomy;
+		if (!autonomySelect.value) {
+			autonomySelect.value = 'acceptFileChanges';
+		}
 		sendBtn.textContent = state.isRunning ? t('stop') : t('send');
 	}
 

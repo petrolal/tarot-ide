@@ -91,8 +91,8 @@ export class TarotFocusModeManager implements vscode.Disposable {
 			return;
 		}
 		this.sidebarsClosedByFocus = false;
-		await vscode.commands.executeCommand('workbench.action.toggleSidebarVisibility');
-		await vscode.commands.executeCommand('workbench.action.openAuxiliaryBar');
+		await vscode.commands.executeCommand('workbench.action.focusSideBar');
+		await vscode.commands.executeCommand('tarot.views.agentPanel.focus');
 	}
 
 	postStreamEvent(payload: Record<string, unknown>): void {
