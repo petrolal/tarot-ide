@@ -119,7 +119,7 @@ export interface WorkflowRunState {
 	updatedAt: string;
 	status: WorkflowRunStatus;
 	pauseReason?: WorkflowPauseReason;
-	readonly inputs: Readonly<Record<string, string>>;
+	inputs: Record<string, string>;
 	readonly stepStates: Record<string, WorkflowStepState>;
 	readonly outputs: Record<string, string>;
 	readonly artifacts: Record<string, string>;

@@ -176,3 +176,32 @@
 	background: #E7DFF5;
 	color: #1D1135;
 }
+
+.tarot-spec-step-pill:focus-visible,
+.tarot-spec-action-btn:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+}
+
+/* High Contrast themes */
+.hc-black .tarot-spec-step-pill,
+.hc-light .tarot-spec-step-pill,
+.hc-black .tarot-spec-action-btn,
+.hc-light .tarot-spec-action-btn {
+	border-color: var(--vscode-contrastBorder);
+	background: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+}
+
+.hc-black .tarot-spec-step-pill.active,
+.hc-light .tarot-spec-step-pill.active {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline: 1px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.hc-black .tarot-spec-step-num,
+.hc-light .tarot-spec-step-num {
+	background: transparent;
+	border-right: 1px solid var(--vscode-contrastBorder);
+	color: var(--vscode-foreground);
+}

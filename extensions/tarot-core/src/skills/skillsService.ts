@@ -223,13 +223,25 @@ export class TarotSkillsService {
 	}
 
 	/** Imports a skill from a local folder containing `SKILL.md` into workspace or global skills dir. */
-	async importFromLocalFolder(sourceDir: string, targetRootDir: string): Promise<SkillDefinition> {
+	async importFromLocalFolder(sourceDir: string, targetRootDir: string, overrideFolderName?: string): Promise<SkillDefinition> {
 		const skillFile = path.join(sourceDir, 'SKILL.md');
 		await fs.access(skillFile);
-		const folderName = path.basename(sourceDir).replace(/[^a-zA-Z0-9._-]+/g, '-');
-		const destDir = path.join(targetRootDir, folderName);
-		await fs.mkdir(targetRootDir, { recursive: true });
-		await fs.cp(sourceDir, destDir, { recursive: true, force: true });
+		const rawName = (overrideFolderName ?? path.basename(sourceDir)).trim();
+		const folderName = rawName.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^\.+/, '');
+		if (!folderName || folderName === '.' || folderName === '..') {
+			throw new Error('Invalid skill folder name.');
+		}
+		const targetRootAbs = path.resolve(targetRootDir);
+		const destDir = path.resolve(targetRootAbs, folderName);
+		if (!destDir.startsWith(targetRootAbs + path.sep)) {
+			throw new Error('Skill destination escapes the skills directory.');
+		}
+		await fs.mkdir(targetRootAbs, { recursive: true });
+		await fs.cp(sourceDir, destDir, {
+			recursive: true,
+			force: true,
+			filter: src => path.basename(src) !== '.git',
+		});
 		const raw = await fs.readFile(path.join(destDir, 'SKILL.md'), 'utf8');
 		const parsed = parseSkillMarkdown(raw, folderName);
 		return {
@@ -265,32 +277,79 @@ export class TarotSkillsService {
 			if (parsed.branch) {
 				cloneArgs.push('--branch', parsed.branch);
 			}
-			cloneArgs.push(parsed.repoUrl, tmpDir);
+			cloneArgs.push('--', parsed.repoUrl, tmpDir);
 			const res = await execSimple(gitPath, cloneArgs, 60_000);
 			if (res.exitCode !== 0) {
 				throw new Error(res.stderr.trim() || `git clone failed (exit ${res.exitCode}).`);
 			}
-			const sourceDir = parsed.subpath ? path.join(tmpDir, parsed.subpath) : tmpDir;
-			return await this.importFromLocalFolder(sourceDir, targetRootDir);
+			const tmpRootAbs = path.resolve(tmpDir);
+			const sourceDir = parsed.subpath ? path.resolve(tmpRootAbs, parsed.subpath) : tmpRootAbs;
+			if (sourceDir !== tmpRootAbs && !sourceDir.startsWith(tmpRootAbs + path.sep)) {
+				throw new Error('Skill subpath escapes the cloned repository.');
+			}
+			const fallbackName = parsed.subpath ? undefined : parsed.repoName;
+			return await this.importFromLocalFolder(sourceDir, targetRootDir, fallbackName);
 		} finally {
 			await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
 		}
 	}
 }
 
-export function parseGitSkillUrl(rawUrl: string): { repoUrl: string; branch?: string; subpath?: string } | undefined {
+const ALLOWED_GIT_SKILL_HOSTS = new Set(['github.com', 'gitlab.com']);
+
+function isAllowedGitHost(hostname: string): boolean {
+	const host = hostname.toLowerCase();
+	if (ALLOWED_GIT_SKILL_HOSTS.has(host)) {
+		return true;
+	}
+	return host.endsWith('.github.com') || host.endsWith('.gitlab.com');
+}
+
+export function parseGitSkillUrl(rawUrl: string): { repoUrl: string; repoName: string; branch?: string; subpath?: string } | undefined {
 	const trimmed = rawUrl.trim();
-	if (!/^https:\/\/[a-zA-Z0-9.-]+\//.test(trimmed)) {
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(trimmed);
+	} catch {
 		return undefined;
 	}
-	// GitHub / GitLab tree URL: https://github.com/owner/repo/tree/<branch>/<subpath>
-	const treeMatch = /^(https:\/\/[^/]+\/[^/]+\/[^/]+?)(?:\.git)?\/(?:-\/)?tree\/([^/]+)(?:\/(.+))?$/.exec(trimmed);
-	if (treeMatch) {
-		return {
-			repoUrl: `${treeMatch[1]}.git`,
-			branch: treeMatch[2],
-			subpath: treeMatch[3]?.replace(/\/+$/, ''),
-		};
+	if (parsedUrl.protocol !== 'https:' || parsedUrl.username || parsedUrl.password || !isAllowedGitHost(parsedUrl.hostname)) {
+		return undefined;
 	}
-	return { repoUrl: trimmed };
+	const segments = parsedUrl.pathname.split('/').filter(Boolean);
+	if (segments.length < 2) {
+		return undefined;
+	}
+	const owner = segments[0];
+	const rawRepo = segments[1].replace(/\.git$/i, '');
+	if (!owner || !rawRepo || owner.startsWith('-') || rawRepo.startsWith('-') || owner === '..' || rawRepo === '..') {
+		return undefined;
+	}
+	const repoUrl = `https://${parsedUrl.hostname}/${owner}/${rawRepo}.git`;
+
+	// GitHub / GitLab tree URL: https://github.com/owner/repo/tree/<branch>/<subpath>
+	// or https://gitlab.com/owner/repo/-/tree/<branch>/<subpath>
+	let treeIdx = -1;
+	if (segments[2] === 'tree') {
+		treeIdx = 2;
+	} else if (segments[2] === '-' && segments[3] === 'tree') {
+		treeIdx = 3;
+	}
+	if (treeIdx !== -1) {
+		const branch = segments[treeIdx + 1];
+		if (!branch || branch.startsWith('-') || !/^[a-zA-Z0-9._/@+-]+$/.test(branch) || branch.includes('..')) {
+			return undefined;
+		}
+		const subpathSegments = segments.slice(treeIdx + 2);
+		if (subpathSegments.some(seg => seg === '..' || seg === '.' || seg.includes('\0'))) {
+			return undefined;
+		}
+		const subpath = subpathSegments.length > 0 ? subpathSegments.join('/') : undefined;
+		return { repoUrl, repoName: rawRepo, branch, subpath };
+	}
+
+	if (segments.length > 2) {
+		return undefined;
+	}
+	return { repoUrl, repoName: rawRepo };
 }

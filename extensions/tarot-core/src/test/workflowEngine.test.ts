@@ -219,4 +219,108 @@ describe('workflows.workflowEngine execution, checkpointing and resume', () => {
 			await fs.rm(tmp, { recursive: true, force: true });
 		}
 	});
+
+	it('resumes a mid-iteration repeat pause with user_reply without re-running completed steps', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wf-repeat-resume-'));
+		try {
+			const store = new TarotWorkflowRunStore();
+			const engine = new TarotWorkflowEngine(store);
+			const recipe: WorkflowRecipe = {
+				name: 'repeat-resume-test',
+				steps: [
+					{
+						type: 'repeat',
+						id: 'loop',
+						maxIterations: 1,
+						stopCondition: { containsText: 'done-s2' },
+						steps: [
+							{ type: 'step', id: 's1', agent: 'claude', prompt: 'Step 1' },
+							{ type: 'step', id: 's2', agent: 'claude', prompt: 'Step 2' },
+						],
+					},
+				],
+			};
+
+			const calls: Array<{ id: string; prompt: string }> = [];
+			let firstAttempt = true;
+			const paused = await engine.run(recipe, tmp, { task: 'demo' }, {
+				executeStep: async req => {
+					calls.push({ id: req.step.id, prompt: req.resolvedPrompt });
+					if (req.step.id === 's2' && firstAttempt) {
+						firstAttempt = false;
+						return { ok: true, output: '[SEND_MESSAGE:warning] Need key' };
+					}
+					return { ok: true, output: `done-${req.step.id}` };
+				},
+			});
+			assert.equal(paused.status, 'paused');
+			assert.equal(paused.pauseReason, 'needs_input');
+			assert.equal(paused.stepStates['s1'].status, 'completed');
+			assert.equal(paused.stepStates['s2'].status, 'paused');
+
+			// Resume with user_reply (simulating onResume in extension.ts)
+			paused.stepStates['s2'].status = 'pending';
+			const resumed = await engine.run(recipe, tmp, { ...paused.inputs, user_reply: 'API_KEY=123' }, {
+				executeStep: async req => {
+					calls.push({ id: req.step.id, prompt: req.resolvedPrompt });
+					return { ok: true, output: `done-${req.step.id}` };
+				},
+			}, paused);
+
+			assert.equal(resumed.status, 'completed');
+			assert.equal(calls.filter(c => c.id === 's1').length, 1, 's1 must not re-run on mid-iteration resume');
+			const s2ResumeCall = calls.filter(c => c.id === 's2')[1];
+			assert.match(s2ResumeCall.prompt, /API_KEY=123/);
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	it('honors parallel allSettled/any when a branch fails and polls watch until activity', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wf-par-watch-'));
+		try {
+			const store = new TarotWorkflowRunStore();
+			const engine = new TarotWorkflowEngine(store);
+			const recipe: WorkflowRecipe = {
+				name: 'par-watch-test',
+				steps: [
+					{
+						type: 'parallel',
+						id: 'par-any',
+						joinPolicy: 'any',
+						branches: [
+							{ type: 'step', id: 'fail-branch', agent: 'claude', prompt: 'Fail' },
+							{ type: 'step', id: 'ok-branch', agent: 'claude', prompt: 'Succeed' },
+						],
+					},
+					{ type: 'watch', id: 'w', handler: 'command', config: { command: 'true', pollIntervalSec: 10 } },
+					{ type: 'step', id: 'after', agent: 'claude', prompt: 'After watch' },
+				],
+			};
+
+			let polls = 0;
+			const finalRun = await engine.run(recipe, tmp, { task: 'x' }, {
+				watchPollDelayMs: 5,
+				executeStep: async req => {
+					if (req.step.id === 'fail-branch') {
+						return { ok: false, output: 'boom' };
+					}
+					return { ok: true, output: 'ok' };
+				},
+				executeWatch: async () => {
+					polls++;
+					if (polls < 3) {
+						return { outcome: 'idle', cursor: `c${polls}` };
+					}
+					return { outcome: 'new-activity', cursor: `c${polls}`, payload: 'event' };
+				},
+			});
+
+			assert.equal(finalRun.status, 'completed');
+			assert.equal(polls, 3);
+			assert.equal(finalRun.stepStates['after'].status, 'completed');
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
 });

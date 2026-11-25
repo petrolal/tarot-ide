@@ -181,13 +181,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		webviewView.webview.html = this.buildHtml(webviewView.webview);
 
 		const msgSub = webviewView.webview.onDidReceiveMessage((msg: WebviewIncomingMessage) => {
-			void this.handleMessage(msg);
+			void this.handleMessage(msg).catch(err => {
+				this.outputChannel.appendLine(`[AgentPanel] Unhandled message error: ${err instanceof Error ? err.message : String(err)}`);
+			});
 		});
 		const disposeSub = webviewView.onDidDispose(() => {
 			this.cancelActiveRun();
 			this.view = undefined;
+			msgSub.dispose();
+			disposeSub.dispose();
 		});
-		this.disposables.push(msgSub, disposeSub);
 	}
 
 	async setMode(mode: AgentMode): Promise<void> {
@@ -219,17 +222,24 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			{
 				enableScripts: true,
 				retainContextWhenHidden: true,
-				localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
+				localResourceRoots: [
+					vscode.Uri.joinPath(this.extensionUri, 'media'),
+					vscode.Uri.joinPath(this.extensionUri, 'icons'),
+				],
 			},
 		);
 		panel.iconPath = vscode.Uri.joinPath(this.extensionUri, 'media', 'icon.png');
 		panel.webview.html = this.buildHtml(panel.webview);
 		this.editorPanel = panel;
 
-		panel.webview.onDidReceiveMessage((msg: WebviewIncomingMessage) => {
-			void this.handleMessage(msg);
+		const panelMsgSub = panel.webview.onDidReceiveMessage((msg: WebviewIncomingMessage) => {
+			void this.handleMessage(msg).catch(err => {
+				this.outputChannel.appendLine(`[AgentPanel] Unhandled editor tab message error: ${err instanceof Error ? err.message : String(err)}`);
+			});
 		});
-		panel.onDidDispose(() => {
+		const panelDisposeSub = panel.onDidDispose(() => {
+			panelMsgSub.dispose();
+			panelDisposeSub.dispose();
 			this.editorPanel = undefined;
 			if (this.isFocusMode) {
 				this.isFocusMode = false;
@@ -1839,16 +1849,22 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				bugfix: arcanaArt('16-the-tower.png'),
 			},
 			icons: {
-				newSession: arcanaSvg('00-the-fool.svg'),
-				plan: arcanaSvg('09-the-hermit.svg'),
 				error: arcanaSvg('16-the-tower.svg'),
-				checkpoint: arcanaSvg('17-the-star.svg'),
 			},
 		}).replace(/</g, '\\u003c');
-		const s = getPanelStrings();
+		const rawStrings = getPanelStrings();
+		const escapeHtml = (value: string): string => value
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+		const s = Object.fromEntries(
+			Object.entries(rawStrings).map(([k, v]) => [k, escapeHtml(v)]),
+		) as unknown as typeof rawStrings;
 		// Catalog consumed by media/webview/panel.js for strings it renders at runtime.
 		// `<` escaping keeps the JSON safe to embed inside a <script> element.
-		const l10nPayload = JSON.stringify(s).replace(/</g, '\\u003c');
+		const l10nPayload = JSON.stringify(rawStrings).replace(/</g, '\\u003c');
 
 		return `<!DOCTYPE html>
 <html lang="${vscode.env.language}">
@@ -2017,6 +2033,8 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	dispose(): void {
 		this.cancelActiveRun();
+		this.editorPanel?.dispose();
+		this.editorPanel = undefined;
 		for (const d of this.disposables) {
 			d.dispose();
 		}

@@ -52,14 +52,18 @@ describe('skillsService', () => {
 		assert.equal(byTopic.activeSkills.length, 1);
 	});
 
-	it('parses GitHub and GitLab tree URLs with subpaths', () => {
+	it('parses GitHub and GitLab tree URLs with subpaths and blocks unsafe URLs', () => {
 		const parsed = parseGitSkillUrl('https://github.com/acme/skills/tree/main/packages/sql-audit');
 		assert.deepEqual(parsed, {
 			repoUrl: 'https://github.com/acme/skills.git',
+			repoName: 'skills',
 			branch: 'main',
 			subpath: 'packages/sql-audit',
 		});
 		assert.equal(parseGitSkillUrl('file:///etc/passwd'), undefined);
+		assert.equal(parseGitSkillUrl('https://localhost/acme/skills'), undefined);
+		assert.equal(parseGitSkillUrl('https://github.com/acme/skills/tree/--upload-pack=evil/sub'), undefined);
+		assert.equal(parseGitSkillUrl('https://github.com/acme/skills/tree/main/../../etc'), undefined);
 	});
 
 	it('imports a skill from a local folder and lets workspace override global', async () => {

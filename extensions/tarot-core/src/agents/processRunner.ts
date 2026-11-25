@@ -90,6 +90,8 @@ export interface SimpleExecResult {
 	readonly stderr: string;
 }
 
+const MAX_SIMPLE_OUTPUT_BYTES = 2 * 1024 * 1024;
+
 /**
  * Runs a short-lived non-interactive command (e.g., `--version`) with `shell: false`.
  */
@@ -104,30 +106,56 @@ export function execSimple(binaryPath: string, args: readonly string[], timeoutM
 		let stdout = '';
 		let stderr = '';
 		let settled = false;
+		let killTimer: NodeJS.Timeout | undefined;
 
 		const timer = setTimeout(() => {
 			if (!settled) {
 				settled = true;
-				child.kill('SIGTERM');
+				try {
+					child.kill('SIGTERM');
+				} catch {
+					// Process already exited
+				}
+				killTimer = setTimeout(() => {
+					try {
+						child.kill('SIGKILL');
+					} catch {
+						// Process already exited
+					}
+				}, 3_000);
 				reject(new Error(`Command timed out after ${timeoutMs}ms`));
 			}
 		}, timeoutMs);
 
-		child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
-		child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+		child.stdout.on('data', (chunk: Buffer) => {
+			if (stdout.length < MAX_SIMPLE_OUTPUT_BYTES) {
+				stdout += chunk.toString('utf8').slice(0, MAX_SIMPLE_OUTPUT_BYTES - stdout.length);
+			}
+		});
+		child.stderr.on('data', (chunk: Buffer) => {
+			if (stderr.length < MAX_SIMPLE_OUTPUT_BYTES) {
+				stderr += chunk.toString('utf8').slice(0, MAX_SIMPLE_OUTPUT_BYTES - stderr.length);
+			}
+		});
 
 		child.on('error', err => {
+			clearTimeout(timer);
+			if (killTimer) {
+				clearTimeout(killTimer);
+			}
 			if (!settled) {
 				settled = true;
-				clearTimeout(timer);
 				reject(err);
 			}
 		});
 
 		child.on('close', exitCode => {
+			clearTimeout(timer);
+			if (killTimer) {
+				clearTimeout(killTimer);
+			}
 			if (!settled) {
 				settled = true;
-				clearTimeout(timer);
 				resolve({ exitCode, stdout: stdout.trim(), stderr: stderr.trim() });
 			}
 		});
@@ -197,15 +225,16 @@ export function spawnStreaming(binaryPath: string, args: readonly string[], opti
 			if (!settled) {
 				terminateChild();
 				settled = true;
-				cleanup();
+				cleanup(false);
 				reject(new Error(`Agent execution timed out after ${Math.round(options.timeoutMs / 1000)}s`));
 			}
 		}, options.timeoutMs);
 
-		const cleanup = () => {
+		const cleanup = (clearKillTimer = true) => {
 			clearTimeout(timeoutTimer);
-			if (killTimer) {
+			if (clearKillTimer && killTimer) {
 				clearTimeout(killTimer);
+				killTimer = undefined;
 			}
 			cancelDisposable.dispose();
 		};
@@ -230,19 +259,23 @@ export function spawnStreaming(binaryPath: string, args: readonly string[], opti
 		});
 
 		if (options.stdinText !== undefined && child.stdin) {
+			child.stdin.on('error', () => {
+				// Ignore EPIPE when child exits before consuming stdin.
+			});
 			child.stdin.write(options.stdinText, 'utf8');
 			child.stdin.end();
 		}
 
 		child.on('error', err => {
+			cleanup(true);
 			if (!settled) {
 				settled = true;
-				cleanup();
 				reject(err);
 			}
 		});
 
 		child.on('close', exitCode => {
+			cleanup(true);
 			if (stdoutBuf.length > 0) {
 				options.onStdoutLine(stdoutBuf.replace(/\r$/, ''));
 			}
@@ -251,7 +284,6 @@ export function spawnStreaming(binaryPath: string, args: readonly string[], opti
 			}
 			if (!settled) {
 				settled = true;
-				cleanup();
 				resolve(exitCode);
 			}
 		});

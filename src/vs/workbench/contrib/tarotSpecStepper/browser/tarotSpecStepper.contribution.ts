@@ -6,13 +6,16 @@
 import './tarotSpecStepper.css';
 import { $, addDisposableListener, clearNode } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
+import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 const SPEC_FILES = new Set(['requirements.md', 'bugfix.md', 'design.md', 'tasks.md']);
 const STEPPER_HEIGHT_PX = 44;
@@ -38,10 +41,14 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 		private readonly editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
-		this.overlayDomNode = $('.tarot-spec-stepper');
+		this.overlayDomNode = $('.tarot-spec-stepper', {
+			role: 'navigation',
+			'aria-label': localize('tarotSpecStepper.ariaLabel', "Spec workflow phases"),
+		});
 		this.overlayWidget = {
 			getId: () => 'tarot.specStepper.overlay',
 			getDomNode: () => this.overlayDomNode,
@@ -49,14 +56,19 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 		};
 
 		this._register(this.editor.onDidChangeModel(() => { void this.update(); }));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => { void this.update(); }));
 		void this.update();
 	}
 
 	private async update(): Promise<void> {
 		const token = ++this.renderToken;
+		if (this._store.isDisposed || !this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			this.teardown();
+			return;
+		}
 		const model = this.editor.getModel();
 		const uri = model?.uri;
-		if (!uri) {
+		if (!uri || uri.scheme !== Schemas.file) {
 			this.teardown();
 			return;
 		}
@@ -79,20 +91,20 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 			}
 		}
 
-		if (token !== this.renderToken) {
+		if (token !== this.renderToken || this._store.isDisposed) {
 			return;
 		}
 
 		const steps: ISpecStepDef[] = isBugfix
 			? [
-				{ index: 1, fileName: 'bugfix.md', label: 'Bugfix', active: fileName === 'bugfix.md' },
-				{ index: 2, fileName: 'design.md', label: 'Design', active: fileName === 'design.md' },
-				{ index: 3, fileName: 'tasks.md', label: 'Task list', active: fileName === 'tasks.md' },
+				{ index: 1, fileName: 'bugfix.md', label: localize('tarotSpecStepper.bugfix', "Bugfix"), active: fileName === 'bugfix.md' },
+				{ index: 2, fileName: 'design.md', label: localize('tarotSpecStepper.design', "Design"), active: fileName === 'design.md' },
+				{ index: 3, fileName: 'tasks.md', label: localize('tarotSpecStepper.tasks', "Task list"), active: fileName === 'tasks.md' },
 			]
 			: [
-				{ index: 1, fileName: 'requirements.md', label: 'Requirements', active: fileName === 'requirements.md' },
-				{ index: 2, fileName: 'design.md', label: 'Design', active: fileName === 'design.md' },
-				{ index: 3, fileName: 'tasks.md', label: 'Task list', active: fileName === 'tasks.md' },
+				{ index: 1, fileName: 'requirements.md', label: localize('tarotSpecStepper.requirements', "Requirements"), active: fileName === 'requirements.md' },
+				{ index: 2, fileName: 'design.md', label: localize('tarotSpecStepper.design', "Design"), active: fileName === 'design.md' },
+				{ index: 3, fileName: 'tasks.md', label: localize('tarotSpecStepper.tasks', "Task list"), active: fileName === 'tasks.md' },
 			];
 
 		this.renderWidget(slug, specDirUri, fileName, steps);
@@ -104,7 +116,7 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 		clearNode(this.overlayDomNode);
 
 		const slugEl = $('.tarot-spec-stepper-slug', undefined,
-			$('span.codicon.codicon-checklist'),
+			$('span.codicon.codicon-checklist', { 'aria-hidden': 'true' }),
 			$('span', undefined, slug),
 		);
 		this.overlayDomNode.appendChild(slugEl);
@@ -112,9 +124,12 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 		const stepsWrap = $('.tarot-spec-stepper-steps');
 		steps.forEach((step, idx) => {
 			if (idx > 0) {
-				stepsWrap.appendChild($('span.tarot-spec-step-sep', undefined, '›'));
+				stepsWrap.appendChild($('span.tarot-spec-step-sep', { 'aria-hidden': 'true' }, '›'));
 			}
-			const btn = $<HTMLButtonElement>('button.tarot-spec-step-pill', { type: 'button' });
+			const btn = $<HTMLButtonElement>('button.tarot-spec-step-pill', {
+				type: 'button',
+				...(step.active ? { 'aria-current': 'step' } : {}),
+			});
 			if (step.active) {
 				btn.classList.add('active');
 			}
@@ -134,8 +149,8 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 		const actionsWrap = $('.tarot-spec-stepper-actions');
 		if (fileName === 'requirements.md' || fileName === 'bugfix.md') {
 			const analyzeBtn = $<HTMLButtonElement>('button.tarot-spec-action-btn', { type: 'button' },
-				$('span.codicon.codicon-search'),
-				$('span', undefined, 'Analyze'),
+				$('span.codicon.codicon-search', { 'aria-hidden': 'true' }),
+				$('span', undefined, localize('tarotSpecStepper.analyze', "Analyze")),
 			);
 			this.renderDisposables.add(addDisposableListener(analyzeBtn, 'click', e => {
 				e.preventDefault();
@@ -146,8 +161,8 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 		}
 		if (fileName === 'requirements.md' || fileName === 'bugfix.md' || fileName === 'design.md') {
 			const reviewBtn = $<HTMLButtonElement>('button.tarot-spec-action-btn', { type: 'button' },
-				$('span.codicon.codicon-comment-discussion'),
-				$('span', undefined, 'Review'),
+				$('span.codicon.codicon-comment-discussion', { 'aria-hidden': 'true' }),
+				$('span', undefined, localize('tarotSpecStepper.review', "Review")),
 			);
 			this.renderDisposables.add(addDisposableListener(reviewBtn, 'click', e => {
 				e.preventDefault();
@@ -181,6 +196,7 @@ class TarotSpecStepperContribution extends Disposable implements IEditorContribu
 	}
 
 	private teardown(): void {
+		++this.renderToken;
 		this.renderDisposables.clear();
 		if (this.viewZoneId) {
 			const id = this.viewZoneId;

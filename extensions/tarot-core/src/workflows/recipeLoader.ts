@@ -109,7 +109,7 @@ export class TarotRecipeLoader {
 			const chosen = files.json ?? files.yaml!;
 			try {
 				const rawText = await fs.readFile(chosen, 'utf8');
-				const parsed = chosen.endsWith('.json')
+				const parsed = chosen.toLowerCase().endsWith('.json')
 					? JSON.parse(rawText) as WorkflowRecipe
 					: parseYamlLite(rawText) as WorkflowRecipe;
 				const validation = validateWorkflow(parsed, workspaceRoot);

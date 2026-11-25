@@ -1121,6 +1121,7 @@
 			toggleSlashMenu(false);
 			toggleModelMenu(false);
 			toggleModeMenu(false);
+			toggleAutonomyMenu(false);
 			return;
 		}
 		if (e.key === 'Tab' && e.shiftKey) {
@@ -1140,7 +1141,7 @@
 		if (!contextMenuEl.contains(e.target) && e.target !== hashBtn && !hashBtn.contains(e.target)) {
 			toggleContextMenu(false);
 		}
-		if (!slashMenuEl.contains(e.target) && e.target !== slashBtn) {
+		if (!slashMenuEl.contains(e.target)) {
 			toggleSlashMenu(false);
 		}
 		if (!modelMenuEl.contains(e.target) && !modelPickerBtn.contains(e.target)) {
@@ -1221,6 +1222,12 @@
 					row.className = 'tool-list-item';
 					row.textContent = `• ${msg.toolName}`;
 					liveToolsBody.appendChild(row);
+				}
+				break;
+			case 'streamThought':
+				if (msg.content) {
+					statusEl.textContent = String(msg.content).trim().slice(0, 140);
+					statusRow.classList.remove('hidden');
 				}
 				break;
 			case 'streamStatus':

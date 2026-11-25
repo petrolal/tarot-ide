@@ -257,10 +257,14 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (f) { f.abort = true; }
 		},
 		onResume: async (runId, answerText, targetStepId) => {
+			if (activeWorkflowFlags.has(runId)) {
+				vscode.window.showInformationMessage(vscode.l10n.t('This workflow run is already active.'));
+				return;
+			}
 			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 			if (!root) { return; }
 			const saved = await workflowRunStore.loadRun(root, runId);
-			if (!saved) { return; }
+			if (!saved || saved.status !== 'paused') { return; }
 			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
 			const loaded = discovery.recipes.find(r => r.name === saved.recipeName);
 			if (!loaded) { return; }
@@ -502,6 +506,18 @@ export function activate(context: vscode.ExtensionContext): void {
 				await vscode.commands.executeCommand('tarot.workflows.run');
 				return;
 			}
+			const enabled = vscode.workspace.getConfiguration('tarot.workflows').get<boolean>('enabled', false);
+			if (!enabled) {
+				const enableLabel = vscode.l10n.t('Enable Workflows');
+				const pick = await vscode.window.showInformationMessage(
+					vscode.l10n.t('Workflows are opt-in (tarot.workflows.enabled). Enable them now?'),
+					enableLabel,
+				);
+				if (pick !== enableLabel) {
+					return;
+				}
+				await vscode.workspace.getConfiguration('tarot.workflows').update('enabled', true, vscode.ConfigurationTarget.Global);
+			}
 			const root = await ensureWorkspaceFolder();
 			if (!root) {
 				return;
@@ -511,6 +527,15 @@ export function activate(context: vscode.ExtensionContext): void {
 				prompt: vscode.l10n.t('Describe the task for this workflow run'),
 			});
 			if (!taskInput?.trim()) {
+				return;
+			}
+			const approveLabel = vscode.l10n.t('Run Workflow');
+			const confirm = await vscode.window.showInformationMessage(
+				vscode.l10n.t('Approve running workflow "{0}" ({1})?', loaded.name, loaded.scope),
+				{ modal: true },
+				approveLabel,
+			);
+			if (confirm !== approveLabel) {
 				return;
 			}
 			await executeWorkflowRun(root, loaded.recipe, { task: taskInput.trim(), input: taskInput.trim() });
@@ -1282,18 +1307,20 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	// Initial background detection of local AI CLIs (claude, agy, codex, custom)
-	void runtimeManager.refresh();
+	void runtimeManager.refresh().catch(err => {
+		outputChannel?.appendLine(`[Agents] Initial refresh failed: ${err instanceof Error ? err.message : String(err)}`);
+	});
 
 	// Kiro-style Agent-First startup: reveal Tarot Agent in Secondary Side Bar by default
 	const openOnStartup = vscode.workspace.getConfiguration('tarot.ui').get<boolean>('openAgentPanelOnStartup', true);
 	if (openOnStartup) {
-		setTimeout(() => {
-			void vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		const startupTimer = setTimeout(() => {
+			void Promise.resolve(vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`)).catch(() => undefined);
 		}, 400);
+		context.subscriptions.push(new vscode.Disposable(() => clearTimeout(startupTimer)));
 	}
 }
 
 export function deactivate(): void {
-	outputChannel?.dispose();
 	outputChannel = undefined;
 }

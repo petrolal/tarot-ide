@@ -11,8 +11,10 @@ import { AttachedContext, ContextProviderKind } from '../agents/types';
 import { formatMcpContext, TarotMcpConfigService } from '../mcp/mcpConfigService';
 import { TarotSpecService } from '../specs/specService';
 import { TarotSteeringService } from '../steering/steeringService';
+import { validateSafeHttpsUrl } from './urlSafety';
 
 const MAX_CONTENT_CHARS = 12_000;
+const MAX_URL_RESPONSE_BYTES = 512 * 1024;
 const steeringService = new TarotSteeringService();
 const specService = new TarotSpecService();
 const mcpConfigService = new TarotMcpConfigService();
@@ -174,6 +176,10 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 			if (!root) {
 				return undefined;
 			}
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before attaching Spec documents.'));
+				return undefined;
+			}
 			const specs = await specService.listSpecs(root);
 			if (specs.length === 0) {
 				vscode.window.showInformationMessage(vscode.l10n.t('No Spec found in .tarot/specs/.'));
@@ -290,20 +296,50 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				prompt: vscode.l10n.t('Enter an https:// URL to include in context'),
 				placeHolder: 'https://docs.example.com/guide',
 			});
-			if (!rawUrl?.trim() || !/^https?:\/\//i.test(rawUrl.trim())) {
+			if (!rawUrl?.trim()) {
 				return undefined;
 			}
-			const url = rawUrl.trim();
+			const validation = validateSafeHttpsUrl(rawUrl);
+			if (!validation.ok) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Blocked URL: {0}', validation.reason));
+				return undefined;
+			}
+			const url = validation.url.toString();
+			const controller = new AbortController();
+			const timer = setTimeout(() => controller.abort(), 10_000);
 			try {
-				const controller = new AbortController();
-				const timer = setTimeout(() => controller.abort(), 10_000);
-				const res = await fetch(url, { signal: controller.signal });
-				clearTimeout(timer);
+				const res = await fetch(url, { signal: controller.signal, redirect: 'manual' });
+				if (res.status >= 300 && res.status < 400) {
+					vscode.window.showWarningMessage(vscode.l10n.t('URL redirected (HTTP {0}). Please enter the final https:// URL directly.', res.status));
+					return undefined;
+				}
 				if (!res.ok) {
 					vscode.window.showWarningMessage(vscode.l10n.t('Failed to fetch URL (HTTP {0}).', res.status));
 					return undefined;
 				}
-				const rawBody = await res.text();
+				let rawBody = '';
+				if (res.body) {
+					const reader = res.body.getReader();
+					const decoder = new TextDecoder('utf-8');
+					let totalBytes = 0;
+					while (totalBytes < MAX_URL_RESPONSE_BYTES) {
+						const { done, value } = await reader.read();
+						if (done || !value) {
+							break;
+						}
+						const remaining = MAX_URL_RESPONSE_BYTES - totalBytes;
+						const slice = value.byteLength > remaining ? value.subarray(0, remaining) : value;
+						rawBody += decoder.decode(slice, { stream: true });
+						totalBytes += slice.byteLength;
+						if (value.byteLength > remaining) {
+							await reader.cancel().catch(() => undefined);
+							break;
+						}
+					}
+					rawBody += decoder.decode();
+				} else {
+					rawBody = (await res.text()).slice(0, MAX_URL_RESPONSE_BYTES);
+				}
 				const stripped = rawBody
 					.replace(/<script[\s\S]*?<\/script>/gi, ' ')
 					.replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -312,13 +348,15 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 					.trim();
 				return {
 					kind: 'url',
-					label: url.replace(/^https?:\/\//i, '').slice(0, 42),
+					label: url.replace(/^https:\/\//i, '').slice(0, 42),
 					path: url,
 					content: truncate(`URL: ${url}\n\n${stripped}`),
 				};
 			} catch (err) {
 				vscode.window.showWarningMessage(vscode.l10n.t('Could not fetch URL: {0}', err instanceof Error ? err.message : String(err)));
 				return undefined;
+			} finally {
+				clearTimeout(timer);
 			}
 		}
 

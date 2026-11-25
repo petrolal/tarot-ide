@@ -116,6 +116,7 @@ export async function expandLiveFileReferences(body: string, workspaceRoot?: str
 		return body;
 	}
 	const rootAbs = path.resolve(workspaceRoot);
+	const rootReal = await fs.realpath(rootAbs).catch(() => rootAbs);
 	const regex = /#\[\[file:([^\]\n]+)\]\]/g;
 	const matches = [...body.matchAll(regex)];
 	if (matches.length === 0) {
@@ -129,8 +130,13 @@ export async function expandLiveFileReferences(body: string, workspaceRoot?: str
 			continue;
 		}
 		try {
-			const content = (await fs.readFile(target, 'utf8')).slice(0, 12_000);
-			result = result.replace(m[0], `\n\`\`\`\n// ${rel}\n${content}\n\`\`\`\n`);
+			const targetReal = await fs.realpath(target);
+			if (targetReal !== rootReal && !targetReal.startsWith(rootReal + path.sep)) {
+				continue;
+			}
+			const content = (await fs.readFile(targetReal, 'utf8')).slice(0, 12_000);
+			const replacement = `\n\`\`\`\n// ${rel}\n${content}\n\`\`\`\n`;
+			result = result.replace(m[0], () => replacement);
 		} catch {
 			// Leave reference intact if file does not exist
 		}

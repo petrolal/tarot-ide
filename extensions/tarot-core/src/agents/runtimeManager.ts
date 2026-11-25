@@ -44,7 +44,9 @@ export class AgentRuntimeManager implements vscode.Disposable {
 			this.statusBarItem,
 			vscode.workspace.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration('tarot.agents')) {
-					void this.refresh();
+					void this.refresh().catch(err => {
+						this.outputChannel.appendLine(`[Agents] Config refresh failed: ${err instanceof Error ? err.message : String(err)}`);
+					});
 				}
 			}),
 		);
@@ -85,7 +87,19 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		}
 	}
 
+	private pendingRefresh?: Promise<readonly AgentStatus[]>;
+
 	async refresh(): Promise<readonly AgentStatus[]> {
+		if (this.pendingRefresh) {
+			return this.pendingRefresh;
+		}
+		this.pendingRefresh = this.runRefresh().finally(() => {
+			this.pendingRefresh = undefined;
+		});
+		return this.pendingRefresh;
+	}
+
+	private async runRefresh(): Promise<readonly AgentStatus[]> {
 		this.modelCache.clear();
 		this.rebuildAdapters();
 		const detected = await Promise.all(Array.from(this.adapters.values()).map(a => a.detect()));
@@ -142,9 +156,14 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		if (!adapter?.listModels) {
 			return [];
 		}
-		const models = await adapter.listModels();
-		this.modelCache.set(id, models);
-		return models;
+		try {
+			const models = await adapter.listModels();
+			this.modelCache.set(id, models);
+			return models;
+		} catch (err) {
+			this.outputChannel.appendLine(`[Agents] Failed to list models for ${id}: ${err instanceof Error ? err.message : String(err)}`);
+			return [];
+		}
 	}
 
 	async setActiveAgent(id: AgentId): Promise<void> {

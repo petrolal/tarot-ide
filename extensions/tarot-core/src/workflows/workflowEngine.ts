@@ -46,6 +46,8 @@ export interface WorkflowEngineHooks {
 	readonly parentModelId?: string;
 	readonly parentEffortLevel?: ReasoningEffort;
 	readonly onStateChange?: (run: WorkflowRunState) => void;
+	/** Optional override (ms) for delay between `watch` idle polls (useful in unit tests). */
+	readonly watchPollDelayMs?: number;
 }
 
 /**
@@ -133,7 +135,10 @@ export class TarotWorkflowEngine {
 			throw new Error(`Invalid workflow "${recipe.name}": ${validation.errors.join(' ')}`);
 		}
 
-		const run = existingRun ?? this.createRunState(recipe, inputs);
+		const run = existingRun ?? this.createRunState(recipe, { ...inputs });
+		if (existingRun) {
+			run.inputs = { ...run.inputs, ...inputs };
+		}
 		run.status = 'running';
 		run.pauseReason = undefined;
 		await this.checkpoint(workspaceRoot, run, hooks);
@@ -213,6 +218,7 @@ export class TarotWorkflowEngine {
 		run: WorkflowRunState,
 		hooks: WorkflowEngineHooks,
 		previousOutput?: string,
+		suppressRunFailure = false,
 	): Promise<boolean> {
 		switch (node.type) {
 			case 'step': {
@@ -228,6 +234,11 @@ export class TarotWorkflowEngine {
 					stepOutputs: run.outputs,
 					artifacts: run.artifacts,
 				});
+				let effectivePrompt = resolved;
+				if (run.inputs.user_reply) {
+					effectivePrompt = `${resolved}\n\n[User reply]: ${run.inputs.user_reply}`;
+					delete run.inputs.user_reply;
+				}
 
 				const stepState = existing ?? { id: node.id, status: 'running', agent: node.agent, iterations: 0 };
 				stepState.status = 'running';
@@ -240,7 +251,7 @@ export class TarotWorkflowEngine {
 				const res = await hooks.executeStep({
 					runId: run.id,
 					step: node,
-					resolvedPrompt: resolved,
+					resolvedPrompt: effectivePrompt,
 					modelId,
 					effortLevel,
 					workspaceRoot,
@@ -266,7 +277,9 @@ export class TarotWorkflowEngine {
 				}
 				if (!res.ok || signal?.severity === 'error') {
 					stepState.status = 'failed';
-					run.status = 'failed';
+					if (!suppressRunFailure) {
+						run.status = 'failed';
+					}
 					run.lastError = signal?.message || `Step "${node.id}" failed.`;
 					return false;
 				}
@@ -282,41 +295,84 @@ export class TarotWorkflowEngine {
 
 			case 'parallel': {
 				const policy = node.joinPolicy ?? 'all';
+				const allowBranchFailure = policy !== 'all';
 				const branchResults = await Promise.all(
-					node.branches.map(branch => this.executeNode(recipe, branch, workspaceRoot, run, hooks, undefined)),
+					node.branches.map(branch => this.executeNode(recipe, branch, workspaceRoot, run, hooks, undefined, allowBranchFailure)),
 				);
+				if (run.status === 'paused' || run.status === 'aborted') {
+					return false;
+				}
 				if (policy === 'allSettled') {
 					return true;
 				}
 				if (policy === 'any') {
-					return branchResults.some(Boolean);
+					if (branchResults.some(Boolean)) {
+						return true;
+					}
+					run.status = 'failed';
+					run.lastError = run.lastError || `All branches in parallel "${node.id}" failed.`;
+					return false;
 				}
-				return branchResults.every(Boolean);
+				if (branchResults.every(Boolean)) {
+					return true;
+				}
+				run.status = 'failed';
+				return false;
 			}
 
 			case 'watch': {
-				const poll = hooks.executeWatch
-					? await hooks.executeWatch(node, run)
-					: await runWatchPoll(node, {
-						workspacePath: workspaceRoot,
-						cursor: run.watchCursors[node.id],
-						config: node.config,
-					});
-				if (poll.cursor !== undefined) {
-					run.watchCursors[node.id] = poll.cursor;
+				const startedAtMs = Date.now();
+				const defaultPollSec = node.handler === 'github-pr' ? 30 : 10;
+				const rawPollSec = typeof node.config.pollIntervalSec === 'number' ? node.config.pollIntervalSec : defaultPollSec;
+				const pollDelayMs = hooks.watchPollDelayMs ?? Math.max(defaultPollSec, rawPollSec) * 1000;
+				const idleTimeoutMs = typeof node.idleTimeoutSec === 'number' && node.idleTimeoutSec > 0
+					? node.idleTimeoutSec * 1000
+					: undefined;
+
+				while (true) {
+					if (hooks.shouldAbort?.()) {
+						run.status = 'aborted';
+						return false;
+					}
+					if (hooks.shouldPause?.()) {
+						run.status = 'paused';
+						run.pauseReason = 'boundary';
+						return false;
+					}
+
+					const poll = hooks.executeWatch
+						? await hooks.executeWatch(node, run)
+						: await runWatchPoll(node, {
+							workspacePath: workspaceRoot,
+							cursor: run.watchCursors[node.id],
+							config: node.config,
+						});
+					if (poll.cursor !== undefined) {
+						run.watchCursors[node.id] = poll.cursor;
+					}
+					if (poll.error) {
+						run.status = 'failed';
+						run.lastError = poll.error;
+						return false;
+					}
+					if (poll.outcome === 'terminal-state') {
+						run.watchTerminal[node.id] = true;
+					}
+					if (poll.payload !== undefined) {
+						run.outputs[node.id] = typeof poll.payload === 'string' ? poll.payload : JSON.stringify(poll.payload);
+					}
+					await this.checkpoint(workspaceRoot, run, hooks);
+
+					if (poll.outcome !== 'idle') {
+						return true;
+					}
+					if (idleTimeoutMs !== undefined && Date.now() - startedAtMs >= idleTimeoutMs) {
+						return true;
+					}
+					if (pollDelayMs > 0) {
+						await new Promise(resolve => setTimeout(resolve, pollDelayMs));
+					}
 				}
-				if (poll.error) {
-					run.status = 'failed';
-					run.lastError = poll.error;
-					return false;
-				}
-				if (poll.outcome === 'terminal-state') {
-					run.watchTerminal[node.id] = true;
-				}
-				if (poll.payload !== undefined) {
-					run.outputs[node.id] = typeof poll.payload === 'string' ? poll.payload : JSON.stringify(poll.payload);
-				}
-				return true;
 			}
 		}
 	}
@@ -328,21 +384,31 @@ export class TarotWorkflowEngine {
 		run: WorkflowRunState,
 		hooks: WorkflowEngineHooks,
 	): Promise<boolean> {
-		let iter = run.repeatProgress[node.id] ?? 0;
+		let completedIterations = run.repeatProgress[node.id] ?? 0;
 
 		// A `repeat` container always runs at least once (MIGRATION_PLAN.md M3.9a).
-		while (iter < node.maxIterations) {
-			iter++;
-			run.repeatProgress[node.id] = iter;
-			// Reset child step statuses so each iteration re-runs the body cleanly
-			this.resetStepStatuses(node.steps, run);
+		while (completedIterations < node.maxIterations) {
+			// When resuming after a mid-iteration pause, keep already-completed steps in this
+			// iteration intact instead of resetting them; only reset at the start of a fresh pass.
+			const resumingMidIteration = this.hasResumableStepState(node.steps, run);
+			if (!resumingMidIteration) {
+				this.resetStepStatuses(node.steps, run);
+			}
 
 			const ok = await this.executeNodeList(recipe, node.steps, workspaceRoot, run, hooks);
 			if (!ok || run.status !== 'running') {
 				return false;
 			}
 
+			completedIterations++;
+			run.repeatProgress[node.id] = completedIterations;
+
 			const stopped = await this.evaluateRepeatStop(node, workspaceRoot, run);
+			// Mark child steps pending only after checkpointing if another iteration will follow,
+			// so a completed repeat retains its final step states.
+			if (!stopped && completedIterations < node.maxIterations) {
+				this.resetStepStatuses(node.steps, run);
+			}
 			await this.checkpoint(workspaceRoot, run, hooks);
 			if (stopped) {
 				return true;
@@ -361,6 +427,29 @@ export class TarotWorkflowEngine {
 		run.status = 'aborted';
 		run.lastError = `Repeat "${node.id}" reached maxIterations (${node.maxIterations}).`;
 		return false;
+	}
+
+	private hasResumableStepState(nodes: readonly WorkflowNode[], run: WorkflowRunState): boolean {
+		let hasCompleted = false;
+		let hasIncomplete = false;
+		const walk = (list: readonly WorkflowNode[]) => {
+			for (const n of list) {
+				if (n.type === 'step') {
+					const st = run.stepStates[n.id]?.status;
+					if (st === 'completed') {
+						hasCompleted = true;
+					} else {
+						hasIncomplete = true;
+					}
+				} else if (n.type === 'sequence' || n.type === 'repeat') {
+					walk(n.steps);
+				} else if (n.type === 'parallel') {
+					walk(n.branches);
+				}
+			}
+		};
+		walk(nodes);
+		return hasCompleted && hasIncomplete;
 	}
 
 	private resetStepStatuses(nodes: readonly WorkflowNode[], run: WorkflowRunState): void {
@@ -399,13 +488,34 @@ export class TarotWorkflowEngine {
 		return false;
 	}
 
+	private findLastStepNode(nodes: readonly WorkflowNode[]): WorkflowNode | undefined {
+		for (let i = nodes.length - 1; i >= 0; i--) {
+			const n = nodes[i];
+			if (n.type === 'step' || n.type === 'watch') {
+				return n;
+			}
+			if (n.type === 'sequence' || n.type === 'repeat') {
+				const found = this.findLastStepNode(n.steps);
+				if (found) {
+					return found;
+				}
+			} else if (n.type === 'parallel') {
+				const found = this.findLastStepNode(n.branches);
+				if (found) {
+					return found;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	private async evaluateStopCondition(
 		cond: RepeatStopCondition,
 		bodySteps: readonly WorkflowNode[],
 		workspaceRoot: string,
 		run: WorkflowRunState,
 	): Promise<boolean> {
-		const lastChild = bodySteps[bodySteps.length - 1];
+		const lastChild = this.findLastStepNode(bodySteps) ?? bodySteps[bodySteps.length - 1];
 		const lastOutput = lastChild ? (run.outputs[lastChild.id] ?? '') : '';
 		const lastSignal = lastChild ? run.stepStates[lastChild.id]?.signal?.severity : undefined;
 

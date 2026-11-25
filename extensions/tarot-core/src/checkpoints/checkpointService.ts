@@ -129,7 +129,7 @@ export class TarotCheckpointService {
 
 		const restoreLabel = vscode.l10n.t('Restore');
 		const confirm = await vscode.window.showWarningMessage(
-			vscode.l10n.t('Restore the workspace files to the checkpoint from {0}? (Chat history will be preserved.)', new Date(manifest.createdAt).toLocaleTimeString()),
+			vscode.l10n.t('Restore workspace files and chat history to the checkpoint from {0}?', new Date(manifest.createdAt).toLocaleTimeString()),
 			{ modal: true },
 			restoreLabel,
 		);
@@ -174,7 +174,7 @@ export class TarotCheckpointService {
 				unrecoverable.length, unrecoverable.join(', '),
 			));
 		} else {
-			vscode.window.showInformationMessage(vscode.l10n.t('Checkpoint restored successfully (history preserved).'));
+			vscode.window.showInformationMessage(vscode.l10n.t('Checkpoint restored successfully.'));
 		}
 		return true;
 	}
