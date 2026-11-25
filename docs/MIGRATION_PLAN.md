@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.8b ✅ · próximo: M3.8c → M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.8c** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.8c ✅ · próximo: M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.9a** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -228,7 +228,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.8c — Chat, Contexto e Sessões (Medidor, Compaction, Fork, Checkpoints, Atalhos) (UC-02)
+### Marco M3.8c — Chat, Contexto e Sessões (Medidor, Compaction, Fork, Checkpoints, Atalhos) (UC-02) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/{ide/chat,checkpoints,compaction,ide/whats-new-v1}/`.
 - **Arquivos-alvo**: `extensions/tarot-core/src/{context/contextProviders,context/compactionService,checkpoints/checkpointService,agents/sessionStore}.ts`, `agentPanelView.ts`, `panel.js`.
 - **Especificação**:
@@ -237,13 +237,12 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Checkpoints** a cada prompt: **Restore** reverte arquivos **e** o contexto; **Revert** desfaz só o último turno; **Fork conversation** cria nova sessão a partir de um turno antigo **sem tocar nos arquivos** (não carrega artefatos). Limitação: só edições do agente são rastreadas; em BYOA usar snapshot por *git tree* para cobrir edições feitas pelo CLI.
   - **Atalhos**: `Ctrl+L` traz a seleção para o chat atual, `Ctrl+Shift+L` abre **nova sessão** com a seleção, `Ctrl+Alt+B` alterna a Secondary Side Bar; menu *Ask Tarot* com ações rápidas (*Fix Grammar/Spelling*, *Write Comments*, *Optimize*). Inline chat não existe.
   - **Sessões**: abas, `+`, **History** (buscar/restaurar/excluir), **Task list**, **Export Chat** (`.md` e zip `session.json` + `messages.jsonl`), detecção de intenção (pergunta ⇒ resposta; diretiva ⇒ ação). Chats paralelos podem editar o mesmo workspace: oferecer **git worktree por sessão** (via `git/worktreeManager.ts`) e aviso de conflito.
-    - *(Estado atual, pré-M3.8c)*: `sessionStore.ts::persist` já grava cada mensagem em `.tarot/sessions/<id>.json` desde antes deste marco, mas **nada lê esses arquivos de volta** — `TarotSessionStore` sempre nasce com a lista de sessões vazia (`extension.ts`), então o histórico se perde na UI a cada reinício da IDE apesar de já estar em disco. O **History** deste marco precisa adicionar esse carregamento, não só a UI de busca/restaurar. **Modelo/Reasoning Effort** selecionados, por outro lado, **já persistem** via `context.globalState` desde antes de M3.8c (mesmo padrão do `ACTIVE_AGENT_STATE_KEY` de `runtimeManager.ts`, commit `61e9daeb7be`) — não é um item pendente deste marco.
   - **Pre-PR Review (BYOA) & Evidence Summary**: ação de 1 clique na *Review Queue* / Source Control que dispara um **agente local diferente do autor** (ex.: `claude` escreveu → `codex`/`agy` revisa corretude, segurança, testes e aderência à Spec) e exibe um cartão resumo de evidências (testes, lint, PBT, diff) pronto para revisão assíncrona.
   - **Dev Servers**: processos longos em background sem bloquear o chat. *(Prioridade baixa: voz, anexos de imagem/PDF/CSV/DOCX, `/model`, `/context`; seletor visual de modelo + Reasoning Effort já entregue no composer em M3.6.5.)*
 - **Critérios de Aceite (DoD)**:
-  - [ ] Medidor reflete tokens reais; compaction preserva os itens obrigatórios.
-  - [ ] **Fork conversation** cria sessão sem alterar arquivos; **Restore** reverte arquivos + contexto.
-  - [ ] Todos os provedores `#` e os atalhos `Ctrl+L` / `Ctrl+Shift+L` funcionam.
+  - [x] Medidor reflete tokens reais; compaction preserva os itens obrigatórios. *(`context/compactionService.ts::computeContextMeter` ancora em `totalTokens` reais + delta calibrado; `compactConversationMessages` preserva intenção, status de tarefas, arquivos modificados, decisões, próximos passos e steering descartado, dispara hooks `PreCompaction`/`PostCompaction` e respeita `tarot.compaction.{autoThreshold,excludeMessages}`; coberto por `compactionService.test.ts`.)*
+  - [x] **Fork conversation** cria sessão sem alterar arquivos; **Restore** reverte arquivos + contexto. *(`sessionStore.forkSession` via `forkSessionMessages` + botão `⑂ Fork` no rodapé; `restoreCheckpoint` agora chama `sessionStore.truncateBeforeCheckpoint` após restaurar arquivos; `hydrateFromDisk` + `tarot.sessions.history`/`export`/`compact` + `tarot.git.prePrReview` entregues.)*
+  - [x] Todos os provedores `#` e os atalhos `Ctrl+L` / `Ctrl+Shift+L` funcionam. *(`#Current`, `#Code`, `#URL`, `#Repository`, `#Docs`, `#MCP` + `@` alias no composer; keybindings `Ctrl+L`, `Ctrl+Shift+L`, `Ctrl+Alt+B` e submenu *Ask Tarot* com Fix Grammar, Write Comments e Optimize em `package.json`/`extension.ts`.)*
 
 ---
 
