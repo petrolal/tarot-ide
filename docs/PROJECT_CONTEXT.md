@@ -213,7 +213,7 @@ extensions/tarot-core/
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
     ├── extension.ts                    # Bootstrap, composição de serviços, registro das 7 TreeViews + WebviewView + comandos base + KeyedHookQueue
-    ├── commands/                       # Registradores de comandos por domínio (`workflowCommands.ts`, `specCommands.ts`)
+    ├── commands/                       # Registradores de comandos por domínio (`workflowCommands.ts`, `specCommands.ts`, `scheduleAndLessonsCommands.ts`)
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
     │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort, ContextProviderKind
@@ -240,7 +240,11 @@ extensions/tarot-core/
     ├── checkpoints/
     │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique (arquivos + contexto em M3.8c), diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles)
     ├── steering/
-    │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md raiz e subdiretórios, ~/.tarot/steering, .tarot/steering), 4 modos de inclusão, referências vivas #[[file:...]] e /<id>
+    │   ├── steeringService.ts          # Descoberta hierárquica (AGENTS.md raiz e subdiretórios, ~/.tarot/steering, .tarot/steering), 4 modos de inclusão, referências vivas #[[file:...]] e /<id>
+    │   └── lessonsService.ts           # M3.10 — Lições aprendidas editáveis em `.tarot/steering/`, promoção para Skill e Audit / Prune Steering (redundância, workarounds obsoletos, frontmatter)
+    ├── schedule/                       # M3.10 — Agendamento Cron & Digests
+    │   ├── cronParser.ts               # Avaliador cron 5 campos puro com timezone, excludeDates e jitter
+    │   └── scheduleService.ts          # Descoberta `.tarot/schedules/*.json`, logs em `runs/` e digests Markdown em `digests/`
     ├── hooks/
     │   ├── hookTypes.ts                # Schema `v1` puro: parse/validação, triggers canônicos + aliases, `*`/matcher/confirm
     │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook para `v1` traduzindo `glob` para regex válida
@@ -274,7 +278,7 @@ extensions/tarot-core/
     │   ├── workflowViewHelpers.ts      # Helpers puros de classificação/busca de runs e flattening da árvore de steps (testados via `node --test`)
     │   └── workflowEngine.ts           # Execução com checkpoint por fronteira, pause cooperativa, retomada pós-reinício e `updateWorkflow`
     ├── test/
-    │   └── *.test.ts                   # 43 suítes / 141 testes unitários puros via `node --test` (sem importar `vscode`)
+    │   └── *.test.ts                   # 46 suítes / 146 testes unitários puros via `node --test` (sem importar `vscode`)
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks e sessões em Focus Mode

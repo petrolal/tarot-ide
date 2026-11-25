@@ -13,8 +13,8 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.9c ✅ · próximo: M3.10 opcional ou Fase 4)** | **Sim — iniciar por M3.10 ou Fase 4** |
-| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | **Sim** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | ✅ **Concluída (M3.1–M3.10 ✅)** | — |
+| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | **Sim — iniciar Fase 4** |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -305,13 +305,13 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.10 *(opcional / novo)* — Agendamento, Digests e Lições Aprendidas (UC-09)
+### Marco M3.10 *(opcional / novo)* — Agendamento, Digests e Lições Aprendidas (UC-09) — ✅ Concluído
 - **Fonte**: `kiro.dev/crew`, `docs/crew/*` (Crew é produto à parte, open source Apache-2.0, sobre Kiro CLI + ACP).
 - **Escopo no IDE**: jobs **cron** com fuso, *timeout* por job, *jitter* e datas de exclusão, cada run em **sessão própria**, logada e com checkpoint; entrega de resultado como notificação/**digest**; jobs sem chamada de modelo não gastam tokens.
 - **Lições & Hygiene de Steering**: correções do usuário (`"use pnpm, not npm"`) viram **lições** em Markdown no formato de steering (inspecionáveis, editáveis, escopo por workspace); fluxos repetidos podem virar skills; comando **Audit / Prune Steering** ajuda a revisar e podar regras redundantes ou workarounds de modelos antigos ao trocar de CLI/modelo.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Job cron cria sessão própria, registra log e gera notificação/digest.
-  - [ ] Correção do usuário gera lição editável em `.tarot/steering/` e **Audit / Prune Steering** identifica regras obsoletas/redundantes.
+  - [x] Job cron cria sessão própria, registra log e gera notificação/digest. *(`schedule/{cronParser,scheduleService}.ts` + `commands/scheduleAndLessonsCommands.ts`: cron 5 campos com fuso horário, `excludeDates`, `jitterSec`, `timeoutSec`, ação `command` (0 tokens) ou `agent` (sessão própria + checkpoint), logs em `.tarot/schedules/runs/` e digests Markdown em `.tarot/schedules/digests/` + toast `Open Digest`; coberto por `scheduleService.test.ts`.)*
+  - [x] Correção do usuário gera lição editável em `.tarot/steering/` e **Audit / Prune Steering** identifica regras obsoletas/redundantes. *(`steering/lessonsService.ts` + comandos `tarot.lessons.record`, `tarot.lessons.promoteToSkill` e `tarot.steering.audit` detectando regras redundantes, workarounds obsoletos de modelos antigos, arquivos vazios e frontmatter inválido com opção de abrir ou podar; coberto por `lessonsService.test.ts`.)*
 
 ---
 
