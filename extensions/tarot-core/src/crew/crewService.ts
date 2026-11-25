@@ -7,6 +7,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { hybridRankDocuments } from './semanticIndex';
 
 export type CrewScope = 'workspace' | 'global';
 
@@ -517,8 +518,7 @@ export class TarotCrewService {
 	}
 
 	async queryKnowledge(workspaceRoot: string, query: string, topK = 5): Promise<KnowledgeHit[]> {
-		const qTokens = new Set(tokenizeText(query));
-		if (qTokens.size === 0) {
+		if (!query.trim()) {
 			return [];
 		}
 		const indexPath = path.join(this.getKnowledgeDir(workspaceRoot), 'index.json');
@@ -531,20 +531,24 @@ export class TarotCrewService {
 		} catch {
 			return [];
 		}
-		const scored: KnowledgeHit[] = [];
-		for (const chunk of chunks) {
-			let overlap = 0;
-			for (const tok of chunk.tokens) {
-				if (qTokens.has(tok)) {
-					overlap++;
-				}
-			}
-			if (overlap > 0) {
-				const score = overlap / Math.sqrt(chunk.tokens.length + qTokens.size);
-				scored.push({ sourceId: chunk.sourceId, filePath: chunk.filePath, excerpt: chunk.excerpt, score });
-			}
+		if (chunks.length === 0) {
+			return [];
 		}
-		return scored.sort((a, b) => b.score - a.score).slice(0, topK);
+		const docs = chunks.map((chunk, idx) => ({
+			id: String(idx),
+			text: chunk.excerpt,
+			tokens: chunk.tokens,
+		}));
+		const ranked = hybridRankDocuments(docs, query, topK);
+		return ranked.map(hit => {
+			const chunk = chunks[Number(hit.id)];
+			return {
+				sourceId: chunk.sourceId,
+				filePath: chunk.filePath,
+				excerpt: chunk.excerpt,
+				score: hit.score,
+			};
+		});
 	}
 
 	// ---- Autonomous TASK.md discovery & templates ----

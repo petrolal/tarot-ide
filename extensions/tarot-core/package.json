@@ -169,6 +169,10 @@
         {
           "id": "tarot.views.crewSchedules",
           "name": "%view.crewSchedules.name%"
+        },
+        {
+          "id": "tarot.views.crewChannels",
+          "name": "%view.crewChannels.name%"
         }
       ],
       "tarot-agent-sidebar": [
@@ -357,6 +361,21 @@
           "command": "tarot.schedule.viewDigest",
           "when": "view == tarot.views.crewSchedules",
           "group": "navigation@2"
+        },
+        {
+          "command": "tarot.crew.gateway.configure",
+          "when": "view == tarot.views.crewChannels",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.crew.apps.create",
+          "when": "view == tarot.views.crewChannels",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.crew.remote.add",
+          "when": "view == tarot.views.crewChannels",
+          "group": "navigation@3"
         }
       ],
       "editor/context": [
@@ -1274,6 +1293,65 @@
         "title": "%command.crew.refresh.title%",
         "category": "Tarot IDE",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "tarot.crew.heartbeat.toggle",
+        "title": "%command.crew.heartbeat.toggle.title%",
+        "category": "Tarot IDE",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "tarot.crew.heartbeat.runOnce",
+        "title": "%command.crew.heartbeat.runOnce.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tarot.crew.heartbeat.openConfig",
+        "title": "%command.crew.heartbeat.openConfig.title%",
+        "category": "Tarot IDE",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "tarot.crew.webhook.toggleServer",
+        "title": "%command.crew.webhook.toggleServer.title%",
+        "category": "Tarot IDE",
+        "icon": "$(radio-tower)"
+      },
+      {
+        "command": "tarot.crew.gateway.configure",
+        "title": "%command.crew.gateway.configure.title%",
+        "category": "Tarot IDE",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "tarot.crew.gateway.testSend",
+        "title": "%command.crew.gateway.testSend.title%",
+        "category": "Tarot IDE",
+        "icon": "$(send)"
+      },
+      {
+        "command": "tarot.crew.apps.create",
+        "title": "%command.crew.apps.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(extensions)"
+      },
+      {
+        "command": "tarot.crew.apps.open",
+        "title": "%command.crew.apps.open.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.crew.remote.add",
+        "title": "%command.crew.remote.add.title%",
+        "category": "Tarot IDE",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "tarot.crew.remote.check",
+        "title": "%command.crew.remote.check.title%",
+        "category": "Tarot IDE",
+        "icon": "$(server-environment)"
       }
     ]
   },
