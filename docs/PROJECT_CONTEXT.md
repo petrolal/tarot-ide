@@ -200,62 +200,84 @@ extensions/tarot-core/
 │   ├── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
 │   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar (preservado intacto)
 │   ├── arcana/{*.png,arcana-manifest.json} # Adição complementar: 8 cartas ilustradas dos Arcanos Maiores + manifesto
-│   └── webview/{panel.css,panel.js}    # UI do Painel Agêntico (CSP estrita + paleta Arcana)
-├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.agents.*, walkthrough)
+│   └── webview/{panel,workflow}.{css,js} # UIs CSP-estritas (zero innerHTML) do Painel Agêntico e da aba Workflow Run Editor
+├── recipes/                            # M3.9a/b — 7 recipes bundled (*.workflow.json: investigate, feature-pipeline, publish-pr, semantic-review-multi-model, autoresearch, goal, ralph)
+├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.*, submenus, keybindings, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
 │   ├── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (base grafite-violeta neutra sem faixa em L + sintaxe Kiro)
 │   └── tarot-light-color-theme.json    # Tema oficial "Tarot Arcana Light" (UI + TextMate + Semantic)
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
-    ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das views
+    ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das 7 TreeViews + WebviewView + Run Editor + KeyedHookQueue
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
-    │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort
+    │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort, ContextProviderKind
     │   ├── processRunner.ts            # Resolução segura de PATH + spawn(shell: false) + cancelamento + guarda de tamanho de linha de comando antes do spawn (commandLineLimits.ts)
     │   ├── commandLineLimits.ts        # Teto puro e testável (binário+argv) por plataforma — bem mais estrito no Windows — para falhar com erro claro em vez de E2BIG/ENAMETOOLONG do SO
-    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering, Spec ativo, histórico, anexos #); cada seção de Steering/Spec/anexo é truncada em 50k chars, nunca o prompt do usuário
-    │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json — grava a cada mensagem, mas nada ainda recarrega essas sessões no boot (History real fica para M3.8c)
-    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>); agente ativo persiste em globalState (ACTIVE_AGENT_STATE_KEY)
-    │   └── adapters/                   # claudeAdapter (--permission-mode traduzido do autonomy/mode — plan/acceptEdits/auto; verificado ao vivo), agyAdapter (--print=<prompt> + agy models + --mode accept-edits; Supervised sem flag, não confirmado — ver Débitos Técnicos), codexAdapter (--sandbox/--approve-for-me/--skip-git-repo-check/--config model_reasoning_effort=; só documentação, sem CLI local pra cross-check), customAdapter (--model/--effort)
+    │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering/skills/powers/custom-agent, Spec ativo, histórico, anexos #); cada seção truncada em 50k chars, nunca o prompt do usuário
+    │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json + hydrateFromDisk no boot, listPersistedSessions/deletePersistedSession, forkSession e truncateBeforeCheckpoint (M3.8c)
+    │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom CLI/ACP + catálogo ACP instalado no PATH), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>); agente ativo persiste em globalState
+    │   ├── agentCatalog.ts             # M3.8b — Catálogo declarativo de CLIs ACP (agy-acp, kiro-cli, opencode, goose)
+    │   ├── customAgentService.ts       # M3.8b — Descoberta e parse de Custom Agents (.tarot/agents/*.{md,json}, ~/.tarot/agents/, suporte a subpastas team/planner) + perfis Built-in
+    │   ├── subagentManager.ts          # M3.8b — Herança estrita de permissões (evaluateSubagentCapability), validação de DAG imutável/review loops e execução paralela por onda (runSubagentDag)
+    │   └── adapters/                   # claudeAdapter, agyAdapter (--mode auto/accept-edits/plan + agyStreamParser), codexAdapter, customAdapter, acpAdapter + acpParser (JSON-RPC 2.0 sobre stdio)
+    ├── skills/
+    │   └── skillsService.ts            # M3.8b — Agent Skills (SKILL.md), progressive disclosure (/nome, $nome, match por tópico), importação por pasta local ou URL GitHub/GitLab
+    ├── powers/
+    │   └── powersService.ts            # M3.8b — Agent Plugins (plugin.json + skills/ + mcp.json), ativação sob demanda por keywords e desativação ao mudar de assunto
+    ├── mcp/
+    │   └── mcpConfigService.ts         # M3.8b — Descoberta hierárquica (.tarot/settings/mcp.json + ~/.tarot/settings/mcp.json), stdio + remote, redação de segredos em formatMcpContext
     ├── context/
-    │   └── contextProviders.ts         # Provedores # (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec); #Git Diff distingue "clean" de falha real do `git` (checa exitCode)
+    │   ├── contextProviders.ts         # Provedores # completos (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec, #MCP, #Current, #Code, #URL, #Repository, #Docs)
+    │   └── compactionService.ts        # M3.8c — Medidor real de tokens (computeContextMeter), compaction estruturada (compactConversationMessages), forkSessionMessages e export Markdown/JSONL
     ├── checkpoints/
-    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique, diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles, git checkout como fallback antes de deletar); sem git, baseline de mtime/tamanho (scanWorkspaceFingerprint/diffAgainstBaseline) detecta mudanças que collectDirtyFiles não enxerga sozinho; exclusão de `.tarot/**` restrita a checkpoints/sessions (isTarotBookkeepingPath), nunca a pasta inteira
+    │   └── checkpointService.ts        # Snapshots por turno em .tarot/checkpoints/<session>/<cp>/, rollback 1-clique (arquivos + contexto em M3.8c), diff isolado por tarefa (getCheckpointDiff) e revert seletivo por arquivo (restoreCheckpointFiles)
     ├── steering/
-    │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md, ~/.tarot/steering, .tarot/steering) + 4 modos de inclusão
+    │   └── steeringService.ts          # Descoberta hierárquica (AGENTS.md raiz e subdiretórios, ~/.tarot/steering, .tarot/steering), 4 modos de inclusão, referências vivas #[[file:...]] e /<id>
     ├── hooks/
     │   ├── hookTypes.ts                # Schema `v1` puro: parse/validação, triggers canônicos + aliases, `*`/matcher/confirm
-    │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook (pré-M3.6.6) para `v1`; traduz `glob` legado pra regex válida só quando não é regex já (migrateLegacyMatcher/globToMatcherRegex)
-    │   ├── hookRunner.ts               # Executa `action.command` via `/bin/sh -c`/`cmd.exe /c` (nunca `shell: true` nativo), STDIN JSON, timeout, exit 0/2/outro
-    │   └── hookEngine.ts               # Descoberta hierárquica (.tarot/hooks + ~/.tarot/hooks), seleção por trigger/matcher e orquestração serial por hook
+    │   ├── hookMigration.ts            # Upconverte em memória o formato legado de hook para `v1` traduzindo `glob` para regex válida
+    │   ├── hookRunner.ts               # Executa `action.command` via `/bin/sh -c`/`cmd.exe /c` (shell: false), STDIN JSON (com guarda EPIPE), timeout, exit 0/2/outro
+    │   └── hookEngine.ts               # Descoberta hierárquica com reporte deduplicado de erros (onLoadErrors), KeyedHookQueue (debounce 250ms + lock serial) e orquestração por trigger/matcher
     ├── permissions/                    # M3.8a — Permissões Baseadas em Capacidades
-    │   ├── permissionTypes.ts          # Capabilities/efeitos/escopos puros + parse/validação de `permissions.yaml` já carregado
-    │   ├── yamlLite.ts                 # Parser YAML hand-rolled (mapeamentos/sequências/listas inline) — sem dependência `yaml`/`js-yaml`
-    │   ├── shellParser.ts              # Split de comandos compostos (`;`/`&&`/`||`/`|`) respeitando quotes/subshells; bloqueia `$()`/backtick/heredoc como não-analisável
+    │   ├── permissionTypes.ts          # Capabilities/efeitos/escopos puros + parse/validação de `permissions.yaml`
+    │   ├── yamlLite.ts                 # Parser YAML zero-dependência com block scalars (`|`/`>`) e rejeição explícita de âncoras/aliases/merge keys/flow mappings/multi-doc
+    │   ├── shellParser.ts              # Split de comandos compostos (`;`/`&&`/`||`/`|`) respeitando quotes/subshells; bloqueia `$()`/backtick/heredoc
     │   ├── presets.ts                  # `allow-all`/`edit-workspace`/`read-workspace`/`read-all`/`read-only-shell`/`dev-shell`/`approve-for-me`
-    │   ├── policyEngine.ts             # Avaliação pura: `deny > ask > allow > evaluate`, sem precedência entre escopos, glob completo (fs) vs wildcard `*` (shell/web/mcp); allowlist de `git` somente-leitura rejeita redirecionamento não citado (`hasUnquotedRedirection`)
-    │   ├── trustService.ts             # `vscode.workspace.isTrusted` + paths externos de `permissions.yaml` (user/workspace, hash do path fora do repo)
-    │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, cartão de aprovação (Allow/Always Allow/Deny/Always Deny) e gate de hooks `command`; watcher de arquivo + toast deduplicado (reportLoadErrors) quando `permissions.yaml` tem erro de parsing
+    │   ├── policyEngine.ts             # Avaliação pura: `deny > ask > allow > evaluate`, sem precedência entre escopos, proteção contra redirecionamento não citado
+    │   ├── trustService.ts             # `vscode.workspace.isTrusted` + paths externos de `permissions.yaml` (user/workspace fora do repo)
+    │   └── permissionsService.ts       # Orquestra escopos tarot/user/workspace/session, aprovação e gate de hooks `command`; watcher + toast deduplicado
     ├── specs/
     │   ├── specService.ts              # Feature/Design-First/Bugfix/Quick Spec (EARS), Analyze Requirements, Sync Files e PBT parser & stepper logic
     │   ├── specStepper.ts              # CodeLens stepper clicável (1 Requirements › 2 Design › 3 Task list) + Analyze + Review
     │   ├── markdownReview.ts           # Formatação em lote de comentários inline em Specs Markdown
     │   ├── taskParser.ts               # Parser de checklists `- [ ]`/`- [x]` + opcionais `*`, `_Requirements:_`, `_Depends:_`, `**Property N**`/`**Validates:**`
-    │   ├── taskGraph.ts                # Grafo de dependências puro: agrupa tasks pendentes em ondas (Kahn) respeitando `_Depends:_`
+    │   ├── taskGraph.ts                # Grafo de dependências puro: agrupa tasks pendentes em ondas (Kahn)
     │   ├── taskRunner.ts               # Orquestra "Run all Tasks" onda a onda, pulando dependentes de tarefas que falharam
     │   ├── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... / ↺ View changes / ▶ Run all Tasks / ↻ Sync Files
-    │   ├── specSync.ts                 # Merge puro do Sync Files: preserva tarefas concluídas que a regeneração não reescreveu; casa por numberLabel + titleSimilarity antes de cair pro título exato, pra sobreviver a reformulação normal de LLM sem herdar conclusão de um número reaproveitado por escopo novo
-    │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json`: mapeia tarefa → checkpoint pré-execução
+    │   ├── specSync.ts                 # Merge puro do Sync Files preservando tarefas concluídas via numberLabel + titleSimilarity
+    │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json` com chave estável `computeTaskCheckpointKey` (numberLabel ou `title:<sha1-10>`)
+    ├── workflows/                      # M3.9a — Motor de Workflows & Recipes
+    │   ├── workflowTypes.ts            # Schema oficial de recipes, nós (step/sequence/repeat/parallel/watch), runs e agentes bundled
+    │   ├── recipeValidator.ts          # `validateWorkflow`: limites (<=50 steps, depth <=8), IDs únicos, jsonPath, stopWhen, ordem de templates, fileCheck no workspace
+    │   ├── templateResolver.ts         # Resolução de {{input}}/{{previous.output}}/{{step.output}}/{{artifacts.*}} com delimitadores com nonce
+    │   ├── recipeLoader.ts             # Precedência workspace > user > bundled, JSON vence YAML com warning, recipe inválida não esconde válida inferior
+    │   ├── watchHandlers.ts            # Watch `command` (STDIN/STDOUT JSON) e `github-pr` (`gh pr view`)
+    │   ├── runStore.ts                 # Persistência de runs/checkpoints em `.tarot/workflows/runs/<id>.json`
+    │   └── workflowEngine.ts           # Execução com checkpoint por fronteira, pause cooperativa, retomada pós-reinício e `updateWorkflow`
     ├── test/
-    │   └── *.test.ts                   # Suíte unitária pura (taskParser, taskGraph, taskRunner, specSync, hookTypes, hookEngine, hookRunner, hookMigration, promptBuilder, specService, permissionTypes, yamlLite, shellParser, policyEngine, presets, commandLineLimits) via `node --test`
+    │   └── *.test.ts                   # 36 suítes / 121 testes unitários puros via `node --test` (sem importar `vscode`)
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
-    │   └── worktreeManager.ts          # Worktrees Git opcionais e isolados (criar/listar/aplicar por cópia/descartar) para tasks paralelas (M3.6.7+); ligado de verdade em runSpecTaskInternal; applyWorktree enxerga arquivo novo não-rastreado (git status, não só git diff) e aceita shouldApply pra veto de política por caminho
+    │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks
     └── views/
-        ├── tarotSidebarViews.ts        # 4 TreeViews esquerda (Specs Feature/Bugfix, Hooks agrupado Workspace/Global com toggle + Play, Steering agrupado, Local Agents); Hooks/Steering/Specs só carregam `.tarot/**` com o workspace confiável
+        ├── tarotSidebarViews.ts        # 5 TreeViews (Specs, Hooks, Steering, Local Agents, MCP Servers) todas com gate de Workspace Trust
+        ├── workflowRunsView.ts         # M3.9b — TreeView `WORKFLOW RUNS` agrupada por status ("Needs you" primeiro) com busca
+        ├── recipesView.ts              # M3.9b — TreeView `RECIPES` (Workspace/Global/Bundled) com ação inline `▷`
+        ├── workflowRunEditor.ts        # M3.9b — Aba WebviewPanel `Workflow: <nome>` (árvore dockada, Follow, Go to active, Pause/Resume/Stop, + Add loops, Message step)
         ├── panelStrings.ts             # Catálogo de strings do painel (l10n.t) compartilhado host ↔ webview
-        └── agentPanelView.ts           # WebviewView Kiro (abas minimalistas, popovers customizados CLI/Model/Effort e Mode, ponte postMessage ↔ panel.js); modelo/effort selecionados persistem em globalState entre reinícios; resolveActiveSpecContext injeta o Spec relevante em todo turno (não só via #Spec manual); reviewFileWritesForTurn avalia fs_write pós-turno e gera o card de aprovação (Keep/Revert); summarizeToolsFallback sintetiza um resumo de "N action(s)" quando o CLI fecha o turno sem texto apesar de tool calls reais; runPrompt aceita execCwd pra rodar o agente numa worktree isolada (Run Task/Run all Tasks) mantendo Spec/Steering resolvidos contra o workspace real
+        └── agentPanelView.ts           # WebviewView Kiro (abas, History, Fork, Restore arquivos+contexto, medidor real + compaction, links Markdown clicáveis, seletor agrupado de Custom Agents, Skills/Powers/Steering `/nome`, fallback de modelo morto, Pre-PR Review)
 ```
 
 > **Contrato Webview ↔ Extension Host**: toda troca de estado e ações do `Tarot Agent` passa pelo protocolo `postMessage` centralizado em `src/views/agentPanelView.ts` (handler `_handleMessage` + `_postState`) e `media/webview/panel.js` (`window.addEventListener('message', ...)`). O catálogo de strings viaja no HTML inicial em `window.__tarotL10n` (ver §3.5).
