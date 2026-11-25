@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.8c ✅ · próximo: M3.9a/b/c → M3.10)** | **Sim — iniciar por M3.9a** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.9a ✅ · próximo: M3.9b → M3.9c → M3.10)** | **Sim — iniciar por M3.9b** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -246,7 +246,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.9a — Motor de Workflows & Recipes (schema oficial) (UC-07)
+### Marco M3.9a — Motor de Workflows & Recipes (schema oficial) (UC-07) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/workflows/` (+ `authoring`, `manage`, `patterns`).
 - **Arquivos-alvo**: `extensions/tarot-core/src/workflows/{workflowEngine,recipeLoader,recipeValidator,templateResolver,watchHandlers,runStore}.ts`, `recipes/*.workflow.json` (bundled).
 - **Schema de Recipe** (`.tarot/workflows/*.workflow.{json,yaml,yml}`, global `~/.tarot/workflows/`):
@@ -266,9 +266,9 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Entrada**: pedir ao chat (gera workflow, com aprovação do plano), `/workflow-run` (seletor + formulário de inputs), `/workflow run <recipe> --task "..."`, ou delegação a agente único em background (`agent://<nome>`). Controle **Use workflows**: *Only when asked* (padrão) / *Only for large tasks* / *As much as possible*.
 - **⚠ Adaptação BYOA**: cada step = uma execução de CLI com contexto novo; `send_message` é exposto como **ferramenta MCP do Tarot** (ou marcador estruturado no stdout quando o CLI não suportar MCP); pause/resume/steer exigem *session resume* do CLI — registrar a capacidade por adaptador.
 - **Critérios de Aceite (DoD)**:
-  - [ ] `validate_workflow` reprova os casos listados e aprova as recipes bundled.
-  - [ ] `repeat`/`parallel`/`watch`/`completion` seguem a semântica acima, com checkpoint e retomada após reiniciar o IDE.
-  - [ ] Cada step pode usar um agente local diferente (`claude`/`agy`/`codex`) e respeita a política de permissões da sessão pai.
+  - [x] `validate_workflow` reprova os casos listados e aprova as recipes bundled. *(`workflows/recipeValidator.ts` + 4 recipes bundled em `extensions/tarot-core/recipes/*.workflow.json`; coberto por `workflowEngine.test.ts`.)*
+  - [x] `repeat`/`parallel`/`watch`/`completion` seguem a semântica acima, com checkpoint e retomada após reiniciar o IDE. *(`workflows/{workflowEngine,runStore,watchHandlers,templateResolver,recipeLoader}.ts` com checkpoint por fronteira de nó, pause cooperativa, retomada via `loadRun`, `updateWorkflow` e precedência de recipes; coberto por `workflowEngine.test.ts`.)*
+  - [x] Cada step pode usar um agente local diferente (`claude`/`agy`/`codex`) e respeita a política de permissões da sessão pai. *(`tarot.workflows.run` / `/workflow-run` + `tarot.workflows.enabled` opt-in + gate de Workspace Trust + aprovação antes da execução em `extension.ts`.)*
 
 ---
 
