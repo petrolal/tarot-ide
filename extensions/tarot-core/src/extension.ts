@@ -25,12 +25,15 @@ import { readTaskCheckpoint } from './specs/specTaskCheckpoints';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
+import { RecipesTreeProvider } from './views/recipesView';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
+import { TarotWorkflowRunEditorManager } from './views/workflowRunEditor';
+import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
 import { validateWorkflow } from './workflows/recipeValidator';
 import { TarotWorkflowRunStore } from './workflows/runStore';
 import { TarotWorkflowEngine } from './workflows/workflowEngine';
-import { WorkflowRecipe } from './workflows/workflowTypes';
+import { LoadedRecipe, WorkflowNode, WorkflowRecipe, WorkflowRunState } from './workflows/workflowTypes';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -116,6 +119,140 @@ export function activate(context: vscode.ExtensionContext): void {
 	const steeringProvider = new SteeringTreeProvider(steeringService, context.extensionUri);
 	const agentsProvider = new LocalAgentsTreeProvider(runtimeManager, context.extensionUri);
 	const mcpProvider = new McpServersTreeProvider(mcpConfigService, context.extensionUri);
+	const workflowRunsProvider = new WorkflowRunsTreeProvider(workflowRunStore, context.extensionUri);
+	const recipesProvider = new RecipesTreeProvider(recipeLoader, context.extensionUri);
+
+	// Active workflow run runtime state (for Pause / Resume / Stop / Add loops / Answer step)
+	const activeWorkflowFlags = new Map<string, { pause: boolean; abort: boolean; recipe: WorkflowRecipe }>();
+
+	const bumpRepeatLimits = (nodes: readonly WorkflowNode[], extra: number): WorkflowNode[] =>
+		nodes.map(n => {
+			if (n.type === 'repeat') {
+				return { ...n, maxIterations: n.maxIterations + extra, steps: bumpRepeatLimits(n.steps, extra) };
+			}
+			if (n.type === 'sequence') {
+				return { ...n, steps: bumpRepeatLimits(n.steps, extra) };
+			}
+			if (n.type === 'parallel') {
+				return { ...n, branches: bumpRepeatLimits(n.branches, extra) };
+			}
+			return n;
+		});
+
+	const executeWorkflowRun = async (
+		root: string,
+		recipe: WorkflowRecipe,
+		inputs: Record<string, string>,
+		existingRun?: WorkflowRunState,
+	): Promise<WorkflowRunState> => {
+		const run = existingRun ?? workflowEngine.createRunState(recipe, inputs);
+		const flags = { pause: false, abort: false, recipe };
+		activeWorkflowFlags.set(run.id, flags);
+		await workflowRunStore.saveRun(root, run);
+		workflowRunsProvider.refresh();
+		await workflowRunEditor.openRun(root, run.id, recipe);
+
+		const activeAgentId = runtimeManager.getActiveAgentId();
+		try {
+			const finalState = await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Workflow: {0}', recipe.name), cancellable: true },
+				async (progress, token) => workflowEngine.run(
+					recipe,
+					root,
+					inputs,
+					{
+						shouldPause: () => flags.pause,
+						shouldAbort: () => flags.abort || token.isCancellationRequested,
+						onStateChange: updated => {
+							workflowRunEditor.updateOpenRun(updated, recipe);
+							workflowRunsProvider.refresh();
+						},
+						executeStep: async req => {
+							progress.report({ message: vscode.l10n.t('Step {0} ({1})', req.step.id, req.step.agent) });
+							const targetAdapter = runtimeManager.getAdapter(req.step.agent) ?? runtimeManager.getAdapter(activeAgentId);
+							if (!targetAdapter) {
+								return { ok: false, output: `No agent adapter available for "${req.step.agent}".` };
+							}
+							let output = '';
+							let hadErr = false;
+							await targetAdapter.run(
+								{
+									prompt: req.resolvedPrompt,
+									mode: 'vibe',
+									autonomy: 'acceptFileChanges',
+									model: req.modelId,
+									effort: req.effortLevel,
+									cwd: req.workspaceRoot,
+									timeoutMs: vscode.workspace.getConfiguration('tarot.agents').get<number>('timeoutMs', 300_000),
+								},
+								ev => {
+									if (ev.type === 'text' && ev.content) {
+										output += ev.content;
+									} else if (ev.type === 'error' && ev.content) {
+										hadErr = true;
+										output += `\n[Error] ${ev.content}`;
+									}
+								},
+								token,
+							);
+							return { ok: !hadErr && !token.isCancellationRequested, output: output.trim() };
+						},
+					},
+					run,
+				),
+			);
+			const completedSteps = Object.values(finalState.stepStates).filter(s => s.status === 'completed').length;
+			const totalSteps = Object.values(finalState.stepStates).length;
+			await agentPanelProvider.postWorkflowNotification(
+				vscode.l10n.t('Workflow "{0}" — {1}', finalState.recipeName, finalState.status),
+				vscode.l10n.t('Run `{0}` · {1}/{2} step(s) completed.{3}', finalState.id, completedSteps, totalSteps, finalState.lastError ? `\n\nError: ${finalState.lastError}` : ''),
+			);
+			return finalState;
+		} finally {
+			activeWorkflowFlags.delete(run.id);
+			workflowRunsProvider.refresh();
+		}
+	};
+
+	const workflowRunEditor = new TarotWorkflowRunEditorManager(context.extensionUri, workflowRunStore, {
+		onPause: runId => {
+			const f = activeWorkflowFlags.get(runId);
+			if (f) { f.pause = true; }
+		},
+		onStop: runId => {
+			const f = activeWorkflowFlags.get(runId);
+			if (f) { f.abort = true; }
+		},
+		onResume: async (runId, answerText, targetStepId) => {
+			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!root) { return; }
+			const saved = await workflowRunStore.loadRun(root, runId);
+			if (!saved) { return; }
+			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+			const loaded = discovery.recipes.find(r => r.name === saved.recipeName);
+			if (!loaded) { return; }
+			const nextInputs: Record<string, string> = { ...saved.inputs };
+			if (answerText) {
+				nextInputs.user_reply = answerText;
+				if (targetStepId && saved.stepStates[targetStepId]?.status === 'paused') {
+					saved.stepStates[targetStepId].status = 'pending';
+					saved.outputs[targetStepId] = `${saved.outputs[targetStepId] ?? ''}\n\n[User answer]: ${answerText}`.trim();
+				}
+			}
+			await executeWorkflowRun(root, loaded.recipe, nextInputs, saved);
+		},
+		onAddLoops: async (runId, extraIterations) => {
+			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!root) { return; }
+			const saved = await workflowRunStore.loadRun(root, runId);
+			if (!saved) { return; }
+			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+			const loaded = discovery.recipes.find(r => r.name === saved.recipeName);
+			if (!loaded) { return; }
+			const extended: WorkflowRecipe = { ...loaded.recipe, steps: bumpRepeatLimits(loaded.recipe.steps, extraIterations) };
+			await executeWorkflowRun(root, extended, { ...saved.inputs }, saved);
+		},
+	});
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
 	const agentPanelProvider = new TarotAgentPanelProvider(
@@ -147,6 +284,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		steeringProvider,
 		agentsProvider,
 		mcpProvider,
+		workflowRunsProvider,
+		recipesProvider,
+		workflowRunEditor,
 		agentPanelProvider,
 		specCodeLensProvider,
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
@@ -160,6 +300,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerTreeDataProvider('tarot.views.steering', steeringProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.agents', agentsProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.mcp', mcpProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.workflowRuns', workflowRunsProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.recipes', recipesProvider),
 		vscode.window.registerWebviewViewProvider(TarotAgentPanelProvider.viewId, agentPanelProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),
@@ -312,52 +454,54 @@ export function activate(context: vscode.ExtensionContext): void {
 				return;
 			}
 
-			const activeAgentId = runtimeManager.getActiveAgentId();
-			await vscode.window.withProgress(
-				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Workflow: {0}', picked.loaded.name), cancellable: true },
-				async (progress, token) => {
-					const runState = await workflowEngine.run(
-						picked.loaded.recipe,
-						root,
-						{ task: taskInput.trim(), input: taskInput.trim() },
-						{
-							shouldAbort: () => token.isCancellationRequested,
-							executeStep: async req => {
-								progress.report({ message: vscode.l10n.t('Step {0} ({1})', req.step.id, req.step.agent) });
-								const targetAdapter = runtimeManager.getAdapter(req.step.agent) ?? runtimeManager.getAdapter(activeAgentId);
-								if (!targetAdapter) {
-									return { ok: false, output: `No agent adapter available for "${req.step.agent}".` };
-								}
-								let output = '';
-								let hadErr = false;
-								await targetAdapter.run(
-									{
-										prompt: req.resolvedPrompt,
-										mode: 'vibe',
-										autonomy: 'acceptFileChanges',
-										model: req.modelId,
-										effort: req.effortLevel,
-										cwd: req.workspaceRoot,
-										timeoutMs: vscode.workspace.getConfiguration('tarot.agents').get<number>('timeoutMs', 300_000),
-									},
-									ev => {
-										if (ev.type === 'text' && ev.content) {
-											output += ev.content;
-										} else if (ev.type === 'error' && ev.content) {
-											hadErr = true;
-											output += `\n[Error] ${ev.content}`;
-										}
-									},
-									token,
-								);
-								return { ok: !hadErr && !token.isCancellationRequested, output: output.trim() };
-							},
-						},
-					);
-					outputChannel!.appendLine(`[Workflows] Run ${runState.id} (${runState.recipeName}) finished with status: ${runState.status}`);
-					vscode.window.showInformationMessage(vscode.l10n.t('Workflow "{0}" finished: {1}.', runState.recipeName, runState.status));
-				},
-			);
+			const runState = await executeWorkflowRun(root, picked.loaded.recipe, { task: taskInput.trim(), input: taskInput.trim() });
+			outputChannel!.appendLine(`[Workflows] Run ${runState.id} (${runState.recipeName}) finished with status: ${runState.status}`);
+			vscode.window.showInformationMessage(vscode.l10n.t('Workflow "{0}" finished: {1}.', runState.recipeName, runState.status));
+		}),
+
+		vscode.commands.registerCommand('tarot.workflows.runRecipe', async (item?: { loadedRecipe?: LoadedRecipe }) => {
+			const loaded = item?.loadedRecipe;
+			if (!loaded) {
+				await vscode.commands.executeCommand('tarot.workflows.run');
+				return;
+			}
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			const taskInput = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Workflow "{0}" — Task Input', loaded.name),
+				prompt: vscode.l10n.t('Describe the task for this workflow run'),
+			});
+			if (!taskInput?.trim()) {
+				return;
+			}
+			await executeWorkflowRun(root, loaded.recipe, { task: taskInput.trim(), input: taskInput.trim() });
+		}),
+
+		vscode.commands.registerCommand('tarot.workflows.openRun', async (runId?: string, stepId?: string) => {
+			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!root || !runId) {
+				return;
+			}
+			const run = await workflowRunStore.loadRun(root, runId);
+			if (!run) {
+				return;
+			}
+			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+			const loaded = discovery.recipes.find(r => r.name === run.recipeName);
+			await workflowRunEditor.openRun(root, runId, loaded?.recipe, stepId);
+		}),
+
+		vscode.commands.registerCommand('tarot.workflows.searchRuns', async () => {
+			const query = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Search Workflow Runs'),
+				prompt: vscode.l10n.t('Filter by recipe name, status, or run ID (leave empty to clear)'),
+				value: workflowRunsProvider.getSearchQuery(),
+			});
+			if (query !== undefined) {
+				workflowRunsProvider.setSearchQuery(query);
+			}
 		}),
 
 		vscode.commands.registerCommand('tarot.agent.openInEditorTab', async () => {

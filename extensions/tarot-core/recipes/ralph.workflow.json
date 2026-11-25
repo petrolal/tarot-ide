@@ -1,0 +1,34 @@
+{
+  "name": "ralph",
+  "description": "Loop autônomo contínuo de refinamento incremental com verificação a cada iteração.",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "repeat",
+      "id": "ralph-loop",
+      "maxIterations": 4,
+      "onMaxIterations": "pause",
+      "stopCondition": {
+        "containsText": "DONE"
+      },
+      "steps": [
+        {
+          "type": "step",
+          "id": "iterate",
+          "agent": "wf-coder",
+          "prompt": "Execute uma iteração completa e testada para a tarefa abaixo:\n\n{{input}}",
+          "captureOutput": true
+        },
+        {
+          "type": "step",
+          "id": "check",
+          "agent": "semantic_reviewer",
+          "prompt": "Verifique se a iteração está completa e sem regressões. Responda DONE se pronto:\n\n{{previous.output}}",
+          "captureOutput": true
+        }
+      ]
+    }
+  ]
+}

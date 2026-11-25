@@ -1,0 +1,34 @@
+{
+  "name": "goal",
+  "description": "Execução orientada a objetivo em ciclos de implementação e validação até atingir todos os critérios.",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "repeat",
+      "id": "goal-loop",
+      "maxIterations": 3,
+      "onMaxIterations": "pause",
+      "stopCondition": {
+        "containsText": "GOAL_ACHIEVED"
+      },
+      "steps": [
+        {
+          "type": "step",
+          "id": "execute",
+          "agent": "wf-coder",
+          "prompt": "Avance no objetivo abaixo implementando o próximo incremento verificável:\n\n{{input}}",
+          "captureOutput": true
+        },
+        {
+          "type": "step",
+          "id": "verify",
+          "agent": "wf-design-reviewer",
+          "prompt": "Valide se todos os critérios do objetivo foram cumpridos com base na entrega abaixo. Responda GOAL_ACHIEVED se concluído ou liste o que falta:\n\n{{previous.output}}",
+          "captureOutput": true
+        }
+      ]
+    }
+  ]
+}

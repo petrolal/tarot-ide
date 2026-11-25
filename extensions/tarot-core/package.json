@@ -97,6 +97,14 @@
         {
           "id": "tarot.views.mcp",
           "name": "%view.mcp.name%"
+        },
+        {
+          "id": "tarot.views.workflowRuns",
+          "name": "%view.workflowRuns.name%"
+        },
+        {
+          "id": "tarot.views.recipes",
+          "name": "%view.recipes.name%"
         }
       ],
       "tarot-agent-sidebar": [
@@ -123,6 +131,10 @@
       {
         "view": "tarot.views.mcp",
         "contents": "%viewsWelcome.mcp.contents%"
+      },
+      {
+        "view": "tarot.views.workflowRuns",
+        "contents": "%viewsWelcome.workflowRuns.contents%"
       }
     ],
     "menus": {
@@ -156,6 +168,16 @@
           "command": "tarot.mcp.openConfig",
           "when": "view == tarot.views.mcp",
           "group": "navigation"
+        },
+        {
+          "command": "tarot.workflows.searchRuns",
+          "when": "view == tarot.views.workflowRuns",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.workflows.run",
+          "when": "view == tarot.views.recipes",
+          "group": "navigation@1"
         }
       ],
       "editor/context": [
@@ -222,6 +244,11 @@
           "command": "tarot.hooks.toggle",
           "when": "view == tarot.views.hooks && (viewItem == tarotHookEnabled || viewItem == tarotHookDisabled)",
           "group": "inline@2"
+        },
+        {
+          "command": "tarot.workflows.runRecipe",
+          "when": "view == tarot.views.recipes && viewItem == tarotWorkflowRecipe",
+          "group": "inline@1"
         }
       ],
       "commandPalette": [
@@ -247,6 +274,14 @@
         },
         {
           "command": "tarot.hooks.toggle",
+          "when": "false"
+        },
+        {
+          "command": "tarot.workflows.openRun",
+          "when": "false"
+        },
+        {
+          "command": "tarot.workflows.runRecipe",
           "when": "false"
         }
       ]
@@ -726,6 +761,23 @@
         "title": "%command.workflows.validate.title%",
         "category": "Tarot IDE",
         "icon": "$(check-all)"
+      },
+      {
+        "command": "tarot.workflows.searchRuns",
+        "title": "%command.workflows.searchRuns.title%",
+        "category": "Tarot IDE",
+        "icon": "$(search)"
+      },
+      {
+        "command": "tarot.workflows.openRun",
+        "title": "%command.workflows.openRun.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.workflows.runRecipe",
+        "title": "%command.workflows.runRecipe.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
       }
     ]
   },

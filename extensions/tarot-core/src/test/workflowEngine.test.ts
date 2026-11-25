@@ -26,6 +26,9 @@ describe('workflows.recipeValidator', () => {
 		assert.ok(names.includes('feature-pipeline'));
 		assert.ok(names.includes('publish-pr'));
 		assert.ok(names.includes('semantic-review-multi-model'));
+		assert.ok(names.includes('autoresearch'));
+		assert.ok(names.includes('goal'));
+		assert.ok(names.includes('ralph'));
 	});
 
 	it('rejects invalid schema, duplicate IDs, bad template order, fileCheck escape, bad jsonPath and built-in subagent', () => {

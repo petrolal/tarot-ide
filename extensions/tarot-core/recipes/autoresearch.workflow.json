@@ -1,0 +1,23 @@
+{
+  "name": "autoresearch",
+  "description": "Pesquisa iterativa profunda sobre arquitetura, benchmarks ou trade-offs técnicos.",
+  "inputs": {
+    "task": "prompt"
+  },
+  "steps": [
+    {
+      "type": "step",
+      "id": "explore",
+      "agent": "wf-auto-researcher",
+      "prompt": "Explore o tema abaixo no repositório e colete evidências concretas:\n\n{{input}}",
+      "captureOutput": true
+    },
+    {
+      "type": "step",
+      "id": "report",
+      "agent": "wf-planner",
+      "prompt": "Organize as descobertas abaixo em um relatório objetivo com recomendações e próximos passos:\n\n{{previous.output}}",
+      "captureOutput": true
+    }
+  ]
+}

@@ -563,6 +563,19 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		await this.runPrompt(prompt, { displayPrompt });
 	}
 
+	/** Posts a workflow run summary/notification entry directly into the active parent chat session (M3.9b). */
+	async postWorkflowNotification(title: string, body: string): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+		await this.sessionStore.appendMessage(session, {
+			role: 'assistant',
+			agentId: activeAgent,
+			mode: this.mode,
+			content: `**${title}**\n\n${body}`,
+		});
+		this.postState();
+	}
+
 	async generateSpecFromActiveSession(): Promise<void> {
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!root) {
