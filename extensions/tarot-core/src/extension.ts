@@ -11,6 +11,7 @@ import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
+import { registerScheduleAndLessonsCommands } from './commands/scheduleAndLessonsCommands';
 import { registerSpecCommands } from './commands/specCommands';
 import { registerWorkflowCommands } from './commands/workflowCommands';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
@@ -20,6 +21,7 @@ import { TarotMcpConfigService } from './mcp/mcpConfigService';
 import { TarotPermissionsService } from './permissions/permissionsService';
 import { TarotTrustService } from './permissions/trustService';
 import { TarotPowersService } from './powers/powersService';
+import { TarotScheduleService } from './schedule/scheduleService';
 import { TarotSkillsService } from './skills/skillsService';
 import { TarotSpecService } from './specs/specService';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
@@ -99,6 +101,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const recipeLoader = new TarotRecipeLoader(path.join(context.extensionUri.fsPath, 'recipes'));
 	const workflowRunStore = new TarotWorkflowRunStore();
 	const workflowEngine = new TarotWorkflowEngine(workflowRunStore);
+	const scheduleService = new TarotScheduleService();
 	const hookEngine = new TarotHookEngine((filePath, errors) => {
 		for (const err of errors) {
 			outputChannel!.appendLine(`[Hooks] ${filePath}: ${err}`);
@@ -206,6 +209,20 @@ export function activate(context: vscode.ExtensionContext): void {
 		specCodeLensProvider,
 		agentPanelProvider,
 		ensureWorkspaceFolder,
+	});
+
+	const scheduleAndLessonsCommands = registerScheduleAndLessonsCommands({
+		scheduleService,
+		runtimeManager,
+		sessionStore,
+		checkpointService,
+		permissionsService,
+		steeringService,
+		skillsService,
+		steeringProvider,
+		sessionsProvider,
+		ensureWorkspaceFolder,
+		outputChannel,
 	});
 
 	context.subscriptions.push(
@@ -369,12 +386,6 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 		}),
 
-		vscode.commands.registerCommand('tarot.schedule.open', async () => {
-			vscode.window.showInformationMessage(
-				vscode.l10n.t('Scheduled cron jobs and digests arrive in M3.10. Use Workflows & Recipes for multi-step runs today.'),
-			);
-		}),
-
 		vscode.commands.registerCommand('tarot.settings.open', async () => {
 			await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:tarot.tarot-core');
 		}),
@@ -385,6 +396,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 		...workflowCommands.disposables,
 		...specCommands,
+		...scheduleAndLessonsCommands,
 
 		vscode.commands.registerCommand('tarot.agent.openInEditorTab', async () => {
 			await agentPanelProvider.openInEditorTab();

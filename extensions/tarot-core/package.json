@@ -848,6 +848,48 @@
         "title": "%command.settings.open.title%",
         "category": "Tarot IDE",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "tarot.schedule.create",
+        "title": "%command.schedule.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "tarot.schedule.runNow",
+        "title": "%command.schedule.runNow.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tarot.schedule.viewDigest",
+        "title": "%command.schedule.viewDigest.title%",
+        "category": "Tarot IDE",
+        "icon": "$(book)"
+      },
+      {
+        "command": "tarot.lessons.record",
+        "title": "%command.lessons.record.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/02-high-priestess.svg",
+          "dark": "icons/arcana/02-high-priestess.svg"
+        }
+      },
+      {
+        "command": "tarot.lessons.promoteToSkill",
+        "title": "%command.lessons.promoteToSkill.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/02-high-priestess.svg",
+          "dark": "icons/arcana/02-high-priestess.svg"
+        }
+      },
+      {
+        "command": "tarot.steering.audit",
+        "title": "%command.steering.audit.title%",
+        "category": "Tarot IDE",
+        "icon": "$(checklist)"
       }
     ]
   },
