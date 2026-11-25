@@ -52,7 +52,39 @@ export function activate(context: vscode.ExtensionContext): void {
 	outputChannel = vscode.window.createOutputChannel('Tarot IDE');
 	outputChannel.appendLine('Tarot Core extension activated.');
 
-	const runtimeManager = new AgentRuntimeManager(context, outputChannel);
+	const trustService = new TarotTrustService();
+	const permissionsService = new TarotPermissionsService(trustService, outputChannel);
+	const mcpConfigService = new TarotMcpConfigService();
+
+	const runtimeManager = new AgentRuntimeManager(context, outputChannel, {
+		evaluatePermission: async (toolName, params) => {
+			const lower = toolName.toLowerCase();
+			if (lower.includes('bash') || lower.includes('shell') || lower.includes('exec') || lower.includes('terminal')) {
+				const rawCmd = typeof params?.command === 'string' ? params.command : toolName;
+				const evalRes = await permissionsService.evaluateShellCommand(rawCmd, { headless: true });
+				return evalRes.decision.effect === 'evaluate' ? 'ask' : evalRes.decision.effect;
+			}
+			const cap = (lower.includes('write') || lower.includes('edit') || lower.includes('delete'))
+				? 'fs_write'
+				: (lower.includes('read') ? 'fs_read' : (lower.includes('mcp') ? 'mcp' : 'shell'));
+			const decision = await permissionsService.evaluate(cap, toolName, { headless: true });
+			return decision.effect === 'evaluate' ? 'ask' : decision.effect;
+		},
+		getMcpServers: async cwd => {
+			if (!vscode.workspace.isTrusted) {
+				return [];
+			}
+			const { servers } = await mcpConfigService.discover(cwd);
+			return servers
+				.filter(s => s.enabled && s.transport === 'stdio' && s.command)
+				.map(s => ({
+					name: s.name,
+					command: s.command,
+					args: s.args ?? [],
+					env: Object.entries(s.env ?? {}).map(([name, value]) => ({ name, value })),
+				}));
+		},
+	});
 	const sessionStore = new TarotSessionStore();
 	const checkpointService = new TarotCheckpointService();
 	const steeringService = new TarotSteeringService();
@@ -62,7 +94,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	const skillsService = new TarotSkillsService();
 	const customAgentService = new TarotCustomAgentService();
 	const powersService = new TarotPowersService(skillsService);
-	const mcpConfigService = new TarotMcpConfigService();
 	const recipeLoader = new TarotRecipeLoader(path.join(context.extensionUri.fsPath, 'recipes'));
 	const workflowRunStore = new TarotWorkflowRunStore();
 	const workflowEngine = new TarotWorkflowEngine(workflowRunStore);
@@ -81,8 +112,6 @@ export function activate(context: vscode.ExtensionContext): void {
 		});
 	});
 	const fileHookQueue = new KeyedHookQueue(250);
-	const trustService = new TarotTrustService();
-	const permissionsService = new TarotPermissionsService(trustService, outputChannel!);
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
 
 	// Left Sidebar (Kiro-style) TreeViews

@@ -150,11 +150,23 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 
 		case 'terminal': {
 			const active = vscode.window.activeTerminal;
+			const allNames = vscode.window.terminals.map(t => t.name);
 			const name = active ? active.name : vscode.l10n.t('no active terminal');
+			const shellCwd = active?.shellIntegration?.cwd?.fsPath;
+			const creation = active?.creationOptions;
+			const shellPath = creation && 'shellPath' in creation ? creation.shellPath : undefined;
+			const lines = [
+				`Active terminal: ${name}`,
+				`Workspace: ${root ?? 'none'}`,
+				...(shellCwd ? [`Terminal CWD: ${shellCwd}`] : []),
+				...(shellPath ? [`Shell: ${shellPath}`] : []),
+				...(allNames.length > 1 ? [`Open terminals (${allNames.length}): ${allNames.join(', ')}`] : []),
+			];
 			return {
 				kind: 'terminal',
 				label: `Terminal (${name})`,
-				content: `Active terminal: ${name}. Workspace: ${root ?? 'none'}.`,
+				path: shellCwd ?? root,
+				content: lines.join('\n'),
 			};
 		}
 

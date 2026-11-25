@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getTarotConfig } from '../config/tarotConfig';
-import { AcpAgentAdapter } from './adapters/acpAdapter';
+import { AcpAdapterDependencies, AcpAgentAdapter } from './adapters/acpAdapter';
 import { AgyAdapter } from './adapters/agyAdapter';
 import { ClaudeCodeAdapter } from './adapters/claudeAdapter';
 import { CodexAdapter } from './adapters/codexAdapter';
@@ -32,10 +32,11 @@ export class AgentRuntimeManager implements vscode.Disposable {
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		private readonly outputChannel: vscode.OutputChannel,
+		private readonly acpDeps?: AcpAdapterDependencies,
 	) {
 		this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 		this.statusBarItem.command = 'tarot.agents.select';
-		this.statusBarItem.tooltip = vscode.l10n.t('Tarot IDE — Select the active local agent (claude / codex / agy)');
+		this.statusBarItem.tooltip = vscode.l10n.t('Tarot IDE — Select the active local AI agent');
 		this.statusBarItem.show();
 
 		this.disposables.push(
@@ -74,7 +75,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 						acpArgs: custom.args ?? ['acp'],
 						versionArgs: custom.versionArgs ?? ['--version'],
 						installHint: vscode.l10n.t('Ensure {0} is installed and on PATH.', custom.binary),
-					}));
+					}, this.acpDeps));
 				} else {
 					this.adapters.set(custom.id, new CustomCliAdapter(custom));
 				}
@@ -82,7 +83,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 		}
 		for (const entry of ACP_AGENT_CATALOG) {
 			if (!this.adapters.has(entry.id)) {
-				this.adapters.set(entry.id, new AcpAgentAdapter(entry));
+				this.adapters.set(entry.id, new AcpAgentAdapter(entry, this.acpDeps));
 			}
 		}
 	}

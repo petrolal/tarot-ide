@@ -269,13 +269,13 @@ export class TarotWorkflowEngine {
 					Object.assign(run.artifacts, res.artifacts);
 				}
 
-				if (signal?.severity === 'warning') {
+				if (signal?.severity === 'warning' || (!signal && node.completion === 'need_input')) {
 					stepState.status = 'paused';
 					run.status = 'paused';
 					run.pauseReason = 'needs_input';
 					return false;
 				}
-				if (!res.ok || signal?.severity === 'error') {
+				if (!res.ok || signal?.severity === 'error' || (!signal && node.completion === 'error')) {
 					stepState.status = 'failed';
 					if (!suppressRunFailure) {
 						run.status = 'failed';

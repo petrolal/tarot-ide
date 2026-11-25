@@ -1128,6 +1128,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
 		session.mode = this.mode;
+		if (profile.welcomeMessage && session.messages.length === 0) {
+			session.messages.push({
+				id: `welcome-${Date.now()}`,
+				role: 'assistant',
+				agentId: this.runtimeManager.getActiveAgentId(),
+				mode: this.mode,
+				content: profile.welcomeMessage,
+				timestamp: new Date().toISOString(),
+			});
+		}
 		this.postState();
 	}
 
@@ -1332,6 +1342,22 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			if (activeProfile.prompt) {
 				lines.push(activeProfile.prompt);
 			}
+			// Inject declared `file://` resources (strictly confined to workspaceRoot when trusted).
+			if (vscode.workspace.isTrusted && activeProfile.resources && activeProfile.resources.length > 0 && workspaceRoot) {
+				const rootAbs = path.resolve(workspaceRoot);
+				for (const resUri of activeProfile.resources) {
+					if (resUri.startsWith('file://')) {
+						const rel = resUri.slice('file://'.length).replace(/^\/+/, '');
+						const target = path.resolve(rootAbs, rel);
+						if (target.startsWith(rootAbs + path.sep)) {
+							const text = await fs.readFile(target, 'utf8').catch(() => undefined);
+							if (text) {
+								lines.push(`\n#### Resource: ${rel}\n${text.slice(0, 8_000)}`);
+							}
+						}
+					}
+				}
+			}
 			systemContextSections.push(lines.join('\n'));
 		}
 
@@ -1348,7 +1374,14 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				systemContextSections.push(powerActivation.summaryContext);
 			}
 			const skills = await this.skillsService.discover(wsRoot, powerActivation.skills);
-			const skillsResolution = resolveSkillsForPrompt(skills, prompt, { explicitSkillIds: options?.explicitSkillIds });
+			const profileSkillIds = (activeProfile?.resources ?? [])
+				.filter(r => r.startsWith('skill://'))
+				.map(r => r.slice('skill://'.length).trim())
+				.filter(Boolean);
+			const combinedSkillIds = [...(options?.explicitSkillIds ?? []), ...profileSkillIds];
+			const skillsResolution = resolveSkillsForPrompt(skills, prompt, {
+				explicitSkillIds: combinedSkillIds.length > 0 ? combinedSkillIds : undefined,
+			});
 			if (skillsResolution.catalogContext) {
 				systemContextSections.push(skillsResolution.catalogContext);
 			}

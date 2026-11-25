@@ -6,39 +6,9 @@
 import * as vscode from 'vscode';
 import { TarotWorkflowRunStore } from '../workflows/runStore';
 import { WorkflowRunState } from '../workflows/workflowTypes';
+import { classifyRunGroup, filterWorkflowRuns, WorkflowRunGroupKey } from '../workflows/workflowViewHelpers';
 
-export type WorkflowRunGroupKey = 'needsYou' | 'running' | 'paused' | 'completed' | 'failed';
-
-/** Classifies a workflow run into sidebar status groups with "Needs you" first (M3.9b). Pure. */
-export function classifyRunGroup(run: Pick<WorkflowRunState, 'status' | 'pauseReason'>): WorkflowRunGroupKey {
-	if (run.status === 'paused' && (run.pauseReason === 'needs_input' || run.pauseReason === 'iteration_cap')) {
-		return 'needsYou';
-	}
-	if (run.status === 'running' || run.status === 'pending') {
-		return 'running';
-	}
-	if (run.status === 'paused') {
-		return 'paused';
-	}
-	if (run.status === 'completed') {
-		return 'completed';
-	}
-	return 'failed';
-}
-
-/** Filters workflow runs by query matching recipe name, run ID, status, or pause reason. Pure. */
-export function filterWorkflowRuns(runs: readonly WorkflowRunState[], query: string): WorkflowRunState[] {
-	const q = query.trim().toLowerCase();
-	if (!q) {
-		return [...runs];
-	}
-	return runs.filter(r =>
-		r.recipeName.toLowerCase().includes(q)
-		|| r.id.toLowerCase().includes(q)
-		|| r.status.toLowerCase().includes(q)
-		|| (r.pauseReason ?? '').toLowerCase().includes(q),
-	);
-}
+export { classifyRunGroup, filterWorkflowRuns, WorkflowRunGroupKey };
 
 class RunTreeItem extends vscode.TreeItem {
 	constructor(

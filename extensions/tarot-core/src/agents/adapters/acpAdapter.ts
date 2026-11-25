@@ -9,7 +9,12 @@ import { AcpCatalogEntry } from '../agentCatalog';
 import { execSimple, resolveBinaryPath } from '../processRunner';
 import { buildEffectivePrompt } from '../promptBuilder';
 import { AgentAdapter, AgentEvent, AgentId, AgentRunRequest, AgentStatus } from '../types';
-import { JsonRpcMessage, parseAcpSessionUpdate } from './acpParser';
+import { JsonRpcMessage, parseAcpSessionUpdate, resolveAcpPermissionOption } from './acpParser';
+
+export interface AcpAdapterDependencies {
+	readonly evaluatePermission?: (toolName: string, params: Record<string, unknown> | undefined) => Promise<'allow' | 'deny' | 'ask'>;
+	readonly getMcpServers?: (cwd: string) => Promise<readonly Record<string, unknown>[]>;
+}
 
 /**
  * Universal Agent Client Protocol (ACP) adapter over JSON-RPC 2.0 stdio (MIGRATION_PLAN.md M3.8b).
@@ -23,7 +28,10 @@ export class AcpAgentAdapter implements AgentAdapter {
 	readonly binary: string;
 	readonly installHint: string;
 
-	constructor(private readonly entry: AcpCatalogEntry) {
+	constructor(
+		private readonly entry: AcpCatalogEntry,
+		private readonly deps?: AcpAdapterDependencies,
+	) {
 		this.id = entry.id;
 		this.displayName = entry.displayName;
 		this.binary = entry.binary;
@@ -180,19 +188,24 @@ export class AcpAgentAdapter implements AgentAdapter {
 							onEvent(ev);
 						}
 					} else if (msg.method === 'session/request_permission' && msg.id !== undefined) {
-						// Respect composer autonomy mode when the ACP server requests permission mid-turn.
-						const options = Array.isArray(msg.params?.options) ? msg.params!.options as Array<{ optionId?: string; kind?: string }> : [];
-						const allowOpt = options.find(o => o.kind === 'allow_once' || o.kind === 'allow_always') ?? options[0];
-						const rejectOpt = options.find(o => o.kind === 'reject_once' || o.kind === 'reject_always');
-						const chosen = (request.mode === 'plan' || request.autonomy === 'supervised')
-							? (rejectOpt ?? allowOpt)
-							: allowOpt;
-						sendRpc({
-							id: msg.id,
-							result: chosen?.optionId
-								? { outcome: { outcome: 'selected', optionId: chosen.optionId } }
-								: { outcome: { outcome: 'cancelled' } },
-						});
+						const reqId = msg.id;
+						const params = msg.params;
+						const toolCall = (params?.toolCall && typeof params.toolCall === 'object'
+							? params.toolCall
+							: undefined) as Record<string, unknown> | undefined;
+						const toolName = String(toolCall?.title ?? toolCall?.toolName ?? params?.toolName ?? 'tool');
+						void (async () => {
+							const policyDecision = this.deps?.evaluatePermission
+								? await this.deps.evaluatePermission(toolName, params).catch(() => 'ask' as const)
+								: undefined;
+							const chosen = resolveAcpPermissionOption(params, request.mode, request.autonomy, policyDecision);
+							sendRpc({
+								id: reqId,
+								result: chosen?.optionId
+									? { outcome: { outcome: 'selected', optionId: chosen.optionId } }
+									: { outcome: { outcome: 'cancelled' } },
+							});
+						})();
 					}
 				}
 			});
@@ -219,7 +232,21 @@ export class AcpAgentAdapter implements AgentAdapter {
 						clientCapabilities: {},
 						clientInfo: { name: 'tarot-ide', version: '0.2.0' },
 					});
-					const created = await callRpc('session/new', { cwd: request.cwd, mcpServers: [] });
+					const mcpServers = this.deps?.getMcpServers
+						? await this.deps.getMcpServers(request.cwd).catch(() => [])
+						: [];
+					const meta: Record<string, unknown> = {};
+					if (request.model && request.model !== 'auto') {
+						meta.model = request.model;
+					}
+					if (request.effort && request.effort !== 'auto') {
+						meta.effort = request.effort;
+					}
+					const created = await callRpc('session/new', {
+						cwd: request.cwd,
+						mcpServers,
+						...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
+					});
 					sessionId = typeof created.sessionId === 'string' ? created.sessionId : undefined;
 					if (!sessionId) {
 						throw new Error('ACP server did not return a sessionId.');
@@ -227,6 +254,7 @@ export class AcpAgentAdapter implements AgentAdapter {
 					await callRpc('session/prompt', {
 						sessionId,
 						prompt: [{ type: 'text', text: prompt }],
+						...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
 					});
 					child.kill('SIGTERM');
 					cleanup();

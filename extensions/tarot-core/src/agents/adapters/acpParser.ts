@@ -3,7 +3,7 @@
  *  Licensed under the GNU General Public License v3.0 (GPL-3.0). See LICENSE and NOTICE.md.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentEvent } from '../types';
+import { AgentEvent, AgentMode, AutonomyMode } from '../types';
 
 export interface JsonRpcMessage {
 	readonly jsonrpc?: string;
@@ -12,6 +12,41 @@ export interface JsonRpcMessage {
 	readonly params?: Record<string, unknown>;
 	readonly result?: Record<string, unknown>;
 	readonly error?: { readonly code?: number; readonly message?: string };
+}
+
+export interface AcpPermissionOption {
+	readonly optionId?: string;
+	readonly kind?: string;
+}
+
+/**
+ * Pure permission option resolver for ACP `session/request_permission`.
+ * Respects Tarot's evaluated policy decision first (`deny` / `allow`), and falls back
+ * to the composer autonomy/mode when the policy returns `ask` or is unavailable.
+ */
+export function resolveAcpPermissionOption(
+	params: Record<string, unknown> | undefined,
+	mode: AgentMode,
+	autonomy: AutonomyMode,
+	policyDecision?: 'allow' | 'deny' | 'ask',
+): AcpPermissionOption | undefined {
+	const options = Array.isArray(params?.options) ? params!.options as AcpPermissionOption[] : [];
+	if (options.length === 0) {
+		return undefined;
+	}
+	const allowOpt = options.find(o => o.kind === 'allow_once' || o.kind === 'allow_always') ?? options[0];
+	const rejectOpt = options.find(o => o.kind === 'reject_once' || o.kind === 'reject_always');
+
+	if (policyDecision === 'deny') {
+		return rejectOpt;
+	}
+	if (policyDecision === 'allow') {
+		return allowOpt;
+	}
+	if (mode === 'plan' || autonomy === 'supervised') {
+		return rejectOpt ?? allowOpt;
+	}
+	return allowOpt;
 }
 
 /**

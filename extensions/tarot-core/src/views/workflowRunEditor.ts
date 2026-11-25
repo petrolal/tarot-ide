@@ -6,52 +6,16 @@
 import * as crypto from 'node:crypto';
 import * as vscode from 'vscode';
 import { TarotWorkflowRunStore } from '../workflows/runStore';
-import { WorkflowNode, WorkflowRecipe, WorkflowRunState } from '../workflows/workflowTypes';
+import { WorkflowRecipe, WorkflowRunState } from '../workflows/workflowTypes';
+import { FlattenedWorkflowTreeItem, flattenRecipeTree } from '../workflows/workflowViewHelpers';
+
+export { FlattenedWorkflowTreeItem, flattenRecipeTree };
 
 export interface WorkflowRunControlCallbacks {
 	readonly onPause: (runId: string) => void;
 	readonly onResume: (runId: string, answerText?: string, targetStepId?: string) => Promise<void>;
 	readonly onStop: (runId: string) => void;
 	readonly onAddLoops: (runId: string, extraIterations: number) => Promise<void>;
-}
-
-export interface FlattenedWorkflowTreeItem {
-	readonly id: string;
-	readonly type: WorkflowNode['type'];
-	readonly depth: number;
-	readonly agent?: string;
-	readonly badge?: string;
-	readonly modelId?: string;
-	readonly effortLevel?: string;
-}
-
-/** Flattens a recipe's AST into an indented tree list with `[loop ×N]` / `[parallel]` badges. */
-export function flattenRecipeTree(nodes: readonly WorkflowNode[], depth = 0): FlattenedWorkflowTreeItem[] {
-	const items: FlattenedWorkflowTreeItem[] = [];
-	for (const node of nodes) {
-		if (node.type === 'step') {
-			items.push({
-				id: node.id,
-				type: 'step',
-				depth,
-				agent: node.agent,
-				modelId: node.modelId,
-				effortLevel: node.effortLevel,
-			});
-		} else if (node.type === 'sequence') {
-			items.push({ id: node.id, type: 'sequence', depth });
-			items.push(...flattenRecipeTree(node.steps, depth + 1));
-		} else if (node.type === 'repeat') {
-			items.push({ id: node.id, type: 'repeat', depth, badge: `[loop ×${node.maxIterations}]` });
-			items.push(...flattenRecipeTree(node.steps, depth + 1));
-		} else if (node.type === 'parallel') {
-			items.push({ id: node.id, type: 'parallel', depth, badge: '[parallel]' });
-			items.push(...flattenRecipeTree(node.branches, depth + 1));
-		} else if (node.type === 'watch') {
-			items.push({ id: node.id, type: 'watch', depth, badge: `[watch:${node.handler}]` });
-		}
-	}
-	return items;
 }
 
 /**
