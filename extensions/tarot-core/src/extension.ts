@@ -11,31 +11,26 @@ import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
+import { registerSpecCommands } from './commands/specCommands';
+import { registerWorkflowCommands } from './commands/workflowCommands';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { TarotWorktreeManager } from './git/worktreeManager';
 import { KeyedHookQueue, runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
 import { TarotMcpConfigService } from './mcp/mcpConfigService';
 import { TarotPermissionsService } from './permissions/permissionsService';
 import { TarotTrustService } from './permissions/trustService';
-import { parseYamlLite } from './permissions/yamlLite';
 import { TarotPowersService } from './powers/powersService';
 import { TarotSkillsService } from './skills/skillsService';
-import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
-import { SpecCreationKind, TarotSpecService } from './specs/specService';
-import { readTaskCheckpoint } from './specs/specTaskCheckpoints';
+import { TarotSpecService } from './specs/specService';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
 import { RecipesTreeProvider } from './views/recipesView';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
-import { TarotWorkflowRunEditorManager } from './views/workflowRunEditor';
 import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
-import { validateWorkflow } from './workflows/recipeValidator';
 import { TarotWorkflowRunStore } from './workflows/runStore';
-import { runWatchPoll } from './workflows/watchHandlers';
 import { TarotWorkflowEngine } from './workflows/workflowEngine';
-import { LoadedRecipe, WorkflowNode, WorkflowRecipe, WorkflowRunState } from './workflows/workflowTypes';
 
 let outputChannel: vscode.OutputChannel | undefined;
 
@@ -45,30 +40,6 @@ async function ensureWorkspaceFolder(): Promise<string | undefined> {
 		vscode.window.showWarningMessage(vscode.l10n.t('Open a folder/workspace in Tarot IDE to create artifacts under .tarot/.'));
 	}
 	return root;
-}
-
-async function resolveSpecDirFromUriOrPick(uri: vscode.Uri | undefined, specService: TarotSpecService): Promise<string | undefined> {
-	if (uri) {
-		return path.dirname(uri.fsPath);
-	}
-	const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
-	if (activePath && activePath.replace(/\\/g, '/').includes('/.tarot/specs/')) {
-		return path.dirname(activePath);
-	}
-	const root = await ensureWorkspaceFolder();
-	if (!root) {
-		return undefined;
-	}
-	const specs = await specService.listSpecs(root);
-	if (specs.length === 0) {
-		vscode.window.showInformationMessage(vscode.l10n.t('No Specs found in .tarot/specs/.'));
-		return undefined;
-	}
-	const picked = await vscode.window.showQuickPick(
-		specs.map(s => ({ label: s.slug, description: s.kind, specDir: s.dirPath })),
-		{ title: vscode.l10n.t('Pick Spec') },
-	);
-	return picked?.specDir;
 }
 
 class TarotEmptyContentProvider implements vscode.TextDocumentContentProvider {
@@ -113,7 +84,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	const trustService = new TarotTrustService();
 	const permissionsService = new TarotPermissionsService(trustService, outputChannel!);
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
-	const pendingReviewComments: MarkdownReviewComment[] = [];
 
 	// Left Sidebar (Kiro-style) TreeViews
 	const specsProvider = new SpecsTreeProvider(specService, context.extensionUri);
@@ -123,173 +93,6 @@ export function activate(context: vscode.ExtensionContext): void {
 	const mcpProvider = new McpServersTreeProvider(mcpConfigService, context.extensionUri);
 	const workflowRunsProvider = new WorkflowRunsTreeProvider(workflowRunStore, context.extensionUri);
 	const recipesProvider = new RecipesTreeProvider(recipeLoader, context.extensionUri);
-
-	// Active workflow run runtime state (for Pause / Resume / Stop / Add loops / Answer step)
-	const activeWorkflowFlags = new Map<string, { pause: boolean; abort: boolean; recipe: WorkflowRecipe }>();
-
-	const bumpRepeatLimits = (nodes: readonly WorkflowNode[], extra: number): WorkflowNode[] =>
-		nodes.map(n => {
-			if (n.type === 'repeat') {
-				return { ...n, maxIterations: n.maxIterations + extra, steps: bumpRepeatLimits(n.steps, extra) };
-			}
-			if (n.type === 'sequence') {
-				return { ...n, steps: bumpRepeatLimits(n.steps, extra) };
-			}
-			if (n.type === 'parallel') {
-				return { ...n, branches: bumpRepeatLimits(n.branches, extra) };
-			}
-			return n;
-		});
-
-	const executeWorkflowRun = async (
-		root: string,
-		recipe: WorkflowRecipe,
-		inputs: Record<string, string>,
-		existingRun?: WorkflowRunState,
-	): Promise<WorkflowRunState> => {
-		const run = existingRun ?? workflowEngine.createRunState(recipe, inputs);
-		const flags = { pause: false, abort: false, recipe };
-		activeWorkflowFlags.set(run.id, flags);
-		await workflowRunStore.saveRun(root, run);
-		workflowRunsProvider.refresh();
-		await workflowRunEditor.openRun(root, run.id, recipe);
-
-		const activeAgentId = runtimeManager.getActiveAgentId();
-		try {
-			const finalState = await vscode.window.withProgress(
-				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Workflow: {0}', recipe.name), cancellable: true },
-				async (progress, token) => workflowEngine.run(
-					recipe,
-					root,
-					inputs,
-					{
-						shouldPause: () => flags.pause,
-						shouldAbort: () => flags.abort || token.isCancellationRequested,
-						onStateChange: updated => {
-							workflowRunEditor.updateOpenRun(updated, recipe);
-							workflowRunsProvider.refresh();
-						},
-						executeWatch: async (node, currentRun) => {
-							if (node.handler === 'command') {
-								const cmd = String(node.config.command ?? '');
-								const evalRes = await permissionsService.evaluateShellCommand(cmd, { headless: true });
-								if (evalRes.decision.effect === 'deny') {
-									const msg = evalRes.decision.reason ?? vscode.l10n.t('Watch command denied by permissions policy.');
-									outputChannel!.appendLine(`[Permissions] workflow watch "${node.id}" denied: ${cmd} — ${msg}`);
-									return { outcome: 'idle', cursor: currentRun.watchCursors[node.id], error: msg };
-								}
-							}
-							return runWatchPoll(node, {
-								workspacePath: root,
-								cursor: currentRun.watchCursors[node.id],
-								config: node.config,
-							});
-						},
-						executeStep: async req => {
-							progress.report({ message: vscode.l10n.t('Step {0} ({1})', req.step.id, req.step.agent) });
-							const targetAdapter = runtimeManager.getAdapter(req.step.agent) ?? runtimeManager.getAdapter(activeAgentId);
-							if (!targetAdapter) {
-								return { ok: false, output: `No agent adapter available for "${req.step.agent}".` };
-							}
-							const cpId = await checkpointService.createCheckpoint(req.workspaceRoot, req.runId);
-							let output = '';
-							let hadErr = false;
-							await targetAdapter.run(
-								{
-									prompt: req.resolvedPrompt,
-									mode: 'vibe',
-									autonomy: 'acceptFileChanges',
-									model: req.modelId,
-									effort: req.effortLevel,
-									cwd: req.workspaceRoot,
-									timeoutMs: vscode.workspace.getConfiguration('tarot.agents').get<number>('timeoutMs', 300_000),
-								},
-								ev => {
-									if (ev.type === 'text' && ev.content) {
-										output += ev.content;
-									} else if (ev.type === 'error' && ev.content) {
-										hadErr = true;
-										output += `\n[Error] ${ev.content}`;
-									}
-								},
-								token,
-							);
-							if (cpId) {
-								const diff = await checkpointService.getCheckpointDiff(req.workspaceRoot, req.runId, cpId);
-								const deniedPaths: string[] = [];
-								for (const entry of diff) {
-									const decision = await permissionsService.evaluate('fs_write', entry.relativePath, { headless: true });
-									if (decision.effect === 'deny') {
-										deniedPaths.push(entry.relativePath);
-									}
-								}
-								if (deniedPaths.length > 0) {
-									const rev = await checkpointService.restoreCheckpointFiles(req.workspaceRoot, req.runId, cpId, deniedPaths);
-									outputChannel!.appendLine(`[Permissions] workflow step "${req.step.id}" fs_write denied, reverted: ${rev.reverted.join(', ') || '(none)'}`);
-								}
-							}
-							return { ok: !hadErr && !token.isCancellationRequested, output: output.trim() };
-						},
-					},
-					run,
-				),
-			);
-			const completedSteps = Object.values(finalState.stepStates).filter(s => s.status === 'completed').length;
-			const totalSteps = Object.values(finalState.stepStates).length;
-			await agentPanelProvider.postWorkflowNotification(
-				vscode.l10n.t('Workflow "{0}" — {1}', finalState.recipeName, finalState.status),
-				vscode.l10n.t('Run `{0}` · {1}/{2} step(s) completed.{3}', finalState.id, completedSteps, totalSteps, finalState.lastError ? `\n\nError: ${finalState.lastError}` : ''),
-			);
-			return finalState;
-		} finally {
-			activeWorkflowFlags.delete(run.id);
-			workflowRunsProvider.refresh();
-		}
-	};
-
-	const workflowRunEditor = new TarotWorkflowRunEditorManager(context.extensionUri, workflowRunStore, {
-		onPause: runId => {
-			const f = activeWorkflowFlags.get(runId);
-			if (f) { f.pause = true; }
-		},
-		onStop: runId => {
-			const f = activeWorkflowFlags.get(runId);
-			if (f) { f.abort = true; }
-		},
-		onResume: async (runId, answerText, targetStepId) => {
-			if (activeWorkflowFlags.has(runId)) {
-				vscode.window.showInformationMessage(vscode.l10n.t('This workflow run is already active.'));
-				return;
-			}
-			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			if (!root) { return; }
-			const saved = await workflowRunStore.loadRun(root, runId);
-			if (!saved || saved.status !== 'paused') { return; }
-			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
-			const loaded = discovery.recipes.find(r => r.name === saved.recipeName);
-			if (!loaded) { return; }
-			const nextInputs: Record<string, string> = { ...saved.inputs };
-			if (answerText) {
-				nextInputs.user_reply = answerText;
-				if (targetStepId && saved.stepStates[targetStepId]?.status === 'paused') {
-					saved.stepStates[targetStepId].status = 'pending';
-					saved.outputs[targetStepId] = `${saved.outputs[targetStepId] ?? ''}\n\n[User answer]: ${answerText}`.trim();
-				}
-			}
-			await executeWorkflowRun(root, loaded.recipe, nextInputs, saved);
-		},
-		onAddLoops: async (runId, extraIterations) => {
-			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			if (!root) { return; }
-			const saved = await workflowRunStore.loadRun(root, runId);
-			if (!saved) { return; }
-			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
-			const loaded = discovery.recipes.find(r => r.name === saved.recipeName);
-			if (!loaded) { return; }
-			const extended: WorkflowRecipe = { ...loaded.recipe, steps: bumpRepeatLimits(loaded.recipe.steps, extraIterations) };
-			await executeWorkflowRun(root, extended, { ...saved.inputs }, saved);
-		},
-	});
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
 	const agentPanelProvider = new TarotAgentPanelProvider(
@@ -311,6 +114,30 @@ export function activate(context: vscode.ExtensionContext): void {
 		outputChannel,
 	);
 
+	const workflowCommands = registerWorkflowCommands({
+		extensionUri: context.extensionUri,
+		runtimeManager,
+		checkpointService,
+		permissionsService,
+		recipeLoader,
+		workflowRunStore,
+		workflowEngine,
+		workflowRunsProvider,
+		getAgentPanelProvider: () => agentPanelProvider,
+		ensureWorkspaceFolder,
+		outputChannel,
+	});
+
+	const specCommands = registerSpecCommands({
+		specService,
+		runtimeManager,
+		checkpointService,
+		specsProvider,
+		specCodeLensProvider,
+		agentPanelProvider,
+		ensureWorkspaceFolder,
+	});
+
 	context.subscriptions.push(
 		outputChannel,
 		runtimeManager,
@@ -323,7 +150,6 @@ export function activate(context: vscode.ExtensionContext): void {
 		mcpProvider,
 		workflowRunsProvider,
 		recipesProvider,
-		workflowRunEditor,
 		agentPanelProvider,
 		specCodeLensProvider,
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
@@ -412,159 +238,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			await agentPanelProvider.runPrePrReview();
 		}),
 
-		vscode.commands.registerCommand('tarot.workflows.validate', async () => {
-			const editor = vscode.window.activeTextEditor;
-			if (!editor) {
-				vscode.window.showWarningMessage(vscode.l10n.t('Open a .workflow.json or .workflow.yaml file to validate.'));
-				return;
-			}
-			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			try {
-				const fsPath = editor.document.uri.fsPath.toLowerCase();
-				let raw: WorkflowRecipe | undefined;
-				if (fsPath.endsWith('.json')) {
-					raw = JSON.parse(editor.document.getText()) as WorkflowRecipe;
-				} else if (fsPath.endsWith('.yaml') || fsPath.endsWith('.yml')) {
-					raw = parseYamlLite(editor.document.getText()) as WorkflowRecipe;
-				}
-				if (!raw) {
-					vscode.window.showWarningMessage(vscode.l10n.t('Open a .workflow.json, .workflow.yaml or .workflow.yml file to validate.'));
-					return;
-				}
-				const result = validateWorkflow(raw, root);
-				if (result.valid) {
-					vscode.window.showInformationMessage(vscode.l10n.t('Workflow "{0}" is valid ({1} steps, depth {2}).', raw.name, result.staticStepCount, result.maxDepth));
-				} else {
-					outputChannel!.appendLine(`[Workflows] Validation errors in ${editor.document.fileName}:\n${result.errors.join('\n')}`);
-					vscode.window.showErrorMessage(vscode.l10n.t('Workflow validation failed with {0} error(s). See Tarot IDE output channel.', result.errors.length));
-				}
-			} catch (err) {
-				vscode.window.showErrorMessage(vscode.l10n.t('Invalid workflow file: {0}', err instanceof Error ? err.message : String(err)));
-			}
-		}),
-
-		vscode.commands.registerCommand('tarot.workflows.run', async () => {
-			const enabled = vscode.workspace.getConfiguration('tarot.workflows').get<boolean>('enabled', false);
-			if (!enabled) {
-				const enableLabel = vscode.l10n.t('Enable Workflows');
-				const pick = await vscode.window.showInformationMessage(
-					vscode.l10n.t('Workflows are opt-in (tarot.workflows.enabled). Enable them now?'),
-					enableLabel,
-				);
-				if (pick !== enableLabel) {
-					return;
-				}
-				await vscode.workspace.getConfiguration('tarot.workflows').update('enabled', true, vscode.ConfigurationTarget.Global);
-			}
-			const root = await ensureWorkspaceFolder();
-			if (!root) {
-				return;
-			}
-			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
-			if (discovery.recipes.length === 0) {
-				vscode.window.showInformationMessage(vscode.l10n.t('No workflow recipes found.'));
-				return;
-			}
-			const picked = await vscode.window.showQuickPick(
-				discovery.recipes.map(r => ({
-					label: r.name,
-					description: r.scope,
-					detail: r.recipe.description,
-					loaded: r,
-				})),
-				{ title: vscode.l10n.t('Run Workflow Recipe') },
-			);
-			if (!picked) {
-				return;
-			}
-			const taskInput = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Workflow "{0}" — Task Input', picked.loaded.name),
-				prompt: vscode.l10n.t('Describe the task for this workflow run'),
-			});
-			if (!taskInput?.trim()) {
-				return;
-			}
-
-			const approveLabel = vscode.l10n.t('Run Workflow');
-			const confirm = await vscode.window.showInformationMessage(
-				vscode.l10n.t('Approve running workflow "{0}" ({1})?', picked.loaded.name, picked.loaded.scope),
-				{ modal: true },
-				approveLabel,
-			);
-			if (confirm !== approveLabel) {
-				return;
-			}
-
-			const runState = await executeWorkflowRun(root, picked.loaded.recipe, { task: taskInput.trim(), input: taskInput.trim() });
-			outputChannel!.appendLine(`[Workflows] Run ${runState.id} (${runState.recipeName}) finished with status: ${runState.status}`);
-			vscode.window.showInformationMessage(vscode.l10n.t('Workflow "{0}" finished: {1}.', runState.recipeName, runState.status));
-		}),
-
-		vscode.commands.registerCommand('tarot.workflows.runRecipe', async (item?: { loadedRecipe?: LoadedRecipe }) => {
-			const loaded = item?.loadedRecipe;
-			if (!loaded) {
-				await vscode.commands.executeCommand('tarot.workflows.run');
-				return;
-			}
-			const enabled = vscode.workspace.getConfiguration('tarot.workflows').get<boolean>('enabled', false);
-			if (!enabled) {
-				const enableLabel = vscode.l10n.t('Enable Workflows');
-				const pick = await vscode.window.showInformationMessage(
-					vscode.l10n.t('Workflows are opt-in (tarot.workflows.enabled). Enable them now?'),
-					enableLabel,
-				);
-				if (pick !== enableLabel) {
-					return;
-				}
-				await vscode.workspace.getConfiguration('tarot.workflows').update('enabled', true, vscode.ConfigurationTarget.Global);
-			}
-			const root = await ensureWorkspaceFolder();
-			if (!root) {
-				return;
-			}
-			const taskInput = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Workflow "{0}" — Task Input', loaded.name),
-				prompt: vscode.l10n.t('Describe the task for this workflow run'),
-			});
-			if (!taskInput?.trim()) {
-				return;
-			}
-			const approveLabel = vscode.l10n.t('Run Workflow');
-			const confirm = await vscode.window.showInformationMessage(
-				vscode.l10n.t('Approve running workflow "{0}" ({1})?', loaded.name, loaded.scope),
-				{ modal: true },
-				approveLabel,
-			);
-			if (confirm !== approveLabel) {
-				return;
-			}
-			await executeWorkflowRun(root, loaded.recipe, { task: taskInput.trim(), input: taskInput.trim() });
-		}),
-
-		vscode.commands.registerCommand('tarot.workflows.openRun', async (runId?: string, stepId?: string) => {
-			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			if (!root || !runId) {
-				return;
-			}
-			const run = await workflowRunStore.loadRun(root, runId);
-			if (!run) {
-				return;
-			}
-			const discovery = await recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
-			const loaded = discovery.recipes.find(r => r.name === run.recipeName);
-			await workflowRunEditor.openRun(root, runId, loaded?.recipe, stepId);
-		}),
-
-		vscode.commands.registerCommand('tarot.workflows.searchRuns', async () => {
-			const query = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Search Workflow Runs'),
-				prompt: vscode.l10n.t('Filter by recipe name, status, or run ID (leave empty to clear)'),
-				value: workflowRunsProvider.getSearchQuery(),
-			});
-			if (query !== undefined) {
-				workflowRunsProvider.setSearchQuery(query);
-			}
-		}),
+		...workflowCommands.disposables,
+		...specCommands,
 
 		vscode.commands.registerCommand('tarot.agent.openInEditorTab', async () => {
 			await agentPanelProvider.openInEditorTab();
@@ -580,297 +255,6 @@ export function activate(context: vscode.ExtensionContext): void {
 				return;
 			}
 			await gitReviewService.generateAiCommitMessage(root, runtimeManager, outputChannel!);
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.create', async () => {
-			const root = await ensureWorkspaceFolder();
-			if (!root) {
-				return;
-			}
-			const kindPick = await vscode.window.showQuickPick(
-				[
-					{
-						label: vscode.l10n.t('Feature (Requirements-First · EARS)'),
-						description: vscode.l10n.t('requirements.md → design.md → tasks.md'),
-						detail: vscode.l10n.t('Default Tarot workflow: start by defining requirements in EARS notation (WHEN ... THE SYSTEM SHALL ...).'),
-						specKind: 'feature-requirements-first' as SpecCreationKind,
-					},
-					{
-						label: vscode.l10n.t('Feature (Design-First · Architecture)'),
-						description: vscode.l10n.t('design.md → requirements.md → tasks.md'),
-						detail: vscode.l10n.t('Best when the technical architecture and interfaces are defined first.'),
-						specKind: 'feature-design-first' as SpecCreationKind,
-					},
-					{
-						label: vscode.l10n.t('Bugfix (EARS · Regression)'),
-						description: vscode.l10n.t('bugfix.md → design.md → tasks.md'),
-						detail: vscode.l10n.t('Three mandatory EARS blocks: Current Behavior, Expected Behavior and Unchanged Behavior.'),
-						specKind: 'bugfix' as SpecCreationKind,
-					},
-				],
-				{ title: vscode.l10n.t('Tarot IDE — Spec Type') },
-			);
-			if (!kindPick) {
-				return;
-			}
-
-			const rawName = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Tarot IDE — New Spec'),
-				prompt: kindPick.specKind === 'bugfix'
-					? vscode.l10n.t('Bugfix slug (e.g. fix-oauth-refresh-race)')
-					: vscode.l10n.t('Feature slug (e.g. auth-oauth, agent-hooks)'),
-				placeHolder: kindPick.specKind === 'bugfix' ? 'fix-my-bug' : 'my-feature',
-			});
-			if (!rawName) {
-				return;
-			}
-			const slug = rawName.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
-			if (!slug) {
-				return;
-			}
-
-			const { dirPath, entryFilePath } = await specService.createSpec(root, slug, kindPick.specKind);
-			specsProvider.refresh();
-			const doc = await vscode.workspace.openTextDocument(entryFilePath);
-			await vscode.window.showTextDocument(doc);
-			await agentPanelProvider.introduceSpecInPanel(dirPath, slug, kindPick.specKind);
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.runTask', async (uri?: vscode.Uri, lineIndex?: number) => {
-			if (!uri || typeof lineIndex !== 'number') {
-				return;
-			}
-			const specDir = path.dirname(uri.fsPath);
-			await agentPanelProvider.runSpecTask(specDir, lineIndex);
-			specsProvider.refresh();
-			specCodeLensProvider.refresh();
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.runTaskWith', async (uri?: vscode.Uri, lineIndex?: number) => {
-			if (!uri || typeof lineIndex !== 'number') {
-				return;
-			}
-			const available = runtimeManager.getStatuses().filter(s => s.available);
-			if (available.length === 0) {
-				vscode.window.showWarningMessage(vscode.l10n.t('No local agent CLI available (claude, agy, codex).'));
-				return;
-			}
-			const picked = await vscode.window.showQuickPick(
-				available.map(s => ({
-					label: s.displayName,
-					description: s.version ?? s.binary,
-					agentId: s.id,
-				})),
-				{ title: vscode.l10n.t('Tarot IDE — Pick Agent to Run Task') },
-			);
-			if (!picked) {
-				return;
-			}
-			const specDir = path.dirname(uri.fsPath);
-			await agentPanelProvider.runSpecTask(specDir, lineIndex, picked.agentId);
-			specsProvider.refresh();
-			specCodeLensProvider.refresh();
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.runAllTasks', async (uri?: vscode.Uri) => {
-			const specDir = await resolveSpecDirFromUriOrPick(uri, specService);
-			if (!specDir) {
-				return;
-			}
-			const picked = await vscode.window.showQuickPick(
-				[
-					{ label: vscode.l10n.t('Keep optional tasks skipped (fast MVP)'), includeOptional: false },
-					{ label: vscode.l10n.t('Make every task mandatory'), includeOptional: true },
-				],
-				{ title: vscode.l10n.t('Run all Tasks — Optional Tasks (*)') },
-			);
-			if (!picked) {
-				return;
-			}
-			await agentPanelProvider.runAllSpecTasks(specDir, picked.includeOptional);
-			specsProvider.refresh();
-			specCodeLensProvider.refresh();
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.syncFiles', async (uri?: vscode.Uri) => {
-			const specDir = await resolveSpecDirFromUriOrPick(uri, specService);
-			if (!specDir) {
-				return;
-			}
-			await agentPanelProvider.runSyncFiles(specDir);
-			specsProvider.refresh();
-			specCodeLensProvider.refresh();
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.viewTaskChanges', async (uri?: vscode.Uri, _lineIndex?: number, taskKey?: string, legacyTaskKey?: string) => {
-			if (!uri || !taskKey) {
-				return;
-			}
-			const specDir = path.dirname(uri.fsPath);
-			const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			if (!cwd) {
-				return;
-			}
-			const record = await readTaskCheckpoint(specDir, taskKey, legacyTaskKey);
-			if (!record) {
-				vscode.window.showInformationMessage(vscode.l10n.t('No recorded checkpoint for this task yet (it may predate M3.6.7).'));
-				return;
-			}
-			const diffEntries = await checkpointService.getCheckpointDiff(cwd, record.sessionId, record.checkpointId);
-			if (diffEntries.length === 0) {
-				vscode.window.showInformationMessage(vscode.l10n.t('No file changes detected for this task.'));
-				return;
-			}
-
-			const picked = diffEntries.length === 1
-				? diffEntries[0]
-				: (await vscode.window.showQuickPick(
-					diffEntries.map(e => ({ label: e.relativePath, description: e.status, entry: e })),
-					{ title: vscode.l10n.t('View changes — Task #{0}', taskKey) },
-				))?.entry;
-			if (!picked) {
-				return;
-			}
-
-			const leftUri = picked.backupAbsPath ? vscode.Uri.file(picked.backupAbsPath) : vscode.Uri.parse('tarot-empty:/before');
-			const rightUri = picked.status === 'deleted' ? vscode.Uri.parse('tarot-empty:/after') : vscode.Uri.file(path.join(cwd, picked.relativePath));
-			await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, vscode.l10n.t('Task #{0}: {1} ({2})', taskKey, picked.relativePath, picked.status));
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.openPhase', async (filePath?: string) => {
-			if (!filePath) {
-				return;
-			}
-			try {
-				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-				await vscode.window.showTextDocument(doc, { preview: false });
-			} catch {
-				vscode.window.showWarningMessage(vscode.l10n.t('Spec phase file does not exist yet: {0}', path.basename(filePath)));
-			}
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.analyzeRequirements', async (specDirArg?: string) => {
-			let specDir = specDirArg;
-			if (!specDir) {
-				const activePath = vscode.window.activeTextEditor?.document.uri.fsPath;
-				if (activePath && activePath.replace(/\\/g, '/').includes('/.tarot/specs/')) {
-					specDir = path.dirname(activePath);
-				} else {
-					const root = await ensureWorkspaceFolder();
-					if (!root) {
-						return;
-					}
-					const specs = await specService.listSpecs(root);
-					if (specs.length === 0) {
-						vscode.window.showInformationMessage(vscode.l10n.t('No Specs found in .tarot/specs/.'));
-						return;
-					}
-					const picked = await vscode.window.showQuickPick(
-						specs.map(s => ({ label: s.slug, description: s.kind, specDir: s.dirPath })),
-						{ title: vscode.l10n.t('Analyze Requirements — Pick Spec') },
-					);
-					specDir = picked?.specDir;
-				}
-			}
-			if (specDir) {
-				await agentPanelProvider.runAnalyzeRequirements(specDir);
-			}
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.quickSpec', async () => {
-			const root = await ensureWorkspaceFolder();
-			if (!root) {
-				return;
-			}
-			const description = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Tarot IDE — Quick Spec'),
-				prompt: vscode.l10n.t('Describe what you want to build (generates requirements, design & tasks without approval gates)'),
-				placeHolder: vscode.l10n.t('e.g. Add rate limiting middleware with Redis backing'),
-			});
-			if (!description?.trim()) {
-				return;
-			}
-			const suggestedSlug = description.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 36) || 'quick-spec';
-			const rawSlug = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Quick Spec — Slug'),
-				prompt: vscode.l10n.t('Folder name under .tarot/specs/'),
-				value: suggestedSlug,
-			});
-			if (!rawSlug?.trim()) {
-				return;
-			}
-			const slug = rawSlug.trim().toLowerCase().replace(/[^a-z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
-			if (!slug) {
-				return;
-			}
-			const { dirPath, entryFilePath } = await specService.createSpec(root, slug, 'quick-spec');
-			specsProvider.refresh();
-			const doc = await vscode.workspace.openTextDocument(entryFilePath);
-			await vscode.window.showTextDocument(doc, { preview: false });
-			await agentPanelProvider.runQuickSpec(dirPath, description.trim());
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.generateFromSession', async () => {
-			await agentPanelProvider.generateSpecFromActiveSession();
-			specsProvider.refresh();
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.markdownReview.add', async () => {
-			const editor = vscode.window.activeTextEditor;
-			if (!editor) {
-				vscode.window.showWarningMessage(vscode.l10n.t('Open a Spec Markdown file (requirements.md, bugfix.md, or design.md) to add a review comment.'));
-				return;
-			}
-			const filePath = editor.document.uri.fsPath;
-			const fileName = path.basename(filePath);
-			const selection = editor.selection;
-			const startLine = selection.start.line + 1;
-			const endLine = selection.end.line + 1;
-			const excerpt = selection.isEmpty
-				? editor.document.lineAt(selection.start.line).text.trim()
-				: editor.document.getText(selection).trim();
-
-			const comment = await vscode.window.showInputBox({
-				title: vscode.l10n.t('Markdown Review — {0}:L{1}', fileName, startLine),
-				prompt: vscode.l10n.t('Enter your review comment for this excerpt ({0} queued)', pendingReviewComments.length),
-				placeHolder: vscode.l10n.t('e.g. Clarify timeout behavior on retry'),
-			});
-			if (!comment?.trim()) {
-				return;
-			}
-
-			pendingReviewComments.push({
-				filePath,
-				fileName,
-				startLine,
-				endLine,
-				excerpt: excerpt || `(line ${startLine})`,
-				comment: comment.trim(),
-			});
-
-			const action = await vscode.window.showInformationMessage(
-				vscode.l10n.t('Review comment added ({0} queued for {1}).', pendingReviewComments.length, fileName),
-				vscode.l10n.t('Send All to Agent'),
-				vscode.l10n.t('Add More Later'),
-			);
-			if (action === vscode.l10n.t('Send All to Agent')) {
-				await vscode.commands.executeCommand('tarot.specs.markdownReview.send');
-			}
-		}),
-
-		vscode.commands.registerCommand('tarot.specs.markdownReview.send', async () => {
-			if (pendingReviewComments.length === 0) {
-				vscode.window.showInformationMessage(vscode.l10n.t('No queued Markdown review comments to send.'));
-				return;
-			}
-			const fileName = pendingReviewComments[0].fileName;
-			const count = pendingReviewComments.length;
-			const prompt = formatMarkdownReviewBatch(fileName, pendingReviewComments);
-			pendingReviewComments.length = 0;
-			await agentPanelProvider.runBatchPrompt(
-				prompt,
-				vscode.l10n.t('💬 Markdown Review ({0} comments on {1})', count, fileName),
-			);
 		}),
 
 		vscode.commands.registerCommand('tarot.steering.create', async () => {
