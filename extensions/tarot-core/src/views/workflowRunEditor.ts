@@ -185,6 +185,7 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 			<main class="wf-timeline-pane">
 				<div id="wf-steps-heading" class="wf-steps-heading"></div>
 				<div id="wf-step-tree" class="wf-timeline" role="tree"></div>
+				<button id="wf-fab" class="wf-fab hidden" type="button" aria-label="Workflow Action"></button>
 			</main>
 			<aside id="wf-inspector" class="wf-transcript-pane hidden">
 				<div class="wf-step-header-bar">
@@ -198,7 +199,6 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 				</div>
 			</aside>
 		</div>
-		<button id="wf-fab" class="wf-fab hidden" type="button" aria-label="Workflow Action"></button>
 	</div>
 	<script nonce="${nonce}">window.__tarotWfL10n = ${l10nPayload};</script>
 	<script nonce="${nonce}" src="${mdUri}"></script>

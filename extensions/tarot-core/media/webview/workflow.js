@@ -241,13 +241,44 @@
 				if (activeState && activeState.iterations > 1) { metaParts.push(`pass ${activeState.iterations}`); }
 				stepHeaderEl.textContent = metaParts.join(' · ');
 
-				const content = (activeState && activeState.output)
-					? activeState.output
-					: (L.noOutputYet || 'No output captured for this step yet.');
-				if (window.TarotSafeMarkdown) {
-					window.TarotSafeMarkdown.render(stepOutputEl, content);
+				const hasOutput = Boolean(activeState && activeState.output && String(activeState.output).trim());
+				if (hasOutput) {
+					if (window.TarotSafeMarkdown) {
+						window.TarotSafeMarkdown.render(stepOutputEl, activeState.output);
+					} else {
+						stepOutputEl.textContent = activeState.output;
+					}
 				} else {
-					stepOutputEl.textContent = content;
+					const card = document.createElement('div');
+					card.className = 'wf-pending-card';
+					const title = document.createElement('div');
+					title.className = 'wf-pending-title';
+					title.textContent = activeState
+						? `${activeItem.id} (${activeState.status})`
+						: `${activeItem.id} — Pending`;
+					card.appendChild(title);
+
+					const desc = document.createElement('div');
+					desc.className = 'wf-pending-desc';
+					desc.textContent = activeState
+						? (L.noOutputYet || 'No output captured for this step yet.')
+						: 'This step has not executed yet in this workflow run.';
+					card.appendChild(desc);
+
+					const activeStepId = findActiveStepId(currentRun, currentTree);
+					if (activeStepId && activeStepId !== activeItem.id && states[activeStepId]) {
+						const jumpBtn = document.createElement('button');
+						jumpBtn.type = 'button';
+						jumpBtn.className = 'wf-btn primary';
+						jumpBtn.style.alignSelf = 'flex-start';
+						jumpBtn.textContent = `Jump to active step: ${activeStepId}`;
+						jumpBtn.addEventListener('click', () => {
+							selectedStepId = activeStepId;
+							render();
+						});
+						card.appendChild(jumpBtn);
+					}
+					stepOutputEl.replaceChildren(card);
 				}
 			} else {
 				stepHeaderEl.textContent = '';
