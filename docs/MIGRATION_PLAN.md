@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.9a ✅ · próximo: M3.9b → M3.9c → M3.10)** | **Sim — iniciar por M3.9b** |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.9b ✅ · próximo: M3.9c → M3.10)** | **Sim — iniciar por M3.9c** |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
@@ -272,7 +272,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.9b — UI de Workflows (Runs, Recipes, Aba de Run, Controles) (UC-07)
+### Marco M3.9b — UI de Workflows (Runs, Recipes, Aba de Run, Controles) (UC-07) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/workflows/manage` + Print 2.
 - **Arquivos-alvo**: `extensions/tarot-core/src/views/{workflowRunsView,recipesView,workflowRunEditor}.ts`, `media/webview/workflow.{js,css}`.
 - **Especificação**:
@@ -284,9 +284,9 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Recipes bundled**: `investigate`, `feature-pipeline`, `publish-pr` (**confirmadas na doc**) + `autoresearch`, `goal`, `ralph`, `semantic-review-multi-model` (**vistas no Print 2**, não listadas na doc; tratar como recipes do Tarot).
   - **Concorrência**: runs não isolam branches/worktrees; sugerir `run_dir`/artefatos distintos e worktree por run.
 - **Critérios de Aceite (DoD)**:
-  - [ ] Runs agrupados por status com busca; aba de run com árvore, Follow, Go to active, Pause/Resume/Stop e Add loops.
-  - [ ] Responder a um step *needs input* retoma a mesma sessão; notificações aparecem no chat pai com ações.
-  - [ ] Recipes bundled listadas com `▷` e badges fiéis ao Print 2.
+  - [x] Runs agrupados por status com busca; aba de run com árvore, Follow, Go to active, Pause/Resume/Stop e Add loops. *(`views/workflowRunsView.ts` agrupa com "Needs you" primeiro + `tarot.workflows.searchRuns`; `views/workflowRunEditor.ts` + `media/webview/workflow.{js,css}` entregam árvore dockada, Follow, Go to active, Pause/Resume/Stop e Add loops com CSP estrita e zero `innerHTML`.)*
+  - [x] Responder a um step *needs input* retoma a mesma sessão; notificações aparecem no chat pai com ações. *(`Message this step's agent` aciona `onResume` preservando o run; `agentPanelProvider.postWorkflowNotification` posta resumo/notificação no chat pai.)*
+  - [x] Recipes bundled listadas com `▷` e badges fiéis ao Print 2. *(`views/recipesView.ts` lista as 7 recipes bundled — `investigate`, `feature-pipeline`, `publish-pr`, `semantic-review-multi-model`, `autoresearch`, `goal`, `ralph` — com ação inline `▷` `tarot.workflows.runRecipe` e ícones Arcana.)*
 
 ---
 
