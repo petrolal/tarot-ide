@@ -323,4 +323,85 @@ describe('workflows.workflowEngine execution, checkpointing and resume', () => {
 			await fs.rm(tmp, { recursive: true, force: true });
 		}
 	});
+
+	it('supports fileCheck stopCondition, onMaxIterations pause/continue, and updateWorkflow preserving completed steps', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wf-p1-'));
+		try {
+			const store = new TarotWorkflowRunStore();
+			const engine = new TarotWorkflowEngine(store);
+
+			// 1. fileCheck stopCondition with dotted jsonPath
+			const statusFile = path.join(tmp, 'status.json');
+			await fs.writeFile(statusFile, JSON.stringify({ build: { state: 'pending' } }), 'utf8');
+			const fileCheckRecipe: WorkflowRecipe = {
+				name: 'filecheck-test',
+				steps: [
+					{
+						type: 'repeat',
+						id: 'wait-green',
+						maxIterations: 3,
+						onMaxIterations: 'pause',
+						stopCondition: { fileCheck: { path: 'status.json', jsonPath: '$.build.state', value: ['green', 'passed'] } },
+						steps: [{ type: 'step', id: 'check', agent: 'claude', prompt: 'Check build' }],
+					},
+				],
+			};
+			let attempts = 0;
+			const fileCheckRun = await engine.run(fileCheckRecipe, tmp, { task: 'verify' }, {
+				executeStep: async () => {
+					attempts++;
+					if (attempts === 2) {
+						await fs.writeFile(statusFile, JSON.stringify({ build: { state: 'passed' } }), 'utf8');
+					}
+					return { ok: true, output: `attempt-${attempts}` };
+				},
+			});
+			assert.equal(fileCheckRun.status, 'completed');
+			assert.equal(attempts, 2);
+
+			// 2. onMaxIterations: 'pause' -> iteration_cap, then updateWorkflow adds a new step while preserving completed ones
+			const capRecipe: WorkflowRecipe = {
+				name: 'cap-test',
+				steps: [
+					{ type: 'step', id: 'init', agent: 'claude', prompt: 'Init' },
+					{
+						type: 'repeat',
+						id: 'retry',
+						maxIterations: 1,
+						onMaxIterations: 'pause',
+						stopCondition: { containsText: 'NEVER' },
+						steps: [{ type: 'step', id: 'work', agent: 'claude', prompt: 'Work' }],
+					},
+				],
+			};
+			const ran: string[] = [];
+			const capped = await engine.run(capRecipe, tmp, { task: 'cap' }, {
+				executeStep: async req => {
+					ran.push(req.step.id);
+					return { ok: true, output: 'still-working' };
+				},
+			});
+			assert.equal(capped.status, 'paused');
+			assert.equal(capped.pauseReason, 'iteration_cap');
+
+			const revised: WorkflowRecipe = {
+				name: 'cap-test',
+				steps: [
+					{ type: 'step', id: 'init', agent: 'claude', prompt: 'Init' },
+					{ type: 'step', id: 'finalize', agent: 'claude', prompt: 'Finalize' },
+				],
+			};
+			const updated = await engine.updateWorkflow(revised, tmp, capped, {
+				executeStep: async req => {
+					ran.push(req.step.id);
+					return { ok: true, output: 'done' };
+				},
+			});
+			assert.equal(updated.status, 'completed');
+			assert.equal(ran.filter(id => id === 'init').length, 1, 'init must not re-run after updateWorkflow');
+			assert.equal(ran.filter(id => id === 'finalize').length, 1);
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
 });

@@ -1219,49 +1219,9 @@ body.vscode-light .context-ring-fill {
 	stroke: #0D7377;
 }
 
-body.vscode-light .session-tabbar {
-	background: var(--vscode-editorGroupHeader-tabsBackground, #F1EDF8);
-	border-bottom-color: rgba(29, 17, 53, 0.08);
-}
-
-body.vscode-light .session-tab.active {
-	background: var(--vscode-sideBar-background, #F8F6FC);
-	color: #1D1135;
-	border-top-color: #4B0082;
-}
-
-body.vscode-light .msg.user {
-	background: rgba(75, 0, 130, 0.06);
-	border-color: rgba(75, 0, 130, 0.1);
-}
-
 body.vscode-light .assistant-avatar {
 	background: #4B0082;
 	color: #FFFFFF;
-}
-
-.inline-select {
-	background: transparent;
-	color: #B8AECB;
-	border: none;
-	border-radius: 5px;
-	padding: 3px 6px;
-	font-size: 11.5px;
-	line-height: 1.3;
-	cursor: pointer;
-	max-width: 130px;
-}
-
-.inline-select:hover,
-.inline-select:focus {
-	outline: none;
-	background: rgba(255, 255, 255, 0.06);
-	color: #F5E08E;
-}
-
-.inline-select option {
-	background: #120D24;
-	color: #F2EFE9;
 }
 
 /* Custom Kiro-style Picker Buttons & Popovers (Model / CLI / Effort / Mode) */
@@ -1706,20 +1666,32 @@ body.vscode-light .action-icon-btn:disabled {
 	color: #8B80A3;
 }
 
-body.vscode-light .tool-icon-btn,
-body.vscode-light .inline-select {
+body.vscode-light .tool-icon-btn {
 	color: #5F5478;
 }
 
-body.vscode-light .tool-icon-btn:hover,
-body.vscode-light .inline-select:hover,
-body.vscode-light .inline-select:focus {
+body.vscode-light .tool-icon-btn:hover {
 	background: rgba(75, 0, 130, 0.09);
 	color: #4B0082;
 }
 
-body.vscode-light .inline-select option {
-	background: #FFFFFF;
-	color: #1D1135;
+/* High Contrast adaptation */
+body.vscode-high-contrast .composer-card,
+body.vscode-high-contrast-light .composer-card,
+body.vscode-high-contrast .context-popup,
+body.vscode-high-contrast-light .context-popup,
+body.vscode-high-contrast .mode-card,
+body.vscode-high-contrast-light .mode-card,
+body.vscode-high-contrast .msg.user,
+body.vscode-high-contrast-light .msg.user {
+	border-color: var(--vscode-contrastBorder);
+}
+
+body.vscode-high-contrast button:focus-visible,
+body.vscode-high-contrast-light button:focus-visible,
+body.vscode-high-contrast textarea:focus-visible,
+body.vscode-high-contrast-light textarea:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
 }
 

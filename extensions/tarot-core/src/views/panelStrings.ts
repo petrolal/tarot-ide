@@ -55,9 +55,27 @@ export interface TarotPanelStrings {
 	readonly stopExecution: string;
 	readonly promptPlaceholder: string;
 	readonly contextProvidersHint: string;
-	readonly slashCommandsHint: string;
 	readonly attachActiveFile: string;
 	readonly contextUsage: string;
+	readonly contextUsageTokens: string;
+	readonly estimatedSuffix: string;
+	readonly agentCliHeader: string;
+	readonly modelHeader: string;
+	readonly reasoningEffortHeader: string;
+	readonly autoLabel: string;
+	readonly modeDefaultTitle: string;
+	readonly workspaceAgentsHeader: string;
+	readonly userAgentsHeader: string;
+	readonly agentUnavailableLabel: string;
+	readonly effortAuto: string;
+	readonly effortLow: string;
+	readonly effortMedium: string;
+	readonly effortHigh: string;
+	readonly effortXHigh: string;
+	readonly effortMax: string;
+	readonly tokensUnit: string;
+	readonly errorPrefix: string;
+	readonly zeroToolCalls: string;
 	readonly localAgentAria: string;
 	readonly modeAria: string;
 	readonly autonomyAria: string;
@@ -146,9 +164,27 @@ export function getPanelStrings(): TarotPanelStrings {
 		stopExecution: vscode.l10n.t('Stop Execution'),
 		promptPlaceholder: vscode.l10n.t('Ask a question or describe a task...'),
 		contextProvidersHint: vscode.l10n.t('Context Providers (#)'),
-		slashCommandsHint: vscode.l10n.t('Slash Commands (/)'),
 		attachActiveFile: vscode.l10n.t('Attach Active File (Ctrl+L)'),
 		contextUsage: vscode.l10n.t('Estimated context usage: {0}%'),
+		contextUsageTokens: vscode.l10n.t('{0} / {1} tokens ({2}%{3}) — click to compact'),
+		estimatedSuffix: vscode.l10n.t(' est.'),
+		agentCliHeader: vscode.l10n.t('Agent CLI'),
+		modelHeader: vscode.l10n.t('Model'),
+		reasoningEffortHeader: vscode.l10n.t('Reasoning Effort'),
+		autoLabel: vscode.l10n.t('Auto'),
+		modeDefaultTitle: vscode.l10n.t('Default'),
+		workspaceAgentsHeader: vscode.l10n.t('Workspace Agents'),
+		userAgentsHeader: vscode.l10n.t('User Agents'),
+		agentUnavailableLabel: vscode.l10n.t('{0} (off)'),
+		effortAuto: vscode.l10n.t('Auto'),
+		effortLow: vscode.l10n.t('Low'),
+		effortMedium: vscode.l10n.t('Med'),
+		effortHigh: vscode.l10n.t('High'),
+		effortXHigh: vscode.l10n.t('XHigh'),
+		effortMax: vscode.l10n.t('Max'),
+		tokensUnit: vscode.l10n.t('tokens'),
+		errorPrefix: vscode.l10n.t('Error: {0}'),
+		zeroToolCalls: vscode.l10n.t('0 tool calls'),
 		localAgentAria: vscode.l10n.t('Local agent'),
 		modeAria: vscode.l10n.t('Mode (Shift+Tab)'),
 		autonomyAria: vscode.l10n.t('Permission mode'),

@@ -15,7 +15,6 @@
 	const contextMenuEl = document.getElementById('context-menu');
 	const slashMenuEl = document.getElementById('slash-menu');
 	const hashBtn = document.getElementById('btn-hash');
-	const slashBtn = document.getElementById('btn-slash');
 	const attachBtn = document.getElementById('btn-attach');
 	const contextRingEl = document.getElementById('context-ring');
 	const contextRingArc = document.getElementById('context-ring-arc');
@@ -79,6 +78,20 @@
 	let liveToolsBody = null;
 	let liveToolsCount = 0;
 	let liveRawText = '';
+	let liveRenderRaf = 0;
+
+	function scheduleLiveRender() {
+		if (liveRenderRaf) {
+			return;
+		}
+		liveRenderRaf = window.requestAnimationFrame(() => {
+			liveRenderRaf = 0;
+			if (liveBodyEl) {
+				renderFormattedContent(liveBodyEl, liveRawText);
+				messagesEl.scrollTop = messagesEl.scrollHeight;
+			}
+		});
+	}
 
 	function formatElapsed(ms) {
 		if (!ms || ms < 1000) {
@@ -151,46 +164,29 @@
 	}
 
 	const EFFORT_OPTIONS = [
-		{ id: 'auto', label: 'Auto' },
-		{ id: 'low', label: 'Low' },
-		{ id: 'medium', label: 'Med' },
-		{ id: 'high', label: 'High' },
-		{ id: 'xhigh', label: 'XHigh' },
-		{ id: 'max', label: 'Max' },
+		{ id: 'auto', labelKey: 'effortAuto' },
+		{ id: 'low', labelKey: 'effortLow' },
+		{ id: 'medium', labelKey: 'effortMedium' },
+		{ id: 'high', labelKey: 'effortHigh' },
+		{ id: 'xhigh', labelKey: 'effortXHigh' },
+		{ id: 'max', labelKey: 'effortMax' },
 	];
 
-	function toggleModelMenu(force) {
-		const show = typeof force === 'boolean' ? force : modelMenuEl.classList.contains('hidden');
-		modelMenuEl.classList.toggle('hidden', !show);
-		if (show) {
-			modeMenuEl.classList.add('hidden');
-			contextMenuEl.classList.add('hidden');
-			slashMenuEl.classList.add('hidden');
-			autonomyMenuEl.classList.add('hidden');
+	const ALL_POPOVERS = [modelMenuEl, modeMenuEl, autonomyMenuEl, contextMenuEl, slashMenuEl];
+
+	function setOpenPopover(targetMenu, force) {
+		const show = typeof force === 'boolean' ? force : targetMenu.classList.contains('hidden');
+		for (const menu of ALL_POPOVERS) {
+			if (menu) {
+				menu.classList.toggle('hidden', menu !== targetMenu || !show);
+			}
 		}
+		return show;
 	}
 
-	function toggleModeMenu(force) {
-		const show = typeof force === 'boolean' ? force : modeMenuEl.classList.contains('hidden');
-		modeMenuEl.classList.toggle('hidden', !show);
-		if (show) {
-			modelMenuEl.classList.add('hidden');
-			contextMenuEl.classList.add('hidden');
-			slashMenuEl.classList.add('hidden');
-			autonomyMenuEl.classList.add('hidden');
-		}
-	}
-
-	function toggleAutonomyMenu(force) {
-		const show = typeof force === 'boolean' ? force : autonomyMenuEl.classList.contains('hidden');
-		autonomyMenuEl.classList.toggle('hidden', !show);
-		if (show) {
-			modelMenuEl.classList.add('hidden');
-			contextMenuEl.classList.add('hidden');
-			slashMenuEl.classList.add('hidden');
-			modeMenuEl.classList.add('hidden');
-		}
-	}
+	function toggleModelMenu(force) { setOpenPopover(modelMenuEl, force); }
+	function toggleModeMenu(force) { setOpenPopover(modeMenuEl, force); }
+	function toggleAutonomyMenu(force) { setOpenPopover(autonomyMenuEl, force); }
 
 	function renderModelAndModePickers() {
 		const activeAgent = state.activeAgentId || 'auto';
@@ -201,17 +197,17 @@
 		// Compact trigger label: e.g. "agy · Auto" or "agy · Gemini 4 Neon"
 		const matchedModel = models.find(m => m.id === selectedModel);
 		const effectiveModel = (models.length > 0 && selectedModel !== 'auto' && !matchedModel) ? 'auto' : selectedModel;
-		const modelDisplay = effectiveModel === 'auto' ? 'Auto' : (matchedModel ? matchedModel.label : effectiveModel);
+		const modelDisplay = effectiveModel === 'auto' ? t('autoLabel') : (matchedModel ? matchedModel.label : effectiveModel);
 		const effortSuffix = selectedEffort !== 'auto' ? ` · ${selectedEffort}` : '';
 		modelPickerLabel.textContent = `${activeAgent} · ${modelDisplay}${effortSuffix}`;
 
-		const modeMap = { vibe: 'Default', spec: 'Spec', plan: 'Plan' };
+		const modeMap = { vibe: t('modeDefaultTitle'), spec: t('modeSpecTitle'), plan: t('modePlanTitle') };
 		const profiles = Array.isArray(state.agentProfiles) ? state.agentProfiles : [];
 		const activeProfileId = state.activeProfileId || (state.mode === 'vibe' ? 'default' : state.mode || 'default');
 		const activeProfile = profiles.find(p => p.id === activeProfileId);
 		modePickerLabel.textContent = (activeProfile && activeProfile.origin !== 'builtIn')
 			? activeProfile.name
-			: (modeMap[state.mode] || 'Default');
+			: (modeMap[state.mode] || t('modeDefaultTitle'));
 		modePickerBtn.disabled = !!state.isRunning;
 
 		for (const old of modeMenuEl.querySelectorAll('[data-dynamic="profile"]')) {
@@ -223,8 +219,8 @@
 			item.classList.toggle('active', isBuiltInActive);
 		}
 		for (const group of [
-			{ origin: 'workspace', title: 'Workspace Agents' },
-			{ origin: 'user', title: 'User Agents' },
+			{ origin: 'workspace', title: t('workspaceAgentsHeader') },
+			{ origin: 'user', title: t('userAgentsHeader') },
 		]) {
 			const groupProfiles = profiles.filter(p => p.origin === group.origin);
 			if (groupProfiles.length === 0) {
@@ -280,7 +276,7 @@
 			pill.type = 'button';
 			pill.className = 'popover-pill' + (agent.id === activeAgent ? ' active' : '');
 			pill.disabled = !agent.available;
-			pill.textContent = agent.available ? agent.id : `${agent.id} (off)`;
+			pill.textContent = agent.available ? agent.id : t('agentUnavailableLabel', agent.id);
 			pill.title = agent.available ? `${agent.displayName}${agent.version ? ' · ' + agent.version : ''}` : (agent.installHint || agent.displayName);
 			pill.addEventListener('click', () => {
 				vscode.postMessage({ type: 'selectAgent', agentId: agent.id });
@@ -290,7 +286,7 @@
 
 		// Model list ("Auto" + dynamic CLI models)
 		modelOptionsListEl.textContent = '';
-		const allModels = [{ id: 'auto', label: 'Auto' }, ...models];
+		const allModels = [{ id: 'auto', label: t('autoLabel') }, ...models];
 		for (const m of allModels) {
 			const row = document.createElement('button');
 			row.type = 'button';
@@ -318,7 +314,7 @@
 			const pill = document.createElement('button');
 			pill.type = 'button';
 			pill.className = 'popover-pill' + (opt.id === selectedEffort ? ' active' : '');
-			pill.textContent = opt.label;
+			pill.textContent = t(opt.labelKey);
 			pill.addEventListener('click', () => {
 				vscode.postMessage({ type: 'setEffort', effort: opt.id });
 			});
@@ -335,7 +331,7 @@
 		if (used > 0) {
 			const fmtUsed = used >= 1000 ? `${(used / 1000).toFixed(1)}k` : String(used);
 			const fmtWin = `${Math.round(win / 1000)}k`;
-			contextRingEl.title = `${fmtUsed} / ${fmtWin} tokens (${pct}%${state.contextIsReal ? '' : ' est.'}) — click to compact`;
+			contextRingEl.title = t('contextUsageTokens', fmtUsed, fmtWin, pct, state.contextIsReal ? '' : t('estimatedSuffix'));
 		} else {
 			contextRingEl.title = t('contextUsage', pct);
 		}
@@ -690,7 +686,7 @@
 					if (errMatch) {
 						const errEl = document.createElement('div');
 						errEl.className = 'pbt-error';
-						errEl.textContent = `Error: ${errMatch[1].trim()}`;
+						errEl.textContent = t('errorPrefix', errMatch[1].trim());
 						pbtCard.appendChild(errEl);
 					}
 
@@ -836,8 +832,8 @@
 				}
 				if (typeof msg.totalTokens === 'number' && msg.totalTokens > 0) {
 					const fmtTokens = msg.totalTokens >= 1000
-						? `${(msg.totalTokens / 1000).toFixed(1)}k tokens`
-						: `${msg.totalTokens} tokens`;
+						? `${(msg.totalTokens / 1000).toFixed(1)}k ${t('tokensUnit')}`
+						: `${msg.totalTokens} ${t('tokensUnit')}`;
 					parts.push(fmtTokens);
 				}
 				elapsed.textContent = parts.join(' · ');
@@ -935,18 +931,12 @@
 	}
 
 	function toggleContextMenu(force) {
-		const show = typeof force === 'boolean' ? force : contextMenuEl.classList.contains('hidden');
-		contextMenuEl.classList.toggle('hidden', !show);
-		if (show) {
-			slashMenuEl.classList.add('hidden');
-		}
+		setOpenPopover(contextMenuEl, force);
 	}
 
 	function toggleSlashMenu(force, filterText) {
-		const show = typeof force === 'boolean' ? force : slashMenuEl.classList.contains('hidden');
-		slashMenuEl.classList.toggle('hidden', !show);
+		const show = setOpenPopover(slashMenuEl, force);
 		if (show) {
-			contextMenuEl.classList.add('hidden');
 			const q = (filterText || '').toLowerCase();
 			for (const item of slashMenuEl.querySelectorAll('.slash-menu-item')) {
 				const cmd = (item.dataset.cmd || '').toLowerCase();
@@ -1000,7 +990,7 @@
 		toggleContextMenu(false);
 		toggleSlashMenu(false);
 
-		const knownSlash = ['/spec', '/quick-spec', '/generate-spec', '/bugfix', '/plan', '/steering', '/review', '/focus', '/clear'];
+		const knownSlash = ['/spec', '/quick-spec', '/generate-spec', '/bugfix', '/plan', '/steering', '/review', '/workflow-run', '/focus', '/clear'];
 		const firstToken = text.split(/\s+/, 1)[0].toLowerCase();
 		const manualCommands = Array.isArray(state.manualSteeringCommands)
 			? state.manualSteeringCommands.map(c => String(c.command || '').toLowerCase())
@@ -1032,9 +1022,6 @@
 	focusModeBtn.addEventListener('click', () => vscode.postMessage({ type: 'toggleFocusMode' }));
 	attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'attachActiveFile' }));
 	hashBtn.addEventListener('click', () => toggleContextMenu());
-	if (slashBtn) {
-		slashBtn.addEventListener('click', () => toggleSlashMenu());
-	}
 	reviewToggleBtn.addEventListener('click', () => {
 		reviewExpanded = !reviewExpanded;
 		renderReviewBar();
@@ -1189,7 +1176,7 @@
 				const wrapper = document.createElement('div');
 				wrapper.className = 'msg assistant';
 
-				const disc = createDisclosure('0 tool calls', []);
+				const disc = createDisclosure(t('zeroToolCalls'), []);
 				disc.details.classList.add('hidden');
 				liveToolsDetails = disc.details;
 				liveToolsSummary = disc.summary;
@@ -1209,8 +1196,7 @@
 			case 'streamChunk':
 				if (liveBodyEl) {
 					liveRawText += msg.content || '';
-					renderFormattedContent(liveBodyEl, liveRawText);
-					messagesEl.scrollTop = messagesEl.scrollHeight;
+					scheduleLiveRender();
 				}
 				break;
 			case 'streamTool':
@@ -1245,6 +1231,10 @@
 				}
 				break;
 			case 'streamEnd':
+				if (liveRenderRaf) {
+					window.cancelAnimationFrame(liveRenderRaf);
+					liveRenderRaf = 0;
+				}
 				liveBubbleEl = null;
 				liveBodyEl = null;
 				liveToolsDetails = null;

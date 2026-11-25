@@ -73,7 +73,7 @@ export class AgentRuntimeManager implements vscode.Disposable {
 						binary: custom.binary,
 						acpArgs: custom.args ?? ['acp'],
 						versionArgs: custom.versionArgs ?? ['--version'],
-						installHint: `Ensure ${custom.binary} is installed and on PATH.`,
+						installHint: vscode.l10n.t('Ensure {0} is installed and on PATH.', custom.binary),
 					}));
 				} else {
 					this.adapters.set(custom.id, new CustomCliAdapter(custom));

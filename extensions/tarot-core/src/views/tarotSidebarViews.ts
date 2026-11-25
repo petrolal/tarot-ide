@@ -35,6 +35,44 @@ class SimpleTreeItem extends vscode.TreeItem {
 	}
 }
 
+abstract class BaseTarotTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
+	protected readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
+	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+	protected readonly disposables: vscode.Disposable[] = [];
+
+	constructor(watchGlobs: readonly string[]) {
+		this.disposables.push(
+			this._onDidChangeTreeData,
+			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
+		);
+		for (const glob of watchGlobs) {
+			const watcher = vscode.workspace.createFileSystemWatcher(glob);
+			this.disposables.push(
+				watcher,
+				watcher.onDidCreate(() => this.refresh()),
+				watcher.onDidChange(() => this.refresh()),
+				watcher.onDidDelete(() => this.refresh()),
+			);
+		}
+	}
+
+	refresh(): void {
+		this._onDidChangeTreeData.fire(undefined);
+	}
+
+	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
+		return element;
+	}
+
+	abstract getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]>;
+
+	dispose(): void {
+		for (const d of this.disposables) {
+			d.dispose();
+		}
+	}
+}
+
 export class LocalAgentsTreeProvider implements vscode.TreeDataProvider<AgentStatus>, vscode.Disposable {
 	private readonly _onDidChangeTreeData = new vscode.EventEmitter<AgentStatus | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -91,32 +129,12 @@ class HookTreeItem extends SimpleTreeItem {
 	}
 }
 
-export class HooksTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
-	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
-	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-	private readonly disposables: vscode.Disposable[] = [];
-
+export class HooksTreeProvider extends BaseTarotTreeProvider {
 	constructor(
 		private readonly hookEngine: TarotHookEngine,
 		private readonly extensionUri: vscode.Uri,
 	) {
-		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/hooks/*.json');
-		this.disposables.push(
-			this._onDidChangeTreeData,
-			watcher,
-			watcher.onDidCreate(() => this.refresh()),
-			watcher.onDidChange(() => this.refresh()),
-			watcher.onDidDelete(() => this.refresh()),
-			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
-		);
-	}
-
-	refresh(): void {
-		this._onDidChangeTreeData.fire(undefined);
-	}
-
-	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
-		return element;
+		super(['**/.tarot/hooks/*.json']);
 	}
 
 	private toHookItem(file: DiscoveredHookFile, hook: HookDefinition): HookTreeItem {
@@ -175,45 +193,14 @@ export class HooksTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 		}
 		return groups;
 	}
-
-	dispose(): void {
-		for (const d of this.disposables) {
-			d.dispose();
-		}
-	}
 }
 
-export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
-	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
-	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-	private readonly disposables: vscode.Disposable[] = [];
-
+export class SteeringTreeProvider extends BaseTarotTreeProvider {
 	constructor(
 		private readonly steeringService: TarotSteeringService,
 		private readonly extensionUri: vscode.Uri,
 	) {
-		const steeringWatcher = vscode.workspace.createFileSystemWatcher('**/.tarot/steering/**/*.md');
-		const agentsMdWatcher = vscode.workspace.createFileSystemWatcher('**/AGENTS.md');
-		this.disposables.push(
-			this._onDidChangeTreeData,
-			steeringWatcher,
-			agentsMdWatcher,
-			steeringWatcher.onDidCreate(() => this.refresh()),
-			steeringWatcher.onDidChange(() => this.refresh()),
-			steeringWatcher.onDidDelete(() => this.refresh()),
-			agentsMdWatcher.onDidCreate(() => this.refresh()),
-			agentsMdWatcher.onDidChange(() => this.refresh()),
-			agentsMdWatcher.onDidDelete(() => this.refresh()),
-			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
-		);
-	}
-
-	refresh(): void {
-		this._onDidChangeTreeData.fire(undefined);
-	}
-
-	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
-		return element;
+		super(['**/.tarot/steering/**/*.md', '**/AGENTS.md']);
 	}
 
 	private toDocItem(doc: SteeringDocument): SimpleTreeItem {
@@ -295,40 +282,14 @@ export class SteeringTreeProvider implements vscode.TreeDataProvider<SimpleTreeI
 
 		return groups;
 	}
-
-	dispose(): void {
-		for (const d of this.disposables) {
-			d.dispose();
-		}
-	}
 }
 
-export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
-	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
-	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-	private readonly disposables: vscode.Disposable[] = [];
-
+export class SpecsTreeProvider extends BaseTarotTreeProvider {
 	constructor(
 		private readonly specService: TarotSpecService,
 		private readonly extensionUri: vscode.Uri,
 	) {
-		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/specs/**');
-		this.disposables.push(
-			this._onDidChangeTreeData,
-			watcher,
-			watcher.onDidCreate(() => this.refresh()),
-			watcher.onDidChange(() => this.refresh()),
-			watcher.onDidDelete(() => this.refresh()),
-			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
-		);
-	}
-
-	refresh(): void {
-		this._onDidChangeTreeData.fire(undefined);
-	}
-
-	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
-		return element;
+		super(['**/.tarot/specs/**']);
 	}
 
 	async getChildren(element?: SimpleTreeItem): Promise<SimpleTreeItem[]> {
@@ -368,7 +329,7 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 				children,
 			);
 			const progress = spec.taskSummary.total > 0
-				? `${spec.taskSummary.done}/${spec.taskSummary.total} tasks`
+				? vscode.l10n.t('{0}/{1} tasks', spec.taskSummary.done, spec.taskSummary.total)
 				: vscode.l10n.t('0 tasks');
 			item.description = `${spec.kind} · ${progress}`;
 			item.iconPath = arcanaIcon(
@@ -379,40 +340,14 @@ export class SpecsTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem
 			return item;
 		});
 	}
-
-	dispose(): void {
-		for (const d of this.disposables) {
-			d.dispose();
-		}
-	}
 }
 
-export class McpServersTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
-	private readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
-	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-	private readonly disposables: vscode.Disposable[] = [];
-
+export class McpServersTreeProvider extends BaseTarotTreeProvider {
 	constructor(
 		private readonly mcpService: TarotMcpConfigService,
 		private readonly extensionUri: vscode.Uri,
 	) {
-		const watcher = vscode.workspace.createFileSystemWatcher('**/.tarot/settings/mcp.json');
-		this.disposables.push(
-			this._onDidChangeTreeData,
-			watcher,
-			watcher.onDidCreate(() => this.refresh()),
-			watcher.onDidChange(() => this.refresh()),
-			watcher.onDidDelete(() => this.refresh()),
-			vscode.workspace.onDidGrantWorkspaceTrust(() => this.refresh()),
-		);
-	}
-
-	refresh(): void {
-		this._onDidChangeTreeData.fire(undefined);
-	}
-
-	getTreeItem(element: SimpleTreeItem): vscode.TreeItem {
-		return element;
+		super(['**/.tarot/settings/mcp.json']);
 	}
 
 	private toServerItem(server: McpServerConfig): SimpleTreeItem {
@@ -468,11 +403,5 @@ export class McpServersTreeProvider implements vscode.TreeDataProvider<SimpleTre
 			groups.push(group);
 		}
 		return groups;
-	}
-
-	dispose(): void {
-		for (const d of this.disposables) {
-			d.dispose();
-		}
 	}
 }
