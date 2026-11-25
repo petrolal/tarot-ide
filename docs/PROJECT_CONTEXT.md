@@ -212,7 +212,8 @@ extensions/tarot-core/
 │   └── tarot-light-color-theme.json    # Tema oficial "Tarot Arcana Light" (UI + TextMate + Semantic)
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
-    ├── extension.ts                    # Bootstrap, comandos tarot.*, registro das 7 TreeViews + WebviewView + Run Editor + KeyedHookQueue
+    ├── extension.ts                    # Bootstrap, composição de serviços, registro das 7 TreeViews + WebviewView + comandos base + KeyedHookQueue
+    ├── commands/                       # Registradores de comandos por domínio (`workflowCommands.ts`, `specCommands.ts`)
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
     │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort, ContextProviderKind
@@ -268,9 +269,10 @@ extensions/tarot-core/
     │   ├── recipeLoader.ts             # Precedência workspace > user > bundled, JSON vence YAML com warning, recipe inválida não esconde válida inferior
     │   ├── watchHandlers.ts            # Watch `command` (STDIN/STDOUT JSON) e `github-pr` (`gh pr view`)
     │   ├── runStore.ts                 # Persistência de runs/checkpoints em `.tarot/workflows/runs/<id>.json`
+    │   ├── workflowAgentProfiles.ts    # Prompts de papel para `BUNDLED_WORKFLOW_AGENTS`, protocolo `[SEND_MESSAGE:*]` e extração `[ARTIFACT:*]`
     │   └── workflowEngine.ts           # Execução com checkpoint por fronteira, pause cooperativa, retomada pós-reinício e `updateWorkflow`
     ├── test/
-    │   └── *.test.ts                   # 39 suítes / 131 testes unitários puros via `node --test` (sem importar `vscode`)
+    │   └── *.test.ts                   # 40 suítes / 133 testes unitários puros via `node --test` (sem importar `vscode`)
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks
