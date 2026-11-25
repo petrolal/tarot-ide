@@ -61,7 +61,7 @@ Se este status divergir do `docs/MIGRATION_PLAN.md`, **o `MIGRATION_PLAN.md` ven
 
 ## 5. Fluxos Padronizados (prompts reutilizáveis em `.github/prompts/`)
 
-- `tarot-execute-milestone.prompt.md` — executa o próximo marco pendente do `MIGRATION_PLAN.md` (hoje: **M3.8b**).
+- `tarot-execute-milestone.prompt.md` — executa o próximo marco pendente do `MIGRATION_PLAN.md` (hoje: **M3.9c**).
 - `tarot-new-feature.prompt.md` — nova funcionalidade isolada em `extensions/tarot-core/`.
 - `tarot-upstream-sync.prompt.md` — sincronização com tags do `microsoft/vscode` seguindo a matriz de conflitos.
 
