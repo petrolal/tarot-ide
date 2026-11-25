@@ -161,5 +161,9 @@ export interface AgentSession {
 	activeAgentId: AgentId;
 	mode: AgentMode;
 	autonomy: AutonomyMode;
+	repoRoot?: string;
+	worktreePath?: string;
+	worktreeBranch?: string;
+	parkedApprovals?: number;
 	messages: SessionMessage[];
 }

@@ -25,7 +25,9 @@ import { TarotSpecService } from './specs/specService';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
+import { TarotFocusModeManager } from './views/focusModeView';
 import { RecipesTreeProvider } from './views/recipesView';
+import { SessionsTreeProvider } from './views/sessionsView';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
@@ -143,6 +145,45 @@ export function activate(context: vscode.ExtensionContext): void {
 		outputChannel,
 	);
 
+	const sessionsProvider = new SessionsTreeProvider(
+		sessionStore,
+		context.extensionUri,
+		() => agentPanelProvider.getRunningSessionId(),
+	);
+
+	const focusModeManager = new TarotFocusModeManager(
+		context.extensionUri,
+		sessionStore,
+		runtimeManager,
+		sessionsProvider,
+		worktreeManager,
+		specService,
+		gitReviewService,
+		workflowRunStore,
+		{
+			sendPrompt: async prompt => { await agentPanelProvider.runExternalPrompt(prompt); },
+			cancelRun: () => agentPanelProvider.cancelActiveRun(),
+			newSession: mode => agentPanelProvider.createNewSession(mode),
+			selectSession: async sessionId => { await agentPanelProvider.openSessionById(sessionId); },
+			selectAgent: async agentId => { await runtimeManager.setActiveAgent(agentId); },
+			setMode: async mode => { await agentPanelProvider.setMode(mode); },
+			setAutonomy: autonomy => agentPanelProvider.setAutonomy(autonomy),
+			pickContext: async () => { await agentPanelProvider.pickContextFromUi(); },
+			openFileDiff: async relativePath => { await agentPanelProvider.openChangedFileDiff(relativePath); },
+			getRunningSessionId: () => agentPanelProvider.getRunningSessionId(),
+			getActiveMode: () => agentPanelProvider.getMode(),
+			getActiveAutonomy: () => agentPanelProvider.getAutonomy(),
+		},
+	);
+
+	agentPanelProvider.setFocusModeHooks(
+		() => focusModeManager.toggle(),
+		() => {
+			sessionsProvider.refresh();
+			void focusModeManager.postState();
+		},
+	);
+
 	const workflowCommands = registerWorkflowCommands({
 		extensionUri: context.extensionUri,
 		runtimeManager,
@@ -179,8 +220,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		mcpProvider,
 		workflowRunsProvider,
 		recipesProvider,
+		sessionsProvider,
+		focusModeManager,
 		agentPanelProvider,
 		specCodeLensProvider,
+		vscode.window.registerTreeDataProvider('tarot.views.sessions', sessionsProvider),
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
 		vscode.workspace.registerTextDocumentContentProvider('tarot-empty', new TarotEmptyContentProvider()),
 		vscode.languages.registerCodeLensProvider(
@@ -261,6 +305,78 @@ export function activate(context: vscode.ExtensionContext): void {
 
 		vscode.commands.registerCommand('tarot.sessions.compact', async () => {
 			await agentPanelProvider.compactActiveSession(true);
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.new', async () => {
+			agentPanelProvider.createNewSession();
+			sessionsProvider.refresh();
+			await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.search', async () => {
+			const query = await vscode.window.showInputBox({
+				title: vscode.l10n.t('Search Sessions'),
+				prompt: vscode.l10n.t('Filter by title, repo, agent, branch or status (leave empty to clear)'),
+				value: sessionsProvider.getSearchQuery(),
+			});
+			if (query !== undefined) {
+				sessionsProvider.setSearchQuery(query);
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.filter', async () => {
+			const picked = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('All sessions'), filter: 'all' as const },
+					{ label: vscode.l10n.t('Needs input'), filter: 'needsInput' as const },
+					{ label: vscode.l10n.t('Parked (awaiting approval)'), filter: 'parked' as const },
+					{ label: vscode.l10n.t('Active (running)'), filter: 'active' as const },
+					{ label: vscode.l10n.t('Spec sessions'), filter: 'spec' as const },
+				],
+				{ title: vscode.l10n.t('Filter Sessions') },
+			);
+			if (picked) {
+				sessionsProvider.setFilter(picked.filter);
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.open', async (sessionId?: string) => {
+			if (!sessionId) {
+				return;
+			}
+			await agentPanelProvider.openSessionById(sessionId);
+			if (focusModeManager.isOpen()) {
+				await focusModeManager.postState();
+			} else {
+				await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.agentConfig.open', async () => {
+			const picked = await vscode.window.showQuickPick(
+				[
+					{ label: vscode.l10n.t('Custom Agents — Create Custom Agent'), command: 'tarot.agents.createCustom' },
+					{ label: vscode.l10n.t('Steering — Generate Foundational Steering Docs'), command: 'tarot.steering.generate' },
+					{ label: vscode.l10n.t('Skills — Import Agent Skill'), command: 'tarot.skills.import' },
+					{ label: vscode.l10n.t('MCP Servers — Open MCP Configuration'), command: 'tarot.mcp.openConfig' },
+					{ label: vscode.l10n.t('Permissions — Open User Permissions'), command: 'tarot.permissions.openUserPermissions' },
+					{ label: vscode.l10n.t('Permissions — Open Workspace Permissions'), command: 'tarot.permissions.openWorkspacePermissions' },
+				],
+				{ title: vscode.l10n.t('Tarot IDE — Agent Config') },
+			);
+			if (picked) {
+				await vscode.commands.executeCommand(picked.command);
+			}
+		}),
+
+		vscode.commands.registerCommand('tarot.schedule.open', async () => {
+			vscode.window.showInformationMessage(
+				vscode.l10n.t('Scheduled cron jobs and digests arrive in M3.10. Use Workflows & Recipes for multi-step runs today.'),
+			);
+		}),
+
+		vscode.commands.registerCommand('tarot.settings.open', async () => {
+			await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:tarot.tarot-core');
 		}),
 
 		vscode.commands.registerCommand('tarot.git.prePrReview', async () => {

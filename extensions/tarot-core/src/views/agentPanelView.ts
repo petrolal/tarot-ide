@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { BUILT_IN_AGENT_PROFILES, CustomAgentProfile, TarotCustomAgentService } from '../agents/customAgentService';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
+import { checkSessionConcurrency } from '../agents/sessionConcurrency';
 import { TarotSessionStore } from '../agents/sessionStore';
 import { evaluateSubagentCapability } from '../agents/subagentManager';
 import {
@@ -203,7 +204,80 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postState();
 	}
 
+	private focusModeToggleHandler: (() => Promise<boolean>) | undefined;
+	private stateChangeListener: (() => void) | undefined;
+
+	setFocusModeHooks(onToggle: () => Promise<boolean>, onStateChange: () => void): void {
+		this.focusModeToggleHandler = onToggle;
+		this.stateChangeListener = onStateChange;
+	}
+
+	getRunningSessionId(): string | undefined {
+		return this.runningSessionId;
+	}
+
+	getMode(): AgentMode {
+		return this.mode;
+	}
+
+	getAutonomy(): AutonomyMode {
+		return this.autonomy;
+	}
+
+	setAutonomy(autonomy: AutonomyMode): void {
+		this.autonomy = autonomy;
+		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+		session.autonomy = autonomy;
+		this.postState();
+	}
+
+	createNewSession(mode?: AgentMode): void {
+		const nextMode = mode ?? this.mode;
+		this.mode = nextMode;
+		this.attachments = [];
+		this.sessionStore.createSession(this.runtimeManager.getActiveAgentId(), nextMode, this.autonomy);
+		this.postState();
+	}
+
+	async openSessionById(sessionId: string): Promise<void> {
+		let found = this.sessionStore.selectSession(sessionId);
+		if (!found && vscode.workspace.isTrusted) {
+			const persisted = await this.sessionStore.listPersistedSessions();
+			const target = persisted.find(s => s.id === sessionId);
+			if (target) {
+				found = this.sessionStore.openPersistedSession(target);
+			}
+		}
+		if (found) {
+			this.mode = found.mode;
+			this.autonomy = found.autonomy;
+			await this.runtimeManager.setActiveAgent(found.activeAgentId);
+			this.postState();
+		}
+	}
+
+	async pickContextFromUi(): Promise<void> {
+		const picked = await resolveContextProvider('file');
+		if (picked) {
+			this.addAttachment(picked);
+		}
+	}
+
+	async openChangedFileDiff(relativePath: string): Promise<void> {
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+		if (!cwd) {
+			return;
+		}
+		const file = this.changedFiles.find(f => f.relativePath === relativePath);
+		await this.gitReviewService.openFileDiff(cwd, relativePath, file?.status ?? 'M');
+	}
+
 	async toggleAgentFocusMode(): Promise<void> {
+		if (this.focusModeToggleHandler) {
+			this.isFocusMode = await this.focusModeToggleHandler();
+			this.postState();
+			return;
+		}
 		this.isFocusMode = !this.isFocusMode;
 		if (this.isFocusMode) {
 			await this.openInEditorTab();
@@ -995,7 +1069,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		});
 	}
 
-	private cancelActiveRun(): void {
+	public cancelActiveRun(): void {
 		if (this.activeCancellation) {
 			this.activeCancellation.cancel();
 			this.activeCancellation.dispose();
@@ -1262,11 +1336,25 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-		const cwd = options?.execCwd ?? workspaceRoot;
 		const session = this.sessionStore.getActiveSession(agentId, this.mode, this.autonomy);
+		const cwd = options?.execCwd ?? session.worktreePath ?? session.repoRoot ?? workspaceRoot;
 		session.activeAgentId = agentId;
 		session.mode = this.mode;
 		session.autonomy = this.autonomy;
+
+		const concurrency = checkSessionConcurrency(
+			this.runningSessionId
+				? [{ sessionId: this.runningSessionId, mode: this.mode, profileId: this.activeProfileId, cwd, isWorktree: Boolean(session.worktreePath) }]
+				: [],
+			{ sessionId: session.id, mode: this.mode, profileId: this.activeProfileId, cwd, isWorktree: Boolean(session.worktreePath) },
+		);
+		if (!concurrency.allowed) {
+			this.postMessage({ type: 'streamError', content: concurrency.blockReason ?? vscode.l10n.t('The agent is currently busy.') });
+			return false;
+		}
+		if (concurrency.sharedWorkspaceWarning) {
+			void vscode.window.showWarningMessage(concurrency.sharedWorkspaceWarning);
+		}
 
 		// Auto-compaction near configured threshold (default 80%, MIGRATION_PLAN.md M3.8c)
 		const autoThreshold = vscode.workspace.getConfiguration('tarot.compaction').get<number>('autoThreshold', 0.8);
@@ -1745,6 +1833,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			contextWindowTokens: meter.windowTokens,
 			contextIsReal: meter.isRealTokens,
 		});
+		this.stateChangeListener?.();
 	}
 
 	private postMessage(payload: Record<string, unknown>): void {

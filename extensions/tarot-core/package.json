@@ -79,6 +79,10 @@
     "views": {
       "tarot-sidebar": [
         {
+          "id": "tarot.views.sessions",
+          "name": "%view.sessions.name%"
+        },
+        {
           "id": "tarot.views.specs",
           "name": "%view.specs.name%"
         },
@@ -139,6 +143,21 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "tarot.sessions.new",
+          "when": "view == tarot.views.sessions",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.sessions.search",
+          "when": "view == tarot.views.sessions",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.sessions.filter",
+          "when": "view == tarot.views.sessions",
+          "group": "navigation@3"
+        },
         {
           "command": "tarot.specs.create",
           "when": "view == tarot.views.specs",
@@ -282,6 +301,10 @@
         },
         {
           "command": "tarot.workflows.runRecipe",
+          "when": "false"
+        },
+        {
+          "command": "tarot.sessions.open",
           "when": "false"
         }
       ]
@@ -778,6 +801,53 @@
         "title": "%command.workflows.runRecipe.title%",
         "category": "Tarot IDE",
         "icon": "$(play)"
+      },
+      {
+        "command": "tarot.sessions.new",
+        "title": "%command.sessions.new.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/00-the-fool.svg",
+          "dark": "icons/arcana/00-the-fool.svg"
+        }
+      },
+      {
+        "command": "tarot.sessions.search",
+        "title": "%command.sessions.search.title%",
+        "category": "Tarot IDE",
+        "icon": "$(search)"
+      },
+      {
+        "command": "tarot.sessions.filter",
+        "title": "%command.sessions.filter.title%",
+        "category": "Tarot IDE",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "tarot.sessions.open",
+        "title": "%command.sessions.open.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.agentConfig.open",
+        "title": "%command.agentConfig.open.title%",
+        "category": "Tarot IDE",
+        "icon": {
+          "light": "icons/arcana/light/02-high-priestess.svg",
+          "dark": "icons/arcana/02-high-priestess.svg"
+        }
+      },
+      {
+        "command": "tarot.schedule.open",
+        "title": "%command.schedule.open.title%",
+        "category": "Tarot IDE",
+        "icon": "$(calendar)"
+      },
+      {
+        "command": "tarot.settings.open",
+        "title": "%command.settings.open.title%",
+        "category": "Tarot IDE",
+        "icon": "$(settings-gear)"
       }
     ]
   },
