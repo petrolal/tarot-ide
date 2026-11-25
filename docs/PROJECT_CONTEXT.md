@@ -270,9 +270,10 @@ extensions/tarot-core/
     │   ├── watchHandlers.ts            # Watch `command` (STDIN/STDOUT JSON) e `github-pr` (`gh pr view`)
     │   ├── runStore.ts                 # Persistência de runs/checkpoints em `.tarot/workflows/runs/<id>.json`
     │   ├── workflowAgentProfiles.ts    # Prompts de papel para `BUNDLED_WORKFLOW_AGENTS`, protocolo `[SEND_MESSAGE:*]` e extração `[ARTIFACT:*]`
+    │   ├── workflowViewHelpers.ts      # Helpers puros de classificação/busca de runs e flattening da árvore de steps (testados via `node --test`)
     │   └── workflowEngine.ts           # Execução com checkpoint por fronteira, pause cooperativa, retomada pós-reinício e `updateWorkflow`
     ├── test/
-    │   └── *.test.ts                   # 40 suítes / 133 testes unitários puros via `node --test` (sem importar `vscode`)
+    │   └── *.test.ts                   # 42 suítes / 138 testes unitários puros via `node --test` (sem importar `vscode`)
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
     │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks
