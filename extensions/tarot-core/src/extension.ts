@@ -11,9 +11,12 @@ import { AgentRuntimeManager } from './agents/runtimeManager';
 import { TarotSessionStore } from './agents/sessionStore';
 import { AgentId } from './agents/types';
 import { TarotCheckpointService } from './checkpoints/checkpointService';
+import { registerCrewCommands } from './commands/crewCommands';
+import { registerPowersAndSkillsCommands } from './commands/powersAndSkillsCommands';
 import { registerScheduleAndLessonsCommands } from './commands/scheduleAndLessonsCommands';
 import { registerSpecCommands } from './commands/specCommands';
 import { registerWorkflowCommands } from './commands/workflowCommands';
+import { TarotCrewService } from './crew/crewService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
 import { TarotWorktreeManager } from './git/worktreeManager';
 import { KeyedHookQueue, runHooksForTrigger, TarotHookEngine } from './hooks/hookEngine';
@@ -27,9 +30,17 @@ import { TarotSpecService } from './specs/specService';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
+import {
+	CrewmatesTreeProvider,
+	CrewMemoryKnowledgeTreeProvider,
+	CrewSchedulesTreeProvider,
+	CrewTasksTreeProvider,
+} from './views/crewView';
 import { TarotFocusModeManager } from './views/focusModeView';
+import { AvailablePowersTreeProvider, InstalledPowersTreeProvider } from './views/powersView';
 import { RecipesTreeProvider } from './views/recipesView';
 import { SessionsTreeProvider } from './views/sessionsView';
+import { CustomAgentsTreeProvider, SkillsTreeProvider } from './views/skillsAndAgentsView';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
@@ -102,6 +113,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const workflowRunStore = new TarotWorkflowRunStore();
 	const workflowEngine = new TarotWorkflowEngine(workflowRunStore);
 	const scheduleService = new TarotScheduleService();
+	const crewService = new TarotCrewService();
 	const hookEngine = new TarotHookEngine((filePath, errors) => {
 		for (const err of errors) {
 			outputChannel!.appendLine(`[Hooks] ${filePath}: ${err}`);
@@ -127,6 +139,14 @@ export function activate(context: vscode.ExtensionContext): void {
 	const mcpProvider = new McpServersTreeProvider(mcpConfigService, context.extensionUri);
 	const workflowRunsProvider = new WorkflowRunsTreeProvider(workflowRunStore, context.extensionUri);
 	const recipesProvider = new RecipesTreeProvider(recipeLoader, context.extensionUri);
+	const installedPowersProvider = new InstalledPowersTreeProvider(powersService, context.extensionUri);
+	const availablePowersProvider = new AvailablePowersTreeProvider(powersService, context.extensionUri);
+	const skillsProvider = new SkillsTreeProvider(skillsService, powersService, context.extensionUri);
+	const customAgentsProvider = new CustomAgentsTreeProvider(customAgentService, context.extensionUri);
+	const crewmatesProvider = new CrewmatesTreeProvider(crewService, context.extensionUri);
+	const crewTasksProvider = new CrewTasksTreeProvider(crewService, context.extensionUri);
+	const crewMemoryKnowledgeProvider = new CrewMemoryKnowledgeTreeProvider(crewService);
+	const crewSchedulesProvider = new CrewSchedulesTreeProvider(scheduleService, context.extensionUri);
 
 	// Right Secondary Side Bar (Kiro-style) Agent Panel
 	const agentPanelProvider = new TarotAgentPanelProvider(
@@ -225,6 +245,34 @@ export function activate(context: vscode.ExtensionContext): void {
 		outputChannel,
 	});
 
+	const powersAndSkillsCommands = registerPowersAndSkillsCommands({
+		powersService,
+		skillsService,
+		customAgentService,
+		installedPowersProvider,
+		availablePowersProvider,
+		skillsProvider,
+		customAgentsProvider,
+		mcpProvider,
+		agentPanelProvider,
+		ensureWorkspaceFolder,
+	});
+
+	const crewCommands = registerCrewCommands({
+		crewService,
+		customAgentService,
+		scheduleService,
+		runtimeManager,
+		gitReviewService,
+		agentPanelProvider,
+		crewmatesProvider,
+		crewTasksProvider,
+		crewMemoryKnowledgeProvider,
+		crewSchedulesProvider,
+		ensureWorkspaceFolder,
+		outputChannel,
+	});
+
 	context.subscriptions.push(
 		outputChannel,
 		runtimeManager,
@@ -237,10 +285,20 @@ export function activate(context: vscode.ExtensionContext): void {
 		mcpProvider,
 		workflowRunsProvider,
 		recipesProvider,
+		installedPowersProvider,
+		availablePowersProvider,
+		skillsProvider,
+		customAgentsProvider,
+		crewmatesProvider,
+		crewTasksProvider,
+		crewMemoryKnowledgeProvider,
+		crewSchedulesProvider,
 		sessionsProvider,
 		focusModeManager,
 		agentPanelProvider,
 		specCodeLensProvider,
+		...powersAndSkillsCommands,
+		...crewCommands,
 		vscode.window.registerTreeDataProvider('tarot.views.sessions', sessionsProvider),
 		vscode.workspace.registerTextDocumentContentProvider(TAROT_GIT_HEAD_SCHEME, new TarotGitHeadContentProvider()),
 		vscode.workspace.registerTextDocumentContentProvider('tarot-empty', new TarotEmptyContentProvider()),
@@ -255,6 +313,14 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.window.registerTreeDataProvider('tarot.views.mcp', mcpProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.workflowRuns', workflowRunsProvider),
 		vscode.window.registerTreeDataProvider('tarot.views.recipes', recipesProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.powers', installedPowersProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.availablePowers', availablePowersProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.skills', skillsProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.customAgents', customAgentsProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.crewmates', crewmatesProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.crewTasks', crewTasksProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.crewMemory', crewMemoryKnowledgeProvider),
+		vscode.window.registerTreeDataProvider('tarot.views.crewSchedules', crewSchedulesProvider),
 		vscode.window.registerWebviewViewProvider(TarotAgentPanelProvider.viewId, agentPanelProvider, {
 			webviewOptions: { retainContextWhenHidden: true },
 		}),

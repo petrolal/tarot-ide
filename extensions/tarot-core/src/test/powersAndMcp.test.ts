@@ -20,6 +20,7 @@ describe('powers, mcpConfigService, acpAdapter & steering M3.8b complements', ()
 			manifest: { name: 'Postgres Power', description: 'DB tools', keywords: ['postgres', 'migration'] },
 			scope: 'workspace',
 			dirPath: '/ws/.tarot/powers/postgres-power',
+			manifestPath: '/ws/.tarot/powers/postgres-power/plugin.json',
 			skills: [],
 			mcpServers: [],
 		};

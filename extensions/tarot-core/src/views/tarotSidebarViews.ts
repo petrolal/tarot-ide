@@ -13,18 +13,18 @@ import { McpServerConfig, TarotMcpConfigService } from '../mcp/mcpConfigService'
 import { TarotSpecService } from '../specs/specService';
 import { SteeringDocument, TarotSteeringService } from '../steering/steeringService';
 
-function getWorkspaceRoot(): string | undefined {
+export function getWorkspaceRoot(): string | undefined {
 	return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 }
 
-function arcanaIcon(extensionUri: vscode.Uri, fileName: string): { light: vscode.Uri; dark: vscode.Uri } {
+export function arcanaIcon(extensionUri: vscode.Uri, fileName: string): { light: vscode.Uri; dark: vscode.Uri } {
 	return {
 		light: vscode.Uri.joinPath(extensionUri, 'icons', 'arcana', 'light', fileName),
 		dark: vscode.Uri.joinPath(extensionUri, 'icons', 'arcana', fileName),
 	};
 }
 
-class SimpleTreeItem extends vscode.TreeItem {
+export class SimpleTreeItem extends vscode.TreeItem {
 	constructor(
 		label: string,
 		collapsibleState: vscode.TreeItemCollapsibleState,
@@ -35,7 +35,7 @@ class SimpleTreeItem extends vscode.TreeItem {
 	}
 }
 
-abstract class BaseTarotTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
+export abstract class BaseTarotTreeProvider implements vscode.TreeDataProvider<SimpleTreeItem>, vscode.Disposable {
 	protected readonly _onDidChangeTreeData = new vscode.EventEmitter<SimpleTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	protected readonly disposables: vscode.Disposable[] = [];

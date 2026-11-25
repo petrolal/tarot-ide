@@ -257,6 +257,52 @@ export class TarotSkillsService {
 		};
 	}
 
+	/** Creates a new Agent Skill scaffold (`<targetRootDir>/<id>/SKILL.md`) with path confinement. */
+	async createSkillTemplate(targetRootDir: string, rawId: string, description: string): Promise<SkillDefinition> {
+		const folderName = rawId.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^\.+/, '');
+		if (!folderName || folderName === '.' || folderName === '..') {
+			throw new Error('Invalid skill identifier.');
+		}
+		const targetRootAbs = path.resolve(targetRootDir);
+		const destDir = path.resolve(targetRootAbs, folderName);
+		if (!destDir.startsWith(targetRootAbs + path.sep)) {
+			throw new Error('Skill destination escapes the skills directory.');
+		}
+		await fs.mkdir(destDir, { recursive: true });
+		const skillFilePath = path.join(destDir, 'SKILL.md');
+		const safeDesc = description.trim() || `Skill personalizada ${folderName}.`;
+		const content = [
+			'---',
+			`name: ${folderName}`,
+			`description: ${safeDesc}`,
+			'---',
+			'',
+			`# Skill: ${folderName}`,
+			'',
+			'## Quando usar',
+			`- ${safeDesc}`,
+			'',
+			'## Instruções',
+			'1. Analise o contexto do projeto antes de editar arquivos.',
+			'2. Siga os padrões de arquitetura e testes definidos no repositório.',
+			'3. Valide as alterações executando os testes relevantes antes de concluir.',
+			'',
+		].join('\n');
+		await fs.writeFile(skillFilePath, content, 'utf8');
+		const parsed = parseSkillMarkdown(content, folderName);
+		return {
+			id: folderName,
+			name: parsed.name,
+			description: parsed.description,
+			scope: targetRootAbs === path.resolve(this.getGlobalSkillsDir()) ? 'global' : 'workspace',
+			dirPath: destDir,
+			skillFilePath,
+			body: parsed.body,
+			hasScripts: false,
+			hasReferences: false,
+		};
+	}
+
 	/**
 	 * Imports a skill from a GitHub/GitLab repository URL (optionally pointing at a subpath like
 	 * `https://github.com/org/repo/tree/main/skills/my-skill`) using `git clone --depth 1` with

@@ -66,6 +66,26 @@
           "id": "tarot-sidebar",
           "title": "%viewsContainer.tarot.title%",
           "icon": "media/tarot-activity-icon.svg"
+        },
+        {
+          "id": "tarot-workflows-sidebar",
+          "title": "%viewsContainer.workflows.title%",
+          "icon": "media/tarot-workflows-icon.svg"
+        },
+        {
+          "id": "tarot-powers-sidebar",
+          "title": "%viewsContainer.powers.title%",
+          "icon": "media/tarot-powers-icon.svg"
+        },
+        {
+          "id": "tarot-skills-sidebar",
+          "title": "%viewsContainer.skills.title%",
+          "icon": "media/tarot-skills-icon.svg"
+        },
+        {
+          "id": "tarot-crew-sidebar",
+          "title": "%viewsContainer.crew.title%",
+          "icon": "media/tarot-crew-icon.svg"
         }
       ],
       "secondarySidebar": [
@@ -101,7 +121,9 @@
         {
           "id": "tarot.views.mcp",
           "name": "%view.mcp.name%"
-        },
+        }
+      ],
+      "tarot-workflows-sidebar": [
         {
           "id": "tarot.views.workflowRuns",
           "name": "%view.workflowRuns.name%"
@@ -109,6 +131,44 @@
         {
           "id": "tarot.views.recipes",
           "name": "%view.recipes.name%"
+        }
+      ],
+      "tarot-powers-sidebar": [
+        {
+          "id": "tarot.views.powers",
+          "name": "%view.powers.name%"
+        },
+        {
+          "id": "tarot.views.availablePowers",
+          "name": "%view.availablePowers.name%"
+        }
+      ],
+      "tarot-skills-sidebar": [
+        {
+          "id": "tarot.views.skills",
+          "name": "%view.skills.name%"
+        },
+        {
+          "id": "tarot.views.customAgents",
+          "name": "%view.customAgents.name%"
+        }
+      ],
+      "tarot-crew-sidebar": [
+        {
+          "id": "tarot.views.crewmates",
+          "name": "%view.crewmates.name%"
+        },
+        {
+          "id": "tarot.views.crewTasks",
+          "name": "%view.crewTasks.name%"
+        },
+        {
+          "id": "tarot.views.crewMemory",
+          "name": "%view.crewMemory.name%"
+        },
+        {
+          "id": "tarot.views.crewSchedules",
+          "name": "%view.crewSchedules.name%"
         }
       ],
       "tarot-agent-sidebar": [
@@ -139,6 +199,26 @@
       {
         "view": "tarot.views.workflowRuns",
         "contents": "%viewsWelcome.workflowRuns.contents%"
+      },
+      {
+        "view": "tarot.views.powers",
+        "contents": "%viewsWelcome.powers.contents%"
+      },
+      {
+        "view": "tarot.views.skills",
+        "contents": "%viewsWelcome.skills.contents%"
+      },
+      {
+        "view": "tarot.views.crewmates",
+        "contents": "%viewsWelcome.crewmates.contents%"
+      },
+      {
+        "view": "tarot.views.crewTasks",
+        "contents": "%viewsWelcome.crewTasks.contents%"
+      },
+      {
+        "view": "tarot.views.crewSchedules",
+        "contents": "%viewsWelcome.crewSchedules.contents%"
       }
     ],
     "menus": {
@@ -197,6 +277,86 @@
           "command": "tarot.workflows.run",
           "when": "view == tarot.views.recipes",
           "group": "navigation@1"
+        },
+        {
+          "command": "tarot.powers.install",
+          "when": "view == tarot.views.powers",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.powers.create",
+          "when": "view == tarot.views.powers",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.powers.search",
+          "when": "view == tarot.views.powers || view == tarot.views.availablePowers",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tarot.powers.refresh",
+          "when": "view == tarot.views.powers",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tarot.skills.create",
+          "when": "view == tarot.views.skills",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.skills.import",
+          "when": "view == tarot.views.skills",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.skills.refresh",
+          "when": "view == tarot.views.skills",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tarot.agents.createCustom",
+          "when": "view == tarot.views.customAgents",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.agents.refreshProfiles",
+          "when": "view == tarot.views.customAgents",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.crew.createCrewmate",
+          "when": "view == tarot.views.crewmates",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.crew.refresh",
+          "when": "view == tarot.views.crewmates",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.crew.createTaskFile",
+          "when": "view == tarot.views.crewTasks",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.crew.addKnowledgeSource",
+          "when": "view == tarot.views.crewMemory",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.crew.searchKnowledge",
+          "when": "view == tarot.views.crewMemory",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tarot.schedule.create",
+          "when": "view == tarot.views.crewSchedules",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tarot.schedule.viewDigest",
+          "when": "view == tarot.views.crewSchedules",
+          "group": "navigation@2"
         }
       ],
       "editor/context": [
@@ -268,9 +428,91 @@
           "command": "tarot.workflows.runRecipe",
           "when": "view == tarot.views.recipes && viewItem == tarotWorkflowRecipe",
           "group": "inline@1"
+        },
+        {
+          "command": "tarot.powers.uninstall",
+          "when": "view == tarot.views.powers && viewItem == tarotPowerInstalled",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.powers.installCurated",
+          "when": "view == tarot.views.availablePowers && viewItem == tarotPowerAvailable",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.agents.selectProfile",
+          "when": "view == tarot.views.customAgents && viewItem == tarotCustomAgent",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.crew.startSession",
+          "when": "view == tarot.views.crewmates && viewItem == tarotCrewmate",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.crew.toggleStar",
+          "when": "view == tarot.views.crewmates && viewItem == tarotCrewmate",
+          "group": "inline@2"
+        },
+        {
+          "command": "tarot.crew.runTaskFile",
+          "when": "view == tarot.views.crewTasks && viewItem == tarotCrewTaskFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.crew.scanKnowledgeSource",
+          "when": "view == tarot.views.crewMemory && viewItem == tarotKnowledgeSource",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.crew.removeKnowledgeSource",
+          "when": "view == tarot.views.crewMemory && viewItem == tarotKnowledgeSource",
+          "group": "inline@2"
+        },
+        {
+          "command": "tarot.schedule.runNow",
+          "when": "view == tarot.views.crewSchedules && (viewItem == tarotScheduleEnabled || viewItem == tarotScheduleDisabled)",
+          "group": "inline@1"
+        },
+        {
+          "command": "tarot.crew.toggleSchedule",
+          "when": "view == tarot.views.crewSchedules && (viewItem == tarotScheduleEnabled || viewItem == tarotScheduleDisabled)",
+          "group": "inline@2"
         }
       ],
       "commandPalette": [
+        {
+          "command": "tarot.powers.openDetail",
+          "when": "false"
+        },
+        {
+          "command": "tarot.powers.installCurated",
+          "when": "false"
+        },
+        {
+          "command": "tarot.crew.toggleStar",
+          "when": "false"
+        },
+        {
+          "command": "tarot.crew.startSession",
+          "when": "false"
+        },
+        {
+          "command": "tarot.crew.openMemoryFile",
+          "when": "false"
+        },
+        {
+          "command": "tarot.crew.scanKnowledgeSource",
+          "when": "false"
+        },
+        {
+          "command": "tarot.crew.removeKnowledgeSource",
+          "when": "false"
+        },
+        {
+          "command": "tarot.crew.toggleSchedule",
+          "when": "false"
+        },
         {
           "command": "tarot.agents.selectById",
           "when": "false"
@@ -890,6 +1132,148 @@
         "title": "%command.steering.audit.title%",
         "category": "Tarot IDE",
         "icon": "$(checklist)"
+      },
+      {
+        "command": "tarot.powers.install",
+        "title": "%command.powers.install.title%",
+        "category": "Tarot IDE",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "tarot.powers.installCurated",
+        "title": "%command.powers.installCurated.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.powers.create",
+        "title": "%command.powers.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "tarot.powers.uninstall",
+        "title": "%command.powers.uninstall.title%",
+        "category": "Tarot IDE",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "tarot.powers.openDetail",
+        "title": "%command.powers.openDetail.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.powers.search",
+        "title": "%command.powers.search.title%",
+        "category": "Tarot IDE",
+        "icon": "$(search)"
+      },
+      {
+        "command": "tarot.powers.refresh",
+        "title": "%command.powers.refresh.title%",
+        "category": "Tarot IDE",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tarot.skills.create",
+        "title": "%command.skills.create.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.skills.refresh",
+        "title": "%command.skills.refresh.title%",
+        "category": "Tarot IDE",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tarot.agents.selectProfile",
+        "title": "%command.agents.selectProfile.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tarot.agents.refreshProfiles",
+        "title": "%command.agents.refreshProfiles.title%",
+        "category": "Tarot IDE",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tarot.crew.createCrewmate",
+        "title": "%command.crew.createCrewmate.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.crew.openDashboard",
+        "title": "%command.crew.openDashboard.title%",
+        "category": "Tarot IDE",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "tarot.crew.toggleStar",
+        "title": "%command.crew.toggleStar.title%",
+        "category": "Tarot IDE",
+        "icon": "$(star-empty)"
+      },
+      {
+        "command": "tarot.crew.startSession",
+        "title": "%command.crew.startSession.title%",
+        "category": "Tarot IDE",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "tarot.crew.createTaskFile",
+        "title": "%command.crew.createTaskFile.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.crew.runTaskFile",
+        "title": "%command.crew.runTaskFile.title%",
+        "category": "Tarot IDE",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tarot.crew.openMemoryFile",
+        "title": "%command.crew.openMemoryFile.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.crew.addKnowledgeSource",
+        "title": "%command.crew.addKnowledgeSource.title%",
+        "category": "Tarot IDE",
+        "icon": "$(add)"
+      },
+      {
+        "command": "tarot.crew.scanKnowledgeSource",
+        "title": "%command.crew.scanKnowledgeSource.title%",
+        "category": "Tarot IDE",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "tarot.crew.removeKnowledgeSource",
+        "title": "%command.crew.removeKnowledgeSource.title%",
+        "category": "Tarot IDE",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "tarot.crew.searchKnowledge",
+        "title": "%command.crew.searchKnowledge.title%",
+        "category": "Tarot IDE",
+        "icon": "$(search)"
+      },
+      {
+        "command": "tarot.crew.toggleSchedule",
+        "title": "%command.crew.toggleSchedule.title%",
+        "category": "Tarot IDE",
+        "icon": "$(circle-slash)"
+      },
+      {
+        "command": "tarot.crew.refresh",
+        "title": "%command.crew.refresh.title%",
+        "category": "Tarot IDE",
+        "icon": "$(refresh)"
       }
     ]
   },
