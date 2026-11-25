@@ -300,29 +300,69 @@ extensions/tarot-core/
 
 ---
 
-## 7. Comandos do Dia a Dia & Troubleshooting
+## 7. Comandos do Dia a Dia, Testes & Troubleshooting
 
+### 7.1 Compilação & Watch
 ```bash
-# Instalar/atualizar dependências (sempre pnpm)
+# 0. Pré-requisito: Node 24.22.x (.nvmrc) e sempre pnpm (nunca npm)
+nvm use
 pnpm install
 
-# Watch completo do Tarot IDE (SEM Copilot — recomendado)
+# Compilação rápida só da extensão tarot-core (~300ms — ideal no dia a dia)
+pnpm exec gulp compile-extension:tarot-core
+
+# Watch isolado da extensão tarot-core (~200ms ao salvar)
+pnpm run watch-tarot-core
+
+# Compilação completa do Tarot IDE (núcleo src/ + todas as extensões, SEM Copilot, ~1 min)
+pnpm run compile-tarot
+
+# Watch completo do Tarot IDE (SEM Copilot — recomendado quando mexer no core)
 pnpm run watch-tarot
 
 # Watch rápido (transpile + extensões, sem typecheck contínuo do core)
 pnpm run watch-tarot-fast
 
-# Watch isolado da extensão tarot-core (~200ms)
-pnpm run watch-tarot-core
+# Transpile rápido e typecheck estrito do núcleo (obrigatório após alterar src/vs/)
+node build/next/index.ts transpile
+pnpm run typecheck-client
+```
 
-# Validações pontuais (antes de commitar)
-pnpm exec gulp compile-extension:tarot-core
-node --test "extensions/tarot-core/out/test/**/*.test.js"   # suíte unitária pura (sem importar vscode)
-node build/next/index.ts transpile                          # somente se tocou em src/vs/
-pnpm run typecheck-client                                   # somente se tocou em src/vs/
+### 7.2 Bateria de Testes Automatizados & Invariantes
+```bash
+# 1. Suíte unitária pura do tarot-core (46 suítes / 146 testes, ~5s, sem importar vscode)
+node --test "extensions/tarot-core/out/test/**/*.test.js"
 
-# Executar o Tarot IDE em modo desenvolvimento
+# 2. Rodar um arquivo de teste específico
+node --test extensions/tarot-core/out/test/scheduleService.test.js
+
+# 3. Testes de NLS e resources do núcleo VS Code (30 testes)
+node --test build/lib/test/nlsMessages.test.ts build/lib/test/nlsMetadata.test.ts build/next/test/resources.test.ts
+
+# 4. Verificar invariantes de segurança (deve retornar 0 ocorrências)
+rg "innerHTML|outerHTML|insertAdjacentHTML|shell:\s*true|eval\(|new Function" extensions/tarot-core/src extensions/tarot-core/media
+
+# 5. Validar bundle de produção da extensão (gera extensions/tarot-core/dist/extension.js)
+node extensions/tarot-core/esbuild.mts
+```
+
+### 7.3 Execução Manual & Smoke-Test na UI
+```bash
+# Abrir o Tarot IDE em modo desenvolvimento
 ./scripts/code.sh
+```
+
+Roteiro rápido de verificação manual na UI:
+1. **Painel Agêntico (direita)**: abrir `Tarot Agent`, selecionar CLI local (`claude`/`agy`/`codex`), testar `#` (context providers) e `/` (slash commands).
+2. **Sessions & Focus Mode (`M3.9c`)**: abrir a view **Sessions** (barra esquerda) e clicar em **Toggle Agent Focus Mode** no topo direito do editor para alternar em 1 clique para o layout de 3 painéis (testando seletor de repositório e `+ New isolated worktree`).
+3. **Workflows (`M3.9a/b`)**: clicar em `▷` em **Recipes** na barra esquerda para abrir a aba `Workflow: <nome>` com árvore de steps e controles.
+4. **Schedule & Lições (`M3.10`)**: clicar em **Schedule** no rodapé de **Sessions** e testar na Command Palette (`Ctrl+Shift+P`): `Tarot IDE: Record Learned Lesson` e `Tarot IDE: Audit / Prune Steering Rules`.
+
+### 7.4 Empacotamento de Produção Linux (Fase 4)
+```bash
+pnpm exec gulp vscode-linux-x64-min        # binário minificado
+pnpm exec gulp vscode-linux-x64-build-deb  # pacote .deb
+pnpm exec gulp vscode-linux-x64-build-rpm  # pacote .rpm
 ```
 
 ### Troubleshooting (Ubuntu 24.04)
