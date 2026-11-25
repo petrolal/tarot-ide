@@ -190,7 +190,39 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 
 		vscode.commands.registerCommand('tarot.agent.sendSelection', async () => {
-			await agentPanelProvider.attachSelectionAndFocus();
+			await agentPanelProvider.attachSelectionAndFocus(false);
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.sendSelectionToNewSession', async () => {
+			await agentPanelProvider.attachSelectionAndFocus(true);
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.quickAction.fixGrammar', async () => {
+			await agentPanelProvider.runQuickEditorAction('fixGrammar');
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.quickAction.writeComments', async () => {
+			await agentPanelProvider.runQuickEditorAction('writeComments');
+		}),
+
+		vscode.commands.registerCommand('tarot.agent.quickAction.optimize', async () => {
+			await agentPanelProvider.runQuickEditorAction('optimize');
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.history', async () => {
+			await agentPanelProvider.openSessionHistory();
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.export', async () => {
+			await agentPanelProvider.exportActiveSession();
+		}),
+
+		vscode.commands.registerCommand('tarot.sessions.compact', async () => {
+			await agentPanelProvider.compactActiveSession(true);
+		}),
+
+		vscode.commands.registerCommand('tarot.git.prePrReview', async () => {
+			await agentPanelProvider.runPrePrReview();
 		}),
 
 		vscode.commands.registerCommand('tarot.agent.openInEditorTab', async () => {

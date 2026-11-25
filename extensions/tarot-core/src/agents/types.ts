@@ -23,7 +23,21 @@ export interface AgentModelOption {
 	readonly label: string;
 }
 
-export type ContextProviderKind = 'file' | 'folder' | 'spec' | 'problems' | 'gitDiff' | 'terminal' | 'codebase' | 'steering' | 'mcp';
+export type ContextProviderKind =
+	| 'file'
+	| 'folder'
+	| 'spec'
+	| 'problems'
+	| 'gitDiff'
+	| 'terminal'
+	| 'codebase'
+	| 'steering'
+	| 'mcp'
+	| 'url'
+	| 'code'
+	| 'repository'
+	| 'current'
+	| 'docs';
 
 export interface CustomAgentConfig {
 	readonly id: string;

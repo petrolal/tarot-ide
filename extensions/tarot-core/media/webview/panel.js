@@ -3,6 +3,7 @@
 
 	const sessionTabsEl = document.getElementById('session-tabs');
 	const newSessionBtn = document.getElementById('btn-new-session');
+	const historyBtn = document.getElementById('btn-session-history');
 	const dockEditorBtn = document.getElementById('btn-dock-editor');
 	const focusModeBtn = document.getElementById('btn-focus-mode');
 	const messagesEl = document.getElementById('messages');
@@ -329,7 +330,15 @@
 		const pct = Math.max(0, Math.min(100, state.contextPercent || 0));
 		const offset = RING_CIRCUMFERENCE * (1 - pct / 100);
 		contextRingArc.setAttribute('stroke-dashoffset', offset.toFixed(2));
-		contextRingEl.title = t('contextUsage', pct);
+		const used = typeof state.contextUsedTokens === 'number' ? state.contextUsedTokens : 0;
+		const win = typeof state.contextWindowTokens === 'number' ? state.contextWindowTokens : 200000;
+		if (used > 0) {
+			const fmtUsed = used >= 1000 ? `${(used / 1000).toFixed(1)}k` : String(used);
+			const fmtWin = `${Math.round(win / 1000)}k`;
+			contextRingEl.title = `${fmtUsed} / ${fmtWin} tokens (${pct}%${state.contextIsReal ? '' : ' est.'}) — click to compact`;
+		} else {
+			contextRingEl.title = t('contextUsage', pct);
+		}
 	}
 
 	function renderAttachments() {
@@ -845,6 +854,17 @@
 					footer.appendChild(cpBtn);
 				}
 
+				if (msg.id) {
+					const forkBtn = document.createElement('button');
+					forkBtn.type = 'button';
+					forkBtn.className = 'checkpoint-btn';
+					forkBtn.textContent = t('forkConversation');
+					forkBtn.addEventListener('click', () => {
+						vscode.postMessage({ type: 'forkSession', messageId: msg.id });
+					});
+					footer.appendChild(forkBtn);
+				}
+
 				wrapper.appendChild(footer);
 			}
 
@@ -1001,6 +1021,13 @@
 
 	sendBtn.addEventListener('click', sendPrompt);
 	newSessionBtn.addEventListener('click', () => vscode.postMessage({ type: 'newSession' }));
+	if (historyBtn) {
+		historyBtn.addEventListener('click', () => vscode.postMessage({ type: 'openHistory' }));
+	}
+	if (contextRingEl) {
+		contextRingEl.style.cursor = 'pointer';
+		contextRingEl.addEventListener('click', () => vscode.postMessage({ type: 'compactSession' }));
+	}
 	dockEditorBtn.addEventListener('click', () => vscode.postMessage({ type: 'openInEditorTab' }));
 	focusModeBtn.addEventListener('click', () => vscode.postMessage({ type: 'toggleFocusMode' }));
 	attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'attachActiveFile' }));
@@ -1081,9 +1108,9 @@
 		} else {
 			toggleSlashMenu(false);
 		}
-		if (val === '#' || val.endsWith(' #')) {
+		if (val === '#' || val.endsWith(' #') || val === '@' || val.endsWith(' @')) {
 			toggleContextMenu(true);
-		} else if (!val.includes('#')) {
+		} else if (!val.includes('#') && !val.includes('@')) {
 			toggleContextMenu(false);
 		}
 	});

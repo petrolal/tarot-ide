@@ -35,6 +35,13 @@ export interface TarotPanelStrings {
 	readonly contextTerminalDesc: string;
 	readonly contextSteeringDesc: string;
 	readonly contextMcpDesc: string;
+	readonly contextCurrentDesc: string;
+	readonly contextCodeDesc: string;
+	readonly contextUrlDesc: string;
+	readonly contextRepositoryDesc: string;
+	readonly contextDocsDesc: string;
+	readonly sessionHistory: string;
+	readonly forkConversation: string;
 	readonly slashCommandsTitle: string;
 	readonly slashSpecDesc: string;
 	readonly slashQuickSpecDesc: string;
@@ -119,6 +126,13 @@ export function getPanelStrings(): TarotPanelStrings {
 		contextTerminalDesc: vscode.l10n.t('Active terminal context'),
 		contextSteeringDesc: vscode.l10n.t('Steering document (workspace/global)'),
 		contextMcpDesc: vscode.l10n.t('MCP server configuration (workspace/global)'),
+		contextCurrentDesc: vscode.l10n.t('Current active editor file or selection'),
+		contextCodeDesc: vscode.l10n.t('Search workspace symbols (classes, functions)'),
+		contextUrlDesc: vscode.l10n.t('Fetch text from an https:// URL'),
+		contextRepositoryDesc: vscode.l10n.t('Git branch, recent commits and top-level layout'),
+		contextDocsDesc: vscode.l10n.t('Pick a Markdown documentation file'),
+		sessionHistory: vscode.l10n.t('Session History (.tarot/sessions/)'),
+		forkConversation: vscode.l10n.t('⑂ Fork'),
 		slashCommandsTitle: vscode.l10n.t('Slash Commands (/)'),
 		slashSpecDesc: vscode.l10n.t('Create a new Feature or Bugfix Spec (EARS)'),
 		slashQuickSpecDesc: vscode.l10n.t('Generate requirements, design and tasks in one pass (no gates)'),

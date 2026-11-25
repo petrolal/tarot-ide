@@ -26,6 +26,7 @@ import {
 } from '../agents/types';
 import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { getTarotConfig } from '../config/tarotConfig';
+import { compactConversationMessages, computeContextMeter, formatSessionExportBundle, formatSessionExportMarkdown } from '../context/compactionService';
 import { resolveContextProvider } from '../context/contextProviders';
 import { ChangedFileInfo, TarotGitReviewService } from '../git/gitReviewService';
 import { TarotWorktree, TarotWorktreeManager } from '../git/worktreeManager';
@@ -62,6 +63,10 @@ interface WebviewIncomingMessage {
 		| 'selectSession'
 		| 'closeSession'
 		| 'restoreCheckpoint'
+		| 'forkSession'
+		| 'openHistory'
+		| 'exportSession'
+		| 'compactSession'
 		| 'approveSpecGate'
 		| 'resolveFileWriteGate'
 		| 'openInEditorTab'
@@ -250,7 +255,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postState();
 	}
 
-	async attachSelectionAndFocus(): Promise<void> {
+	async attachSelectionAndFocus(newSession = false): Promise<void> {
+		if (newSession) {
+			this.attachments = [];
+			this.sessionStore.createSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+		}
 		const editor = vscode.window.activeTextEditor;
 		if (editor) {
 			const fsPath = editor.document.uri.fsPath;
@@ -274,12 +283,212 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				});
 			}
 		}
+		this.postState();
 		if (this.editorPanel) {
 			this.editorPanel.reveal(vscode.ViewColumn.Active);
 		} else {
 			await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
 		}
 		this.postMessage({ type: 'focusInput' });
+	}
+
+	async runQuickEditorAction(kind: 'fixGrammar' | 'writeComments' | 'optimize'): Promise<void> {
+		await this.attachSelectionAndFocus(false);
+		const prompts: Record<'fixGrammar' | 'writeComments' | 'optimize', { prompt: string; display: string }> = {
+			fixGrammar: {
+				prompt: 'Corrija gramática, ortografia e clareza no trecho/arquivo anexado preservando o significado e o formato original.',
+				display: vscode.l10n.t('✦ Ask Tarot: Fix Grammar / Spelling'),
+			},
+			writeComments: {
+				prompt: 'Adicione comentários técnicos concisos e úteis (JSDoc/docstrings apenas onde agregam clareza) ao código anexado, sem alterar o comportamento.',
+				display: vscode.l10n.t('✦ Ask Tarot: Write Comments'),
+			},
+			optimize: {
+				prompt: 'Analise e otimize o código anexado buscando melhor legibilidade, complexidade e segurança sem quebrar contratos existentes.',
+				display: vscode.l10n.t('✦ Ask Tarot: Optimize Selection'),
+			},
+		};
+		await this.runPrompt(prompts[kind].prompt, { displayPrompt: prompts[kind].display });
+	}
+
+	async openSessionHistory(): Promise<void> {
+		if (!vscode.workspace.isTrusted) {
+			vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before browsing saved session history.'));
+			return;
+		}
+		const persisted = await this.sessionStore.listPersistedSessions();
+		if (persisted.length === 0) {
+			vscode.window.showInformationMessage(vscode.l10n.t('No saved sessions found in .tarot/sessions/.'));
+			return;
+		}
+		const picked = await vscode.window.showQuickPick(
+			persisted.map(s => ({
+				label: s.title || s.id,
+				description: `${s.activeAgentId} · ${s.mode} · ${s.messages.length} msgs`,
+				detail: `${s.id} · ${new Date(s.updatedAt).toLocaleString()}`,
+				session: s,
+			})),
+			{
+				title: vscode.l10n.t('Tarot Session History (.tarot/sessions/)'),
+				placeHolder: vscode.l10n.t('Search sessions by title, agent or mode...'),
+				matchOnDescription: true,
+				matchOnDetail: true,
+			},
+		);
+		if (!picked) {
+			return;
+		}
+		const openLabel = vscode.l10n.t('Open Session');
+		const deleteLabel = vscode.l10n.t('Delete');
+		const action = await vscode.window.showQuickPick(
+			[
+				{ label: openLabel, action: 'open' as const },
+				{ label: deleteLabel, action: 'delete' as const },
+			],
+			{ title: picked.session.title || picked.session.id },
+		);
+		if (!action) {
+			return;
+		}
+		if (action.action === 'delete') {
+			await this.sessionStore.deletePersistedSession(picked.session.id);
+			if (this.sessionStore.listSessions().some(s => s.id === picked.session.id)) {
+				this.sessionStore.closeSession(picked.session.id, this.runtimeManager.getActiveAgentId());
+			}
+			this.postState();
+			vscode.window.showInformationMessage(vscode.l10n.t('Deleted session "{0}".', picked.session.title));
+			return;
+		}
+		const opened = this.sessionStore.openPersistedSession(picked.session);
+		this.mode = opened.mode;
+		this.autonomy = opened.autonomy;
+		this.postState();
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+	}
+
+	async exportActiveSession(): Promise<void> {
+		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+		const fmt = await vscode.window.showQuickPick(
+			[
+				{ label: vscode.l10n.t('Markdown (.md)'), format: 'md' as const },
+				{ label: vscode.l10n.t('Structured Bundle (session.json + messages.jsonl)'), format: 'jsonl' as const },
+			],
+			{ title: vscode.l10n.t('Export Chat Session') },
+		);
+		if (!fmt) {
+			return;
+		}
+		if (fmt.format === 'md') {
+			const uri = await vscode.window.showSaveDialog({
+				defaultUri: vscode.Uri.file(`${session.id}.md`),
+				filters: { Markdown: ['md'] },
+			});
+			if (!uri) {
+				return;
+			}
+			await fs.writeFile(uri.fsPath, formatSessionExportMarkdown(session), 'utf8');
+			vscode.window.showInformationMessage(vscode.l10n.t('Exported session to {0}.', path.basename(uri.fsPath)));
+			return;
+		}
+		const folders = await vscode.window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			openLabel: vscode.l10n.t('Export Bundle Into Folder'),
+		});
+		if (!folders?.[0]) {
+			return;
+		}
+		const outDir = path.join(folders[0].fsPath, session.id);
+		await fs.mkdir(outDir, { recursive: true });
+		const bundle = formatSessionExportBundle(session);
+		await fs.writeFile(path.join(outDir, 'session.json'), bundle.sessionJson, 'utf8');
+		await fs.writeFile(path.join(outDir, 'messages.jsonl'), bundle.messagesJsonl, 'utf8');
+		vscode.window.showInformationMessage(vscode.l10n.t('Exported session.json and messages.jsonl to {0}.', outDir));
+	}
+
+	async compactActiveSession(interactive = false): Promise<boolean> {
+		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+		const cfg = vscode.workspace.getConfiguration('tarot.compaction');
+		const excludeMessages = cfg.get<number>('excludeMessages', 4);
+		if (session.messages.length <= excludeMessages + 1) {
+			if (interactive) {
+				vscode.window.showInformationMessage(vscode.l10n.t('Session is too short to compact (keeping the last {0} messages).', excludeMessages));
+			}
+			return false;
+		}
+
+		if (interactive) {
+			const compactLabel = vscode.l10n.t('Compact Now');
+			const exportFirstLabel = vscode.l10n.t('Export Chat First');
+			const choice = await vscode.window.showWarningMessage(
+				vscode.l10n.t('Compaction summarizes earlier messages and cannot be undone. Export the chat first?'),
+				{ modal: true },
+				compactLabel,
+				exportFirstLabel,
+			);
+			if (!choice) {
+				return false;
+			}
+			if (choice === exportFirstLabel) {
+				await this.exportActiveSession();
+			}
+		}
+
+		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+		const hooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath) : [];
+		if (hooks.length > 0) {
+			const pre = await runHooksForTrigger(hooks, 'PreCompaction', { cwd, session_id: session.id }, { runCommand: this.runGatedHookCommand });
+			this.logHookWarnings(pre.warnings);
+			if (pre.blocked) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Compaction cancelled by hook "{0}": {1}', pre.blockedBy?.name ?? '?', pre.blockReason ?? ''));
+				return false;
+			}
+		}
+
+		let postContext: string | undefined;
+		if (hooks.length > 0) {
+			const post = await runHooksForTrigger(hooks, 'PostCompaction', { cwd, session_id: session.id }, { runCommand: this.runGatedHookCommand });
+			this.logHookWarnings(post.warnings);
+			if (post.contextAppend.length > 0) {
+				postContext = post.contextAppend.join('\n\n');
+			}
+		}
+
+		const result = compactConversationMessages(session.messages, { excludeMessages, postCompactionContext: postContext });
+		if (!result.compacted) {
+			return false;
+		}
+		session.messages = result.messages;
+		await this.sessionStore.saveSession(session);
+		this.postState();
+		this.outputChannel.appendLine(`[Compaction] Compacted ${result.removedCount} message(s) in ${session.id}.`);
+		if (interactive) {
+			vscode.window.showInformationMessage(vscode.l10n.t('Compacted {0} earlier message(s).', result.removedCount));
+		}
+		return true;
+	}
+
+	async runPrePrReview(): Promise<void> {
+		const activeAgent = this.runtimeManager.getActiveAgentId();
+		const available = this.runtimeManager.getStatuses().filter(s => s.available);
+		const reviewer = available.find(s => s.id !== activeAgent) ?? available[0];
+		if (reviewer && reviewer.id !== activeAgent) {
+			await this.runtimeManager.setActiveAgent(reviewer.id);
+		}
+		const diffAtt = await resolveContextProvider('gitDiff');
+		const probAtt = await resolveContextProvider('problems');
+		if (diffAtt) {
+			this.addAttachment(diffAtt);
+		}
+		if (probAtt) {
+			this.addAttachment(probAtt);
+		}
+		await vscode.commands.executeCommand(`${TarotAgentPanelProvider.viewId}.focus`);
+		await this.runPrompt(
+			'Faça uma revisão Pre-PR completa das alterações atuais (#Git Diff) e diagnósticos (#Problems). Avalie corretude, riscos de segurança, cobertura de testes e aderência à Spec ativa, e entregue ao final um Evidence Summary estruturado (o que foi verificado, o que passou e eventuais bloqueios).',
+			{ displayPrompt: vscode.l10n.t('🔍 Pre-PR Review ({0})', reviewer?.displayName ?? activeAgent) },
+		);
 	}
 
 	async refreshChangedFiles(): Promise<void> {
@@ -585,6 +794,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const activeAgent = this.runtimeManager.getActiveAgentId();
 		switch (msg.type) {
 			case 'ready':
+				if (vscode.workspace.isTrusted) {
+					await this.sessionStore.hydrateFromDisk();
+				}
 				await this.refreshChangedFiles();
 				await this.refreshAvailableModels();
 				await this.refreshDynamicCatalogs();
@@ -681,9 +893,31 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 					const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
 					if (cwd) {
-						await this.checkpointService.restoreCheckpoint(cwd, session.id, msg.checkpointId);
+						const restored = await this.checkpointService.restoreCheckpoint(cwd, session.id, msg.checkpointId);
+						if (restored) {
+							await this.sessionStore.truncateBeforeCheckpoint(session, msg.checkpointId);
+							await this.refreshChangedFiles();
+							this.postState();
+						}
 					}
 				}
+				break;
+			case 'forkSession':
+				if (msg.messageId) {
+					const session = this.sessionStore.getActiveSession(activeAgent, this.mode, this.autonomy);
+					await this.sessionStore.forkSession(session, msg.messageId);
+					this.attachments = [];
+					this.postState();
+				}
+				break;
+			case 'openHistory':
+				await this.openSessionHistory();
+				break;
+			case 'exportSession':
+				await this.exportActiveSession();
+				break;
+			case 'compactSession':
+				await this.compactActiveSession(true);
 				break;
 			case 'approveSpecGate':
 				if (msg.messageId) {
@@ -1045,6 +1279,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		session.mode = this.mode;
 		session.autonomy = this.autonomy;
 
+		// Auto-compaction near configured threshold (default 80%, MIGRATION_PLAN.md M3.8c)
+		const autoThreshold = vscode.workspace.getConfiguration('tarot.compaction').get<number>('autoThreshold', 0.8);
+		const preMeter = computeContextMeter(session.messages, this.attachments);
+		if (preMeter.percent / 100 >= autoThreshold) {
+			await this.compactActiveSession(false);
+		}
+
 		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath) : [];
 		let effectivePrompt = prompt;
 		if (workspaceHooks.length > 0) {
@@ -1336,18 +1577,6 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 	}
 
-	private estimateContextPercent(messages: readonly { content: string }[], attachments: readonly AttachedContext[]): number {
-		let chars = 0;
-		for (const m of messages) {
-			chars += m.content.length;
-		}
-		for (const a of attachments) {
-			chars += (a.content?.length ?? 0) + (a.selection?.length ?? 0) + 120;
-		}
-		// Rough visual estimate against ~120k chars context window
-		return Math.min(100, Math.round((chars / 120_000) * 100));
-	}
-
 	private async saveLearnedSteeringRule(ruleText: string): Promise<void> {
 		if (!vscode.workspace.isTrusted) {
 			vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before writing rules to .tarot/steering/.'));
@@ -1543,6 +1772,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			isRunning: this.runningSessionId === s.id,
 		}));
 
+		const meter = computeContextMeter(activeSession.messages, this.attachments);
 		this.postMessage({
 			type: 'state',
 			agents: this.runtimeManager.getStatuses(),
@@ -1563,7 +1793,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			manualSteeringCommands: this.manualSteeringCommands,
 			changedFiles: this.changedFiles,
 			messages: activeSession.messages,
-			contextPercent: this.estimateContextPercent(activeSession.messages, this.attachments),
+			contextPercent: meter.percent,
+			contextUsedTokens: meter.usedTokens,
+			contextWindowTokens: meter.windowTokens,
+			contextIsReal: meter.isRealTokens,
 		});
 	}
 
@@ -1618,6 +1851,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			<button id="btn-new-session" class="tabbar-add-btn" type="button" title="${s.newSession}">
 				<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3.2v9.6M3.2 8h9.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
 			</button>
+			<button id="btn-session-history" class="tabbar-add-btn tabbar-secondary-btn" type="button" title="${s.sessionHistory}">
+				<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.2l2.2 1.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+			</button>
 			<button id="btn-dock-editor" class="tabbar-add-btn tabbar-secondary-btn" type="button" title="${s.dockEditorTab}">
 				<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L8.5 7.5M6.5 13.5h-4v-4M2.5 13.5l5-5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
 			</button>
@@ -1650,6 +1886,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				<button class="context-menu-item" type="button" data-kind="terminal"><span class="ctx-tag">#Terminal</span><span class="ctx-desc">${s.contextTerminalDesc}</span></button>
 				<button class="context-menu-item" type="button" data-kind="steering"><span class="ctx-tag">#Steering</span><span class="ctx-desc">${s.contextSteeringDesc}</span></button>
 				<button class="context-menu-item" type="button" data-kind="mcp"><span class="ctx-tag">#MCP</span><span class="ctx-desc">${s.contextMcpDesc}</span></button>
+				<button class="context-menu-item" type="button" data-kind="current"><span class="ctx-tag">#Current</span><span class="ctx-desc">${s.contextCurrentDesc}</span></button>
+				<button class="context-menu-item" type="button" data-kind="code"><span class="ctx-tag">#Code</span><span class="ctx-desc">${s.contextCodeDesc}</span></button>
+				<button class="context-menu-item" type="button" data-kind="url"><span class="ctx-tag">#URL</span><span class="ctx-desc">${s.contextUrlDesc}</span></button>
+				<button class="context-menu-item" type="button" data-kind="repository"><span class="ctx-tag">#Repository</span><span class="ctx-desc">${s.contextRepositoryDesc}</span></button>
+				<button class="context-menu-item" type="button" data-kind="docs"><span class="ctx-tag">#Docs</span><span class="ctx-desc">${s.contextDocsDesc}</span></button>
 			</div>
 
 			<div id="slash-menu" class="context-popup hidden" role="menu">

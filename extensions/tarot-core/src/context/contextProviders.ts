@@ -266,5 +266,153 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				content: truncate(formatMcpContext(selectedServers)),
 			};
 		}
+
+		case 'current': {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No active editor open.'));
+				return undefined;
+			}
+			const rel = vscode.workspace.asRelativePath(editor.document.uri, false);
+			const selection = editor.selection.isEmpty ? undefined : editor.document.getText(editor.selection);
+			return {
+				kind: 'current',
+				label: selection ? `current/${rel} (selection)` : `current/${rel}`,
+				path: editor.document.uri.fsPath,
+				selection,
+				content: selection ? undefined : truncate(editor.document.getText()),
+			};
+		}
+
+		case 'url': {
+			const rawUrl = await vscode.window.showInputBox({
+				title: vscode.l10n.t('#URL — Fetch documentation or web page'),
+				prompt: vscode.l10n.t('Enter an https:// URL to include in context'),
+				placeHolder: 'https://docs.example.com/guide',
+			});
+			if (!rawUrl?.trim() || !/^https?:\/\//i.test(rawUrl.trim())) {
+				return undefined;
+			}
+			const url = rawUrl.trim();
+			try {
+				const controller = new AbortController();
+				const timer = setTimeout(() => controller.abort(), 10_000);
+				const res = await fetch(url, { signal: controller.signal });
+				clearTimeout(timer);
+				if (!res.ok) {
+					vscode.window.showWarningMessage(vscode.l10n.t('Failed to fetch URL (HTTP {0}).', res.status));
+					return undefined;
+				}
+				const rawBody = await res.text();
+				const stripped = rawBody
+					.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+					.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+					.replace(/<[^>]+>/g, ' ')
+					.replace(/\s+/g, ' ')
+					.trim();
+				return {
+					kind: 'url',
+					label: url.replace(/^https?:\/\//i, '').slice(0, 42),
+					path: url,
+					content: truncate(`URL: ${url}\n\n${stripped}`),
+				};
+			} catch (err) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Could not fetch URL: {0}', err instanceof Error ? err.message : String(err)));
+				return undefined;
+			}
+		}
+
+		case 'code': {
+			const query = await vscode.window.showInputBox({
+				title: vscode.l10n.t('#Code — Search workspace symbols'),
+				prompt: vscode.l10n.t('Enter a class, function, or symbol name'),
+				placeHolder: 'TarotPermissionsService',
+			});
+			if (!query?.trim()) {
+				return undefined;
+			}
+			const symbols = await vscode.commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', query.trim());
+			if (!symbols || symbols.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No symbol matching "{0}" found.', query.trim()));
+				return undefined;
+			}
+			const picked = await vscode.window.showQuickPick(
+				symbols.slice(0, 50).map(s => ({
+					label: s.name,
+					description: `${vscode.workspace.asRelativePath(s.location.uri, false)}:${s.location.range.start.line + 1}`,
+					symbol: s,
+				})),
+				{ title: vscode.l10n.t('#Code — Pick a symbol') },
+			);
+			if (!picked) {
+				return undefined;
+			}
+			const doc = await vscode.workspace.openTextDocument(picked.symbol.location.uri);
+			const startLine = Math.max(0, picked.symbol.location.range.start.line - 2);
+			const endLine = Math.min(doc.lineCount - 1, picked.symbol.location.range.end.line + 40);
+			const excerpt = doc.getText(new vscode.Range(startLine, 0, endLine, doc.lineAt(endLine).text.length));
+			return {
+				kind: 'code',
+				label: `code/${picked.symbol.name}`,
+				path: picked.symbol.location.uri.fsPath,
+				content: truncate(`${picked.description}\n\n${excerpt}`),
+			};
+		}
+
+		case 'repository': {
+			if (!root) {
+				return undefined;
+			}
+			const gitPath = await resolveBinaryPath('git');
+			const parts: string[] = [`Repository root: ${path.basename(root)}`];
+			if (gitPath) {
+				const branch = await execSimple(gitPath, ['-C', root, 'branch', '--show-current']).catch(() => undefined);
+				const remote = await execSimple(gitPath, ['-C', root, 'remote', 'get-url', 'origin']).catch(() => undefined);
+				const log = await execSimple(gitPath, ['-C', root, 'log', '-n', '10', '--oneline']).catch(() => undefined);
+				if (branch?.exitCode === 0 && branch.stdout.trim()) {
+					parts.push(`Branch: ${branch.stdout.trim()}`);
+				}
+				if (remote?.exitCode === 0 && remote.stdout.trim()) {
+					parts.push(`Origin: ${remote.stdout.trim()}`);
+				}
+				if (log?.exitCode === 0 && log.stdout.trim()) {
+					parts.push(`Recent commits:\n${log.stdout.trim()}`);
+				}
+			}
+			const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+			const topLevel = entries.filter(e => !e.name.startsWith('.git')).map(e => `${e.isDirectory() ? '[dir] ' : ''}${e.name}`).sort().join('\n');
+			parts.push(`Top-level entries:\n${topLevel}`);
+			return {
+				kind: 'repository',
+				label: `repo/${path.basename(root)}`,
+				path: root,
+				content: truncate(parts.join('\n\n')),
+			};
+		}
+
+		case 'docs': {
+			const uris = await vscode.workspace.findFiles('**/*.md', '**/{node_modules,.git,out,dist,.build}/**', 200);
+			if (uris.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No Markdown docs found in the workspace.'));
+				return undefined;
+			}
+			const items = uris
+				.map(uri => ({ label: vscode.workspace.asRelativePath(uri, false), uri }))
+				.sort((a, b) => a.label.localeCompare(b.label));
+			const picked = await vscode.window.showQuickPick(items, {
+				title: vscode.l10n.t('#Docs — Pick a documentation file'),
+				placeHolder: vscode.l10n.t('Type doc file name...'),
+			});
+			if (!picked) {
+				return undefined;
+			}
+			const raw = await fs.readFile(picked.uri.fsPath, 'utf8').catch(() => '');
+			return {
+				kind: 'docs',
+				label: `docs/${picked.label}`,
+				path: picked.uri.fsPath,
+				content: truncate(raw),
+			};
+		}
 	}
 }
