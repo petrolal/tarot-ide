@@ -344,7 +344,11 @@ export class TarotCrewmateDashboardPanel implements vscode.Disposable {
 	button:hover { background: var(--vscode-button-hoverBackground); }
 	button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
 	h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vscode-descriptionForeground); margin: 20px 0 8px; }
-	pre.mem { white-space: pre-wrap; background: var(--vscode-textBlockQuote-background); border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 12px; font-family: var(--vscode-editor-font-family); font-size: 12px; max-height: 220px; overflow-y: auto; }
+	.mem { background: var(--vscode-textBlockQuote-background); border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 12px 14px; font-size: 12.5px; max-height: 240px; overflow-y: auto; line-height: 1.5; }
+	.mem-h1 { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+	.mem-h2 { font-weight: 600; font-size: 12.5px; margin: 10px 0 4px; color: var(--vscode-descriptionForeground); }
+	.mem-li { padding-left: 8px; margin-bottom: 3px; }
+	.mem-p { margin-bottom: 4px; }
 	.note-row { display: flex; gap: 8px; margin-bottom: 12px; }
 	input { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; padding: 6px 10px; font-size: 12px; }
 	.ledger-item { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
@@ -399,7 +403,22 @@ export class TarotCrewmateDashboardPanel implements vscode.Disposable {
 		frag.appendChild(header);
 
 		frag.appendChild(el('h2', '', t.memoryHeading || 'Private Memory'));
-		frag.appendChild(el('pre', 'mem', msg.memory || ''));
+		const memBox = el('div', 'mem');
+		const memLines = String(msg.memory || '').split(/\\r?\\n/);
+		for (const ln of memLines) {
+			const trimmed = ln.trim();
+			if (!trimmed) continue;
+			if (trimmed.startsWith('## ')) {
+				memBox.appendChild(el('div', 'mem-h2', trimmed.slice(3)));
+			} else if (trimmed.startsWith('# ')) {
+				memBox.appendChild(el('div', 'mem-h1', trimmed.slice(2)));
+			} else if (trimmed.startsWith('- ')) {
+				memBox.appendChild(el('div', 'mem-li', '• ' + trimmed.slice(2).replace(/\\*\\*/g, '')));
+			} else {
+				memBox.appendChild(el('div', 'mem-p', trimmed.replace(/\\*\\*/g, '')));
+			}
+		}
+		frag.appendChild(memBox);
 
 		frag.appendChild(el('h2', '', t.ledgerHeading || 'Work Ledger'));
 		const noteRow = el('div', 'note-row');

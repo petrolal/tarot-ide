@@ -214,7 +214,15 @@ export function activate(context: vscode.ExtensionContext): void {
 			sessionsProvider.refresh();
 			void focusModeManager.postState();
 		},
+		payload => focusModeManager.postStreamEvent(payload),
 	);
+
+	const focusModeStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 95);
+	focusModeStatusBar.text = `$(layout-centered) ${vscode.l10n.t('Focus Mode')}`;
+	focusModeStatusBar.tooltip = vscode.l10n.t('Toggle Tarot Agent Focus Mode (Ctrl+Shift+M)');
+	focusModeStatusBar.command = 'tarot.agent.toggleFocusMode';
+	focusModeStatusBar.show();
+	context.subscriptions.push(focusModeStatusBar);
 
 	const workflowCommands = registerWorkflowCommands({
 		extensionUri: context.extensionUri,

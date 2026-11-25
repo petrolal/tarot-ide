@@ -83,10 +83,11 @@ export class CrewAutomationTreeProvider extends BaseTarotTreeProvider {
 
 		const heartbeatGroup = new SimpleTreeItem(
 			vscode.l10n.t('Heartbeat Daemon'),
-			vscode.TreeItemCollapsibleState.Expanded,
+			vscode.TreeItemCollapsibleState.Collapsed,
 			undefined,
 			[hbToggleItem, hbRunItem, hbCfgItem],
 		);
+		heartbeatGroup.description = hbRunning ? vscode.l10n.t('running') : vscode.l10n.t('stopped');
 		heartbeatGroup.iconPath = new vscode.ThemeIcon('heart');
 
 		// 2. Webhooks & Gateways
@@ -111,7 +112,7 @@ export class CrewAutomationTreeProvider extends BaseTarotTreeProvider {
 		})];
 		const channelsGroup = new SimpleTreeItem(
 			vscode.l10n.t('Webhooks & Gateways'),
-			vscode.TreeItemCollapsibleState.Expanded,
+			vscode.TreeItemCollapsibleState.Collapsed,
 			undefined,
 			gwItems,
 		);
@@ -131,7 +132,7 @@ export class CrewAutomationTreeProvider extends BaseTarotTreeProvider {
 		});
 		const appsGroup = new SimpleTreeItem(
 			vscode.l10n.t('Crew Apps'),
-			vscode.TreeItemCollapsibleState.Expanded,
+			vscode.TreeItemCollapsibleState.Collapsed,
 			undefined,
 			appItems,
 		);
@@ -151,7 +152,7 @@ export class CrewAutomationTreeProvider extends BaseTarotTreeProvider {
 		});
 		const remotesGroup = new SimpleTreeItem(
 			vscode.l10n.t('Remote Crew (SSH)'),
-			vscode.TreeItemCollapsibleState.Expanded,
+			vscode.TreeItemCollapsibleState.Collapsed,
 			undefined,
 			remoteItems,
 		);

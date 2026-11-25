@@ -206,10 +206,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	private focusModeToggleHandler: (() => Promise<boolean>) | undefined;
 	private stateChangeListener: (() => void) | undefined;
+	private streamEventListener: ((payload: Record<string, unknown>) => void) | undefined;
 
-	setFocusModeHooks(onToggle: () => Promise<boolean>, onStateChange: () => void): void {
+	setFocusModeHooks(
+		onToggle: () => Promise<boolean>,
+		onStateChange: () => void,
+		onStreamEvent?: (payload: Record<string, unknown>) => void,
+	): void {
 		this.focusModeToggleHandler = onToggle;
 		this.stateChangeListener = onStateChange;
+		this.streamEventListener = onStreamEvent;
 	}
 
 	getRunningSessionId(): string | undefined {
@@ -1842,6 +1848,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 		if (this.editorPanel) {
 			void this.editorPanel.webview.postMessage(payload);
+		}
+		const msgType = typeof payload.type === 'string' ? payload.type : '';
+		if (this.streamEventListener && msgType.startsWith('stream')) {
+			this.streamEventListener(payload);
 		}
 	}
 

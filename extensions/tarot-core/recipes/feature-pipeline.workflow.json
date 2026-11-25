@@ -1,27 +1,59 @@
 {
   "name": "feature-pipeline",
-  "description": "Pipeline completo de feature: planejamento, design, revisão em loop (máx 2), implementação e validação.",
+  "description": "Full feature pipeline: setup, requirements, design loop, plan, parallel code & review loop, and validation gate.",
   "inputs": {
     "task": "prompt"
   },
   "steps": [
     {
       "type": "step",
-      "id": "plan",
-      "agent": "wf-planner",
-      "prompt": "Planeje a feature solicitada e liste requisitos EARS e critérios de aceite:\n\n{{input}}",
+      "id": "setup",
+      "agent": "wf-coder",
+      "prompt": "Inspecione o repositório, branch atual, estrutura de pastas e suíte de testes para preparar o contexto da tarefa:\n\n{{input}}",
       "captureOutput": true
     },
     {
       "type": "step",
-      "id": "design",
+      "id": "requirements",
       "agent": "wf-design",
-      "prompt": "Proponha o design técnico detalhado para o plano abaixo:\n\n{{previous.output}}",
+      "prompt": "Com base no contexto coletado abaixo, especifique requisitos EARS claros e critérios de aceite objetivos:\n\n{{setup.output}}\n\nTarefa:\n{{input}}",
       "captureOutput": true
     },
     {
       "type": "repeat",
-      "id": "review-loop",
+      "id": "design-loop",
+      "maxIterations": 2,
+      "onMaxIterations": "pause",
+      "stopCondition": {
+        "containsText": "APPROVED"
+      },
+      "steps": [
+        {
+          "type": "step",
+          "id": "design-draft",
+          "agent": "wf-design",
+          "prompt": "Elabore ou refine o design técnico detalhado atendendo aos requisitos abaixo:\n\n{{requirements.output}}",
+          "captureOutput": true
+        },
+        {
+          "type": "step",
+          "id": "design-review",
+          "agent": "wf-design-reviewer",
+          "prompt": "Revise criticamente o design abaixo quanto a arquitetura, riscos e simplicidade. Responda APPROVED se estiver aprovado, ou CHANGES REQUESTED com os ajustes necessários:\n\n{{design-draft.output}}",
+          "captureOutput": true
+        }
+      ]
+    },
+    {
+      "type": "step",
+      "id": "plan",
+      "agent": "wf-planner",
+      "prompt": "Quebre o design aprovado abaixo em um plano ordenado de implementação e testes verificáveis:\n\n{{design-draft.output}}",
+      "captureOutput": true
+    },
+    {
+      "type": "repeat",
+      "id": "code-loop",
       "maxIterations": 2,
       "onMaxIterations": "pause",
       "stopCondition": {
@@ -32,14 +64,53 @@
           "type": "step",
           "id": "implement",
           "agent": "wf-coder",
-          "prompt": "Implemente a feature seguindo o design abaixo e execute os testes:\n\n{{design.output}}",
+          "prompt": "Implemente a feature seguindo o plano abaixo e adicione os testes necessários:\n\n{{plan.output}}",
           "captureOutput": true
         },
         {
+          "type": "parallel",
+          "id": "code-reviews",
+          "join": "allSettled",
+          "branches": [
+            {
+              "type": "step",
+              "id": "review-correctness",
+              "agent": "semantic_reviewer",
+              "prompt": "Revise a corretude funcional, casos de borda e aderência aos requisitos:\n\n{{implement.output}}",
+              "captureOutput": true
+            },
+            {
+              "type": "step",
+              "id": "review-security",
+              "agent": "semantic_reviewer",
+              "prompt": "Revise segurança (injeção, XSS/CSP, SSRF, confinamento de path, Workspace Trust) nas alterações:\n\n{{implement.output}}",
+              "captureOutput": true
+            }
+          ]
+        },
+        {
           "type": "step",
-          "id": "review",
-          "agent": "wf-design-reviewer",
-          "prompt": "Revise a implementação abaixo quanto a corretude, segurança e testes. Responda APPROVED se estiver pronto, ou liste correções obrigatórias:\n\n{{previous.output}}",
+          "id": "code-aggregate",
+          "agent": "wf-review-aggregator",
+          "prompt": "Consolide os pareceres de revisão abaixo. Responda APPROVED se não houver bloqueios, ou CHANGES REQUESTED listando cada correção:\n\n{{previous.output}}",
+          "captureOutput": true
+        }
+      ]
+    },
+    {
+      "type": "repeat",
+      "id": "validate-gate",
+      "maxIterations": 1,
+      "onMaxIterations": "continue",
+      "stopCondition": {
+        "containsText": "PASSED"
+      },
+      "steps": [
+        {
+          "type": "step",
+          "id": "validate",
+          "agent": "wf-coder",
+          "prompt": "Execute a compilação e os testes automatizados finais do projeto. Responda PASSED se tudo passar sem erros:\n\n{{implement.output}}",
           "captureOutput": true
         }
       ]

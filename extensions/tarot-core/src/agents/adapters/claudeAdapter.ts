@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath, spawnStreaming } from '../processRunner';
 import { buildEffectivePrompt } from '../promptBuilder';
 import { AgentAdapter, AgentEvent, AgentModelOption, AgentRunRequest, AgentStatus } from '../types';
+import { parseClaudeStreamJsonLine } from './claudeStreamParser';
 
 export class ClaudeCodeAdapter implements AgentAdapter {
 	readonly id = 'claude' as const;
@@ -120,7 +121,7 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 					if (!trimmed) {
 						return;
 					}
-					if (this.handleStreamJsonLine(trimmed, onEvent, pendingToolUses)) {
+					if (parseClaudeStreamJsonLine(trimmed, onEvent, pendingToolUses, emittedText)) {
 						emittedText = true;
 						return;
 					}
@@ -148,68 +149,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 			onEvent({ type: 'error', content: err instanceof Error ? err.message : String(err) });
 		} finally {
 			onEvent({ type: 'done' });
-		}
-	}
-
-	private handleStreamJsonLine(line: string, onEvent: (event: AgentEvent) => void, pendingToolUses: Map<string, string>): boolean {
-		if (!line.startsWith('{')) {
-			return false;
-		}
-		try {
-			const payload = JSON.parse(line) as Record<string, unknown>;
-			const type = typeof payload.type === 'string' ? payload.type : '';
-
-			if (type === 'assistant') {
-				const message = payload.message as { content?: Array<{ type?: string; text?: string; name?: string; id?: string }> } | undefined;
-				let produced = false;
-				for (const block of message?.content ?? []) {
-					if (block.type === 'text' && block.text) {
-						onEvent({ type: 'text', content: block.text });
-						produced = true;
-					} else if (block.type === 'tool_use' && block.name) {
-						if (block.id) {
-							pendingToolUses.set(block.id, block.name);
-						}
-						onEvent({ type: 'tool_start', toolName: block.name });
-					}
-				}
-				return produced;
-			}
-
-			if (type === 'user') {
-				const message = payload.message as { content?: Array<{ type?: string; tool_use_id?: string; is_error?: boolean }> } | undefined;
-				for (const block of message?.content ?? []) {
-					if (block.type === 'tool_result' && block.tool_use_id) {
-						const toolName = pendingToolUses.get(block.tool_use_id);
-						pendingToolUses.delete(block.tool_use_id);
-						if (toolName) {
-							onEvent({ type: 'tool_end', toolName, metadata: { isError: !!block.is_error } });
-						}
-					}
-				}
-				return false;
-			}
-
-			if (type === 'content_block_delta') {
-				const delta = payload.delta as { text?: string } | undefined;
-				if (delta?.text) {
-					onEvent({ type: 'text', content: delta.text });
-					return true;
-				}
-			}
-
-			if (type === 'result') {
-				const resultText = typeof payload.result === 'string' ? payload.result : '';
-				if (payload.is_error && resultText) {
-					onEvent({ type: 'error', content: resultText });
-					return true;
-				}
-				return resultText.length > 0;
-			}
-
-			return false;
-		} catch {
-			return false;
 		}
 	}
 }

@@ -155,10 +155,44 @@
 
 		const messages = activeSession.messages || [];
 		if (messages.length === 0) {
-			const empty = document.createElement('div');
-			empty.className = 'empty-transcript';
-			empty.textContent = t('emptyTranscript');
-			transcriptEl.appendChild(empty);
+			const emptyWrap = document.createElement('div');
+			emptyWrap.className = 'empty-transcript';
+			const heading = document.createElement('div');
+			heading.className = 'empty-heading';
+			heading.textContent = t('emptyTranscript');
+			emptyWrap.appendChild(heading);
+
+			const grid = document.createElement('div');
+			grid.className = 'mode-picker-grid';
+			const starters = [
+				{ mode: 'spec', title: 'Spec', desc: 'Structured EARS requirements, design & tasks' },
+				{ mode: 'plan', title: 'Plan', desc: 'Read-only investigation & architecture plan' },
+				{ mode: 'vibe', title: 'Bug Fix', desc: 'Diagnose root cause, patch & verify tests', promptPrefix: 'Investigue e corrija o bug: ' },
+				{ mode: 'spec', title: 'Quick Spec', desc: 'Fast requirements + tasks in a single pass', promptPrefix: 'Crie uma Quick Spec para: ' },
+			];
+			for (const st of starters) {
+				const card = document.createElement('button');
+				card.type = 'button';
+				card.className = 'mode-card';
+				const ct = document.createElement('div');
+				ct.className = 'mode-card-title';
+				ct.textContent = st.title;
+				const cd = document.createElement('div');
+				cd.className = 'mode-card-desc';
+				cd.textContent = st.desc;
+				card.appendChild(ct);
+				card.appendChild(cd);
+				card.addEventListener('click', () => {
+					vscode.postMessage({ type: 'setMode', mode: st.mode });
+					if (st.promptPrefix) {
+						promptInput.value = st.promptPrefix;
+					}
+					promptInput.focus();
+				});
+				grid.appendChild(card);
+			}
+			emptyWrap.appendChild(grid);
+			transcriptEl.appendChild(emptyWrap);
 			return;
 		}
 
@@ -198,7 +232,11 @@
 
 			const body = document.createElement('div');
 			body.className = 'msg-content';
-			body.textContent = msg.content || '';
+			if (msg.role === 'assistant' && window.TarotSafeMarkdown) {
+				window.TarotSafeMarkdown.render(body, msg.content || '');
+			} else {
+				body.textContent = msg.content || '';
+			}
 			item.appendChild(body);
 			transcriptEl.appendChild(item);
 		}
@@ -360,15 +398,64 @@
 		}
 	});
 
+	let liveArticle = null;
+	let liveBodyEl = null;
+	let liveToolsEl = null;
+	let liveBuffer = '';
+
+	function handleLiveStream(payload) {
+		if (!payload || typeof payload.type !== 'string') { return; }
+		if (payload.type === 'streamStart') {
+			liveBuffer = '';
+			liveArticle = document.createElement('article');
+			liveArticle.className = 'msg-item assistant streaming';
+			liveToolsEl = document.createElement('div');
+			liveToolsEl.className = 'live-tools-strip';
+			liveBodyEl = document.createElement('div');
+			liveBodyEl.className = 'msg-content';
+			liveBodyEl.textContent = '…';
+			liveArticle.appendChild(liveToolsEl);
+			liveArticle.appendChild(liveBodyEl);
+			transcriptEl.appendChild(liveArticle);
+			sendBtn.textContent = t('stop');
+			transcriptEl.scrollTop = transcriptEl.scrollHeight;
+		} else if (payload.type === 'streamChunk' && liveBodyEl && payload.content) {
+			liveBuffer += String(payload.content);
+			if (window.TarotSafeMarkdown) {
+				window.TarotSafeMarkdown.render(liveBodyEl, liveBuffer);
+			} else {
+				liveBodyEl.textContent = liveBuffer;
+			}
+			transcriptEl.scrollTop = transcriptEl.scrollHeight;
+		} else if (payload.type === 'streamTool' && liveToolsEl && payload.toolName) {
+			const pill = document.createElement('span');
+			pill.className = 'meta-badge running-badge';
+			pill.textContent = `⚙ ${payload.toolName}`;
+			liveToolsEl.appendChild(pill);
+			transcriptEl.scrollTop = transcriptEl.scrollHeight;
+		} else if (payload.type === 'streamEnd') {
+			liveArticle = null;
+			liveBodyEl = null;
+			liveToolsEl = null;
+			liveBuffer = '';
+		}
+	}
+
 	window.addEventListener('message', event => {
 		const msg = event.data;
 		if (!msg || typeof msg !== 'object') { return; }
 		if (msg.type === 'state') {
 			state = msg;
+			liveArticle = null;
+			liveBodyEl = null;
+			liveToolsEl = null;
+			liveBuffer = '';
 			renderSessions();
 			renderTranscript();
 			renderComposerControls();
 			renderInspector();
+		} else if (msg.type === 'stream') {
+			handleLiveStream(msg.payload);
 		}
 	});
 

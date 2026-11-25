@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { TarotWorkflowRunStore } from '../workflows/runStore';
 import { WorkflowRunState } from '../workflows/workflowTypes';
-import { classifyRunGroup, filterWorkflowRuns, WorkflowRunGroupKey } from '../workflows/workflowViewHelpers';
+import { classifyRunGroup, filterWorkflowRuns, formatRelativeTime, WorkflowRunGroupKey } from '../workflows/workflowViewHelpers';
 
 export { classifyRunGroup, filterWorkflowRuns, WorkflowRunGroupKey };
 
@@ -94,13 +94,19 @@ export class WorkflowRunsTreeProvider implements vscode.TreeDataProvider<RunTree
 			stepItems,
 			run,
 		);
-		const ts = new Date(run.updatedAt || run.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		const relAge = formatRelativeTime(run.updatedAt || run.createdAt);
+		item.description = relAge;
+		item.iconPath = run.status === 'completed'
+			? new vscode.ThemeIcon('pass', new vscode.ThemeColor('testing.iconPassed'))
+			: run.status === 'running'
+				? new vscode.ThemeIcon('sync~spin', new vscode.ThemeColor('charts.purple'))
+				: run.status === 'paused'
+					? new vscode.ThemeIcon('warning', new vscode.ThemeColor('editorWarning.foreground'))
+					: run.status === 'failed' || run.status === 'aborted'
+						? new vscode.ThemeIcon('error', new vscode.ThemeColor('testing.iconFailed'))
+						: arcanaIcon(this.extensionUri, '10-wheel-of-fortune.svg');
 		const doneCount = steps.filter(s => s.status === 'completed').length;
-		item.description = `${run.status}${run.pauseReason ? ` (${run.pauseReason})` : ''} · ${doneCount}/${steps.length} · ${ts}`;
-		item.iconPath = run.recipeName === 'publish-pr'
-			? arcanaIcon(this.extensionUri, '17-the-star.svg')
-			: arcanaIcon(this.extensionUri, '10-wheel-of-fortune.svg');
-		item.tooltip = `${run.recipeName}\nID: ${run.id}\nStatus: ${run.status}${run.pauseReason ? ` (${run.pauseReason})` : ''}`;
+		item.tooltip = `${run.recipeName}\nID: ${run.id}\nStatus: ${run.status}${run.pauseReason ? ` (${run.pauseReason})` : ''}\nSteps: ${doneCount}/${steps.length}`;
 		item.command = {
 			command: 'tarot.workflows.openRun',
 			title: vscode.l10n.t('Open Workflow Run'),

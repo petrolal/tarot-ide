@@ -70,16 +70,36 @@ export class TarotFocusModeManager implements vscode.Disposable {
 		return this.panel !== undefined;
 	}
 
+	private sidebarsClosedByFocus = false;
+
 	async toggle(): Promise<boolean> {
 		if (this.panel) {
 			this.panel.dispose();
 			this.panel = undefined;
-			await vscode.commands.executeCommand('workbench.action.openAuxiliaryBar');
+			await this.restoreSidebars();
 			return false;
 		}
 		await this.open();
+		this.sidebarsClosedByFocus = true;
+		await vscode.commands.executeCommand('workbench.action.closeSidebar');
 		await vscode.commands.executeCommand('workbench.action.closeAuxiliaryBar');
 		return true;
+	}
+
+	private async restoreSidebars(): Promise<void> {
+		if (!this.sidebarsClosedByFocus) {
+			return;
+		}
+		this.sidebarsClosedByFocus = false;
+		await vscode.commands.executeCommand('workbench.action.toggleSidebarVisibility');
+		await vscode.commands.executeCommand('workbench.action.openAuxiliaryBar');
+	}
+
+	postStreamEvent(payload: Record<string, unknown>): void {
+		if (!this.panel) {
+			return;
+		}
+		void this.panel.webview.postMessage({ type: 'stream', payload });
 	}
 
 	async open(): Promise<void> {
@@ -116,6 +136,7 @@ export class TarotFocusModeManager implements vscode.Disposable {
 			msgSub.dispose();
 			disposeSub.dispose();
 			this.panel = undefined;
+			void this.restoreSidebars();
 		});
 
 		await this.postState();
@@ -310,6 +331,7 @@ export class TarotFocusModeManager implements vscode.Disposable {
 	private buildHtml(webview: vscode.Webview): string {
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'focusMode.css'));
+		const mdUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'safeMarkdown.js'));
 		const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'focusMode.js'));
 
 		const rawL10n = {
@@ -456,6 +478,7 @@ export class TarotFocusModeManager implements vscode.Disposable {
 		</aside>
 	</div>
 	<script nonce="${nonce}">window.__tarotFocusL10n = ${l10nPayload};</script>
+	<script nonce="${nonce}" src="${mdUri}"></script>
 	<script nonce="${nonce}" src="${jsUri}"></script>
 </body>
 </html>`;

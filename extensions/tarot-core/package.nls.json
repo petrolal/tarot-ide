@@ -23,7 +23,7 @@
 	"view.skills.name": "Agent Skills",
 	"view.customAgents.name": "Custom Agents",
 	"view.crewmates.name": "Crewmates",
-	"view.crewTasks.name": "Task Runner (TASK.md)",
+	"view.crewTasks.name": "Autonomous Tasks",
 	"view.crewMemory.name": "Memory & Knowledge",
 	"view.crewSchedules.name": "Schedules",
 	"view.crewChannels.name": "Automation & Channels",

@@ -376,6 +376,11 @@
           "command": "tarot.crew.remote.add",
           "when": "view == tarot.views.crewChannels",
           "group": "navigation@3"
+        },
+        {
+          "command": "tarot.agent.toggleFocusMode",
+          "when": "view == tarot.views.agentPanel",
+          "group": "navigation@1"
         }
       ],
       "editor/context": [
@@ -593,6 +598,11 @@
         "command": "workbench.action.toggleAuxiliaryBar",
         "key": "ctrl+alt+b",
         "mac": "cmd+alt+b"
+      },
+      {
+        "command": "tarot.agent.toggleFocusMode",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m"
       }
     ],
     "configurationDefaults": {

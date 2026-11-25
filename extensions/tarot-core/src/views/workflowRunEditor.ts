@@ -137,6 +137,7 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 	private buildHtml(webview: vscode.Webview, recipeName: string): string {
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'workflow.css'));
+		const mdUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'safeMarkdown.js'));
 		const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'webview', 'workflow.js'));
 		const l10nPayload = JSON.stringify({
 			goToActive: vscode.l10n.t('Go to active'),
@@ -148,7 +149,8 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 			messagePlaceholder: vscode.l10n.t("Message this step's agent (answers a paused step or steers the next turn)..."),
 			send: vscode.l10n.t('Send'),
 			noOutputYet: vscode.l10n.t('No output captured for this step yet.'),
-			selectStepHint: vscode.l10n.t('Select a step on the left to inspect its transcript.'),
+			selectStepHint: vscode.l10n.t('Click any step above to inspect its formatted output or steer its agent.'),
+			closeInspector: vscode.l10n.t('Close'),
 		}).replace(/</g, '\\u003c');
 
 		return `<!DOCTYPE html>
@@ -164,31 +166,42 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 	<div class="wf-shell">
 		<header class="wf-header">
 			<div class="wf-header-left">
-				<span id="wf-title" class="wf-title"></span>
-				<span id="wf-status-pill" class="wf-pill"></span>
+				<h1 id="wf-title" class="wf-title"></h1>
+				<div id="wf-subtitle" class="wf-subtitle"></div>
 			</div>
-			<div class="wf-controls">
-				<button id="btn-go-active" class="wf-btn" type="button"></button>
-				<label class="wf-follow-toggle"><input id="chk-follow" type="checkbox" checked /><span id="lbl-follow"></span></label>
-				<button id="btn-pause" class="wf-btn" type="button"></button>
-				<button id="btn-resume" class="wf-btn primary hidden" type="button"></button>
-				<button id="btn-add-loops" class="wf-btn accent hidden" type="button"></button>
-				<button id="btn-stop" class="wf-btn danger" type="button"></button>
+			<div class="wf-header-right">
+				<span id="wf-status-pill" class="wf-pill"></span>
+				<div class="wf-controls">
+					<button id="btn-go-active" class="wf-btn" type="button"></button>
+					<label class="wf-follow-toggle"><input id="chk-follow" type="checkbox" checked /><span id="lbl-follow"></span></label>
+					<button id="btn-pause" class="wf-btn" type="button"></button>
+					<button id="btn-resume" class="wf-btn primary hidden" type="button"></button>
+					<button id="btn-add-loops" class="wf-btn accent hidden" type="button"></button>
+					<button id="btn-stop" class="wf-btn danger" type="button"></button>
+				</div>
 			</div>
 		</header>
 		<div class="wf-body">
-			<aside id="wf-step-tree" class="wf-tree" role="tree"></aside>
-			<section class="wf-transcript-pane">
-				<div id="wf-step-header" class="wf-step-header"></div>
-				<pre id="wf-step-output" class="wf-step-output"></pre>
+			<main class="wf-timeline-pane">
+				<div id="wf-steps-heading" class="wf-steps-heading"></div>
+				<div id="wf-step-tree" class="wf-timeline" role="tree"></div>
+			</main>
+			<aside id="wf-inspector" class="wf-transcript-pane hidden">
+				<div class="wf-step-header-bar">
+					<div id="wf-step-header" class="wf-step-header"></div>
+					<button id="btn-close-inspector" class="wf-btn" type="button"></button>
+				</div>
+				<div id="wf-step-output" class="wf-step-output"></div>
 				<div class="wf-composer">
 					<input id="wf-msg-input" class="wf-msg-input" type="text" />
 					<button id="wf-msg-send" class="wf-btn primary" type="button"></button>
 				</div>
-			</section>
+			</aside>
 		</div>
+		<button id="wf-fab" class="wf-fab hidden" type="button" aria-label="Workflow Action"></button>
 	</div>
 	<script nonce="${nonce}">window.__tarotWfL10n = ${l10nPayload};</script>
+	<script nonce="${nonce}" src="${mdUri}"></script>
 	<script nonce="${nonce}" src="${jsUri}"></script>
 </body>
 </html>`;
