@@ -202,18 +202,19 @@ extensions/tarot-core/
 │   ├── logo.png                        # Logotipo "TAROT IDE — ARCANA CODE ENVIRONMENT"
 │   ├── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
 │   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar (preservado intacto)
+│   ├── tarot-{workflows,powers,skills,crew}-icon.svg # Ícones monocromáticos dos 4 novos containers dedicados da Activity Bar (Workflows, Powers, Skills & Agents, Tarot Crew)
 │   ├── arcana/{*.png,arcana-manifest.json} # Adição complementar: 8 cartas ilustradas dos Arcanos Maiores + manifesto
 │   └── webview/{panel,workflow,focusMode}.{css,js} # UIs CSP-estritas (zero innerHTML) do Painel Agêntico, Workflow Run Editor e Tarot Agent Mode (3 painéis)
 ├── recipes/                            # M3.9a/b — 7 recipes bundled (*.workflow.json: investigate, feature-pipeline, publish-pr, semantic-review-multi-model, autoresearch, goal, ralph)
-├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.*, submenus, keybindings, walkthrough)
+├── package.json                        # Manifesto (tema, ícones, 5 containers na Activity Bar esquerda + Secondary Side Bar direita, comandos e settings tarot.*, submenus, keybindings, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
 ├── themes/
 │   ├── tarot-dark-color-theme.json     # Tema oficial "Tarot Arcana Dark" (base grafite-violeta neutra sem faixa em L + sintaxe Kiro)
 │   └── tarot-light-color-theme.json    # Tema oficial "Tarot Arcana Light" (UI + TextMate + Semantic)
 ├── tsconfig.json                       # Estende ../tsconfig.base.json + src/vscode-dts/vscode.d.ts
 └── src/
-    ├── extension.ts                    # Bootstrap, composição de serviços, registro das 7 TreeViews + WebviewView + comandos base + KeyedHookQueue
-    ├── commands/                       # Registradores de comandos por domínio (`workflowCommands.ts`, `specCommands.ts`, `scheduleAndLessonsCommands.ts`)
+    ├── extension.ts                    # Bootstrap, composição de serviços, registro das 15 TreeViews (5 containers na Activity Bar) + WebviewView + comandos base + KeyedHookQueue
+    ├── commands/                       # Registradores de comandos por domínio (`workflowCommands.ts`, `specCommands.ts`, `scheduleAndLessonsCommands.ts`, `powersAndSkillsCommands.ts`, `crewCommands.ts`)
     ├── config/tarotConfig.ts           # Leitura tipada de configurações tarot.agents.*
     ├── agents/
     │   ├── types.ts                    # Contratos AgentAdapter (com listModels), AgentStatus, AgentEvent, AgentModelOption, ReasoningEffort, ContextProviderKind
@@ -228,9 +229,11 @@ extensions/tarot-core/
     │   ├── subagentManager.ts          # M3.8b — Herança estrita de permissões (evaluateSubagentCapability), validação de DAG imutável/review loops e execução paralela por onda (runSubagentDag)
     │   └── adapters/                   # claudeAdapter, agyAdapter (--mode auto/accept-edits/plan + agyStreamParser), codexAdapter, customAdapter, acpAdapter + acpParser (JSON-RPC 2.0 sobre stdio)
     ├── skills/
-    │   └── skillsService.ts            # M3.8b — Agent Skills (SKILL.md), progressive disclosure (/nome, $nome, match por tópico), importação por pasta local ou URL GitHub/GitLab
+    │   └── skillsService.ts            # M3.8b + Activity Bar — Agent Skills (SKILL.md), progressive disclosure (/nome, $nome, match por tópico), criação de scaffold e importação por pasta local ou URL GitHub/GitLab
     ├── powers/
-    │   └── powersService.ts            # M3.8b — Agent Plugins (plugin.json + skills/ + mcp.json), ativação sob demanda por keywords e desativação ao mudar de assunto
+    │   └── powersService.ts            # M3.8b + Activity Bar — Agent Plugins (plugin.json + fallback POWER.md + skills/ + mcp.json), catálogo curado offline (5 starter Powers), instalação (catálogo/Git/local), criação/desinstalação segura e ativação sob demanda (/power:<id>, #<id>, keywords)
+    ├── crew/
+    │   └── crewService.ts              # Paridade Kiro Crew — Crewmates persistentes (crewmate.json, memory.md, Work Ledger ledger.jsonl), camadas de memória (preferences.md, projects.md, history/), Knowledge Library local indexada sob demanda e parser/template TASK.md
     ├── mcp/
     │   └── mcpConfigService.ts         # M3.8b — Descoberta hierárquica (.tarot/settings/mcp.json + ~/.tarot/settings/mcp.json), stdio + remote, redação de segredos em formatMcpContext
     ├── context/

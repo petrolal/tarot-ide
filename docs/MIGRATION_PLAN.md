@@ -13,9 +13,9 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | ✅ **Concluída (M3.1–M3.10 ✅)** | — |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy` + Activity Bar 5 containers + Tarot Crew local)** | ✅ **Concluída (M3.1–M3.10 + Crew Core ✅)** | — |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | **Sim — iniciar Fase 4** |
-| **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
+| **Fase 5** | *(Opcional)* Tarot Crew Avançado: webhooks, heartbeat contínuo, Apps SDK, gateways Slack/Discord/Telegram/Teams e instâncias remotas SSH | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
 ---
@@ -312,6 +312,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 - **Critérios de Aceite (DoD)**:
   - [x] Job cron cria sessão própria, registra log e gera notificação/digest. *(`schedule/{cronParser,scheduleService}.ts` + `commands/scheduleAndLessonsCommands.ts`: cron 5 campos com fuso horário, `excludeDates`, `jitterSec`, `timeoutSec`, ação `command` (0 tokens) ou `agent` (sessão própria + checkpoint), logs em `.tarot/schedules/runs/` e digests Markdown em `.tarot/schedules/digests/` + toast `Open Digest`; coberto por `scheduleService.test.ts`.)*
   - [x] Correção do usuário gera lição editável em `.tarot/steering/` e **Audit / Prune Steering** identifica regras obsoletas/redundantes. *(`steering/lessonsService.ts` + comandos `tarot.lessons.record`, `tarot.lessons.promoteToSkill` e `tarot.steering.audit` detectando regras redundantes, workarounds obsoletos de modelos antigos, arquivos vazios e frontmatter inválido com opção de abrir ou podar; coberto por `lessonsService.test.ts`.)*
+  - [x] **Paridade Activity Bar Kiro IDE + Tarot Crew**: barra lateral esquerda separada em 5 containers dedicados com SVGs monocromáticos (`Tarot`, `Workflows`, `Powers`, `Skills & Agents`, `Tarot Crew`), incluindo UI completa de Powers (Installed + Available starter catalog + Power Detail WebviewPanel CSP-estrito + install Git/local/create/uninstall + `POWER.md`), TreeViews dedicadas de Agent Skills e Custom Agents, e **Tarot Crew** (Crewmates + Dashboard WebviewPanel + Work Ledger JSONL + Persistent Memory + Knowledge Library local com scan explícito + Autonomous `TASK.md` Task Runner + visual Schedules TreeView); coberto por `powersAndCrew.test.ts`.
 
 ---
 
@@ -324,7 +325,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 | `send_message`, pause/resume | Nativos do harness | MCP próprio + *session resume* por adaptador (ver M3.9a) |
 | Créditos por step | Exibidos no card do run | Exibir tokens/tempo quando o CLI reportar |
 | Worktrees | Workflows não isolam; IDE usa a branch atual ou worktree | `git/worktreeManager.ts` gerenciado por onda/sessão/run (M3.6.7+) |
-| Crew / bots / mensageria | Produto separado | Fase 5 opcional |
+| Crew / bots / mensageria | Produto separado (`kiro.dev/crew`) | Núcleo local já no IDE (`src/crew/`, Activity Bar `Tarot Crew`); gateways/mensageria externa na Fase 5 |
 
 ---
 
@@ -408,9 +409,14 @@ pnpm exec gulp vscode-linux-x64-build-rpm
 
 ---
 
-## Fase 5 *(opcional)* — "Tarot Crew": Bots, Webhooks, Heartbeat, Apps e Gateways
-- **Referência**: Crew = workspace persistente com **bots** (agentes nomeados com memória, objetivos, check-ins e dashboard próprios), webhooks autenticados, *heartbeat* de PRs/deploys, **Apps SDK**, dashboards, base de conhecimento (embeddings + full-text), 8 camadas de defesa (sandbox de processo, aprovação de tools, bloqueio de caminhos sensíveis, comandos negados, validação MCP, redação de saída, auditoria assinada), superfícies Slack/Discord/Telegram/Teams/Webex e instâncias remotas por SSH.
-- **Decisão de produto**: fora do núcleo do IDE. Avaliar interoperar via **ACP (Agent Client Protocol)** como adaptador de agente adicional e, depois, gateways de mensagens.
+## Fase 5 *(opcional)* — Tarot Crew Avançado: Webhooks, Heartbeat, Apps SDK e Gateways
+- **Referência**: `kiro.dev/crew` (workspace persistente com crewmates, memória em camadas, Knowledge Library, `TASK.md`, webhooks autenticados, *heartbeat* de PRs/deploys, **Apps SDK**, superfícies Slack/Discord/Telegram/Teams/Webex e instâncias remotas por SSH).
+- **Checklist de Progresso**:
+  - [x] **Núcleo Local no IDE (`extensions/tarot-core/src/crew/`, `views/crewView.ts`, `commands/crewCommands.ts`)**: container dedicado `Tarot Crew` na Activity Bar, Crewmates persistentes (`crewmate.json`, `memory.md`, Work Ledger `ledger.jsonl`, favoritos `★`), **Crewmate Dashboard WebviewPanel** (CSP estrita), camadas de memória (`preferences.md`, `projects.md`, `history/YYYY-MM-DD.md`, `learned-lessons.md`), **Knowledge Library local** com confirmação explícita de scan e busca lexical, **Autonomous Task Runner (`TASK.md`)** com revisão de `git diff` e até 3 tentativas, e **Schedules TreeView** visual sobre M3.10.
+  - [ ] **Daemon / Heartbeat contínuo**: loop em background monitorando PRs, deploys e alertas com notificações e digests automáticos mesmo fora de um turno manual.
+  - [ ] **Webhooks autenticados & Gateways omnichannel**: conectores opcionais (Slack, Discord, Telegram, Teams) + servidor local/remoto autenticado.
+  - [ ] **Embeddings vetoriais / Knowledge Cloud**: busca semântica híbrida opcional (embeddings locais ou conectores externos opt-in).
+  - [ ] **Apps SDK & Instâncias Remotas SSH**: SDK para micro-apps customizados no painel Crew e gerenciamento de Crew remoto via SSH.
 
 ---
 
