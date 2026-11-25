@@ -233,7 +233,11 @@ extensions/tarot-core/
     ├── powers/
     │   └── powersService.ts            # M3.8b + Activity Bar — Agent Plugins (plugin.json + fallback POWER.md + skills/ + mcp.json), catálogo curado offline (5 starter Powers), instalação (catálogo/Git/local), criação/desinstalação segura e ativação sob demanda (/power:<id>, #<id>, keywords)
     ├── crew/
-    │   └── crewService.ts              # Paridade Kiro Crew — Crewmates persistentes (crewmate.json, memory.md, Work Ledger ledger.jsonl), camadas de memória (preferences.md, projects.md, history/), Knowledge Library local indexada sob demanda e parser/template TASK.md
+    │   ├── crewService.ts              # Paridade Kiro Crew — Crewmates persistentes (crewmate.json, memory.md, Work Ledger ledger.jsonl), camadas de memória (preferences.md, projects.md, history/), Knowledge Library local indexada sob demanda e parser/template TASK.md
+    │   ├── semanticIndex.ts            # Fase 5 — Motor de busca semântica híbrida local (BM25 + embeddings vetoriais 128d cosseno + Reciprocal Rank Fusion)
+    │   ├── heartbeatService.ts         # Fase 5 — Heartbeat Daemon periódico (git-status, git-branch, comandos validados por política) com logs JSONL e alertas deduplicados
+    │   ├── gatewayService.ts           # Fase 5 — Servidor local de Webhooks (127.0.0.1, HMAC-SHA256) + gateways Slack/Discord/Telegram/Teams (segredos em SecretStorage + anti-SSRF)
+    │   └── appsAndRemoteService.ts     # Fase 5 — Crew Apps SDK (.tarot/crew/apps/*/app.json) e instâncias remotas SSH (.tarot/crew/remotes.json, BatchMode=yes, shell: false)
     ├── mcp/
     │   └── mcpConfigService.ts         # M3.8b — Descoberta hierárquica (.tarot/settings/mcp.json + ~/.tarot/settings/mcp.json), stdio + remote, redação de segredos em formatMcpContext
     ├── context/

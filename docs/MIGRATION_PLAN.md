@@ -15,7 +15,7 @@
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
 | **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy` + Activity Bar 5 containers + Tarot Crew local)** | ✅ **Concluída (M3.1–M3.10 + Crew Core ✅)** | — |
 | **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | **Sim — iniciar Fase 4** |
-| **Fase 5** | *(Opcional)* Tarot Crew Avançado: webhooks, heartbeat contínuo, Apps SDK, gateways Slack/Discord/Telegram/Teams e instâncias remotas SSH | 💤 Backlog | Após Fase 4 |
+| **Fase 5** | Tarot Crew Avançado: Heartbeat Daemon, Webhooks HMAC, Gateways Omnichannel, Busca Semântica Híbrida, Apps SDK e Remote SSH | ✅ **Concluída** | — |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
 ---
@@ -409,14 +409,14 @@ pnpm exec gulp vscode-linux-x64-build-rpm
 
 ---
 
-## Fase 5 *(opcional)* — Tarot Crew Avançado: Webhooks, Heartbeat, Apps SDK e Gateways
-- **Referência**: `kiro.dev/crew` (workspace persistente com crewmates, memória em camadas, Knowledge Library, `TASK.md`, webhooks autenticados, *heartbeat* de PRs/deploys, **Apps SDK**, superfícies Slack/Discord/Telegram/Teams/Webex e instâncias remotas por SSH).
+## Fase 5 — Tarot Crew Avançado: Webhooks, Heartbeat, Busca Híbrida, Apps SDK e Remote SSH — ✅ Concluída
+- **Referência**: `kiro.dev/crew` (workspace persistente com crewmates, memória em camadas, Knowledge Library, `TASK.md`, webhooks autenticados, *heartbeat* de PRs/deploys, **Apps SDK**, superfícies Slack/Discord/Telegram/Teams e instâncias remotas por SSH).
 - **Checklist de Progresso**:
-  - [x] **Núcleo Local no IDE (`extensions/tarot-core/src/crew/`, `views/crewView.ts`, `commands/crewCommands.ts`)**: container dedicado `Tarot Crew` na Activity Bar, Crewmates persistentes (`crewmate.json`, `memory.md`, Work Ledger `ledger.jsonl`, favoritos `★`), **Crewmate Dashboard WebviewPanel** (CSP estrita), camadas de memória (`preferences.md`, `projects.md`, `history/YYYY-MM-DD.md`, `learned-lessons.md`), **Knowledge Library local** com confirmação explícita de scan e busca lexical, **Autonomous Task Runner (`TASK.md`)** com revisão de `git diff` e até 3 tentativas, e **Schedules TreeView** visual sobre M3.10.
-  - [ ] **Daemon / Heartbeat contínuo**: loop em background monitorando PRs, deploys e alertas com notificações e digests automáticos mesmo fora de um turno manual.
-  - [ ] **Webhooks autenticados & Gateways omnichannel**: conectores opcionais (Slack, Discord, Telegram, Teams) + servidor local/remoto autenticado.
-  - [ ] **Embeddings vetoriais / Knowledge Cloud**: busca semântica híbrida opcional (embeddings locais ou conectores externos opt-in).
-  - [ ] **Apps SDK & Instâncias Remotas SSH**: SDK para micro-apps customizados no painel Crew e gerenciamento de Crew remoto via SSH.
+  - [x] **Núcleo Local no IDE (`extensions/tarot-core/src/crew/`, `views/crewView.ts`, `commands/crewCommands.ts`)**: container dedicado `Tarot Crew` na Activity Bar, Crewmates persistentes (`crewmate.json`, `memory.md`, Work Ledger `ledger.jsonl`, favoritos `★`), **Crewmate Dashboard WebviewPanel** (CSP estrita), camadas de memória (`preferences.md`, `projects.md`, `history/YYYY-MM-DD.md`, `learned-lessons.md`), **Knowledge Library local** com confirmação explícita de scan, **Autonomous Task Runner (`TASK.md`)** com revisão de `git diff` e até 3 tentativas, e **Schedules TreeView** visual sobre M3.10.
+  - [x] **Daemon / Heartbeat contínuo (`src/crew/heartbeatService.ts`)**: loop periódico não-sobreposto sobre `.tarot/crew/heartbeat.json` (`git-status`, `git-branch` e comandos validados por `TarotPermissionsService`), persistência em `.tarot/crew/heartbeats/heartbeat-YYYY-MM-DD.jsonl` e deduplicação de alertas com entrega opcional via Gateways.
+  - [x] **Webhooks autenticados & Gateways omnichannel (`src/crew/gatewayService.ts`)**: servidor local `127.0.0.1` opt-in com autenticação **HMAC-SHA256** (`X-Tarot-Signature`, `timingSafeEqual`, limite 64 KB) + conectores Slack, Discord, Telegram e Microsoft Teams com segredos exclusivamente em `vscode.SecretStorage` e validação anti-SSRF (`validateSafeHttpsUrl`).
+  - [x] **Busca Semântica Híbrida local (`src/crew/semanticIndex.ts`)**: motor local BM25 + embeddings vetoriais de 3-gramas/unigramas (128 dims, cosseno) combinados via **Reciprocal Rank Fusion (RRF)** integrado ao `TarotCrewService.queryKnowledge`.
+  - [x] **Apps SDK & Instâncias Remotas SSH (`src/crew/appsAndRemoteService.ts`, `views/crewAutomationView.ts`, `commands/crewAutomationCommands.ts`)**: micro-apps declarativos `.tarot/crew/apps/<id>/app.json` com **Crew App WebviewPanel** (CSP estrita, zero `innerHTML`, ações de comando sujeitas a Trust + `TarotPermissionsService`) e perfis SSH em `.tarot/crew/remotes.json` com validação anti-option-injection e execução via `ssh -o BatchMode=yes` (`shell: false`); coberto por `crewPhase5.test.ts`.
 
 ---
 
