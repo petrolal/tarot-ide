@@ -34,8 +34,8 @@ import { HookDefinition } from '../hooks/hookTypes';
 import { TarotMcpConfigService } from '../mcp/mcpConfigService';
 import { TarotPermissionsService } from '../permissions/permissionsService';
 import { describeAdvisoryTranslation, getEnforcementKind } from '../permissions/policyEngine';
-import { matchPowersForPrompt, TarotPowersService } from '../powers/powersService';
-import { resolveSkillsForPrompt, TarotSkillsService } from '../skills/skillsService';
+import { TarotPowersService } from '../powers/powersService';
+import { TarotSkillsService } from '../skills/skillsService';
 import { SpecCreationKind, SpecPhase, TarotSpecService } from '../specs/specService';
 import { mergeTasksMarkdown } from '../specs/specSync';
 import { computeTaskCheckpointKey, recordTaskCheckpoint } from '../specs/specTaskCheckpoints';
@@ -44,6 +44,7 @@ import { runTaskWaves } from '../specs/taskRunner';
 import { TarotSteeringService } from '../steering/steeringService';
 import { buildAgentPanelHtml } from './panelHtml';
 import { isWebviewIncomingMessage, WebviewIncomingMessage } from './panelProtocol';
+import { assembleTurnSystemContext } from './turnContextBuilder';
 
 const SELECTED_MODEL_STATE_KEY = 'tarot.selectedModel';
 const SELECTED_EFFORT_STATE_KEY = 'tarot.selectedEffort';
@@ -1318,87 +1319,22 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		this.postMessage({ type: 'streamStart', agentId, agentName: adapter.displayName, sessionId: session.id });
 
 		const activeProfile = this.agentProfiles.find(p => p.id === this.activeProfileId);
-
-		// Steering, Skills, Powers and Custom Agents under `.tarot/` are never loaded in an
-		// untrusted workspace (AGENTS.md §2d / MIGRATION_PLAN.md M3.8a-b).
-		const steeringResolution = vscode.workspace.isTrusted
-			? await this.steeringService.resolveForTurn({
-				workspaceRoot: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath,
+		const { systemContext: steeringContext, appliedSteering } = await assembleTurnSystemContext(
+			{
+				steeringService: this.steeringService,
+				powersService: this.powersService,
+				skillsService: this.skillsService,
+				mcpConfigService: this.mcpConfigService,
+			},
+			{
+				workspaceRoot,
 				prompt,
+				activeProfile,
 				activeFiles: this.collectActiveFilePaths(requestAttachments),
 				attachments: requestAttachments,
-			})
-			: { applied: [] };
-
-		const systemContextSections: string[] = [];
-		if (activeProfile && activeProfile.origin !== 'builtIn') {
-			const lines: string[] = [`### Active Custom Agent: ${activeProfile.name} (${activeProfile.origin})`];
-			if (activeProfile.tools && activeProfile.tools.length > 0) {
-				lines.push(`Allowed tools: ${activeProfile.tools.join(', ')}`);
-			}
-			if (activeProfile.excludedTools && activeProfile.excludedTools.length > 0) {
-				lines.push(`Excluded tools (do not use): ${activeProfile.excludedTools.join(', ')}`);
-			}
-			if (activeProfile.prompt) {
-				lines.push(activeProfile.prompt);
-			}
-			// Inject declared `file://` resources (strictly confined to workspaceRoot when trusted).
-			if (vscode.workspace.isTrusted && activeProfile.resources && activeProfile.resources.length > 0 && workspaceRoot) {
-				const rootAbs = path.resolve(workspaceRoot);
-				for (const resUri of activeProfile.resources) {
-					if (resUri.startsWith('file://')) {
-						const rel = resUri.slice('file://'.length).replace(/^\/+/, '');
-						const target = path.resolve(rootAbs, rel);
-						if (target.startsWith(rootAbs + path.sep)) {
-							const text = await fs.readFile(target, 'utf8').catch(() => undefined);
-							if (text) {
-								lines.push(`\n#### Resource: ${rel}\n${text.slice(0, 8_000)}`);
-							}
-						}
-					}
-				}
-			}
-			systemContextSections.push(lines.join('\n'));
-		}
-
-		if (steeringResolution.formattedContext) {
-			systemContextSections.push(steeringResolution.formattedContext);
-		}
-
-		if (vscode.workspace.isTrusted) {
-			const wsRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			const powerActivation = activeProfile?.includePowers !== false
-				? matchPowersForPrompt(await this.powersService.discover(wsRoot), prompt)
-				: { activePowers: [], skills: [], mcpServers: [] };
-			if (powerActivation.summaryContext) {
-				systemContextSections.push(powerActivation.summaryContext);
-			}
-			const skills = await this.skillsService.discover(wsRoot, powerActivation.skills);
-			const profileSkillIds = (activeProfile?.resources ?? [])
-				.filter(r => r.startsWith('skill://'))
-				.map(r => r.slice('skill://'.length).trim())
-				.filter(Boolean);
-			const combinedSkillIds = [...(options?.explicitSkillIds ?? []), ...profileSkillIds];
-			const skillsResolution = resolveSkillsForPrompt(skills, prompt, {
-				explicitSkillIds: combinedSkillIds.length > 0 ? combinedSkillIds : undefined,
-			});
-			if (skillsResolution.catalogContext) {
-				systemContextSections.push(skillsResolution.catalogContext);
-			}
-			if (skillsResolution.activeContext) {
-				systemContextSections.push(skillsResolution.activeContext);
-			}
-			if (activeProfile?.includeMcpJson !== false) {
-				const { servers } = await this.mcpConfigService.discover(wsRoot, powerActivation.mcpServers);
-				const enabledServers = servers.filter(s => s.enabled);
-				if (enabledServers.length > 0) {
-					systemContextSections.push(`Configured MCP Servers: ${enabledServers.map(s => `${s.name} (${s.transport})`).join(', ')}`);
-				}
-			}
-		}
-
-		const steeringContext = systemContextSections.length > 0 ? systemContextSections.join('\n\n') : undefined;
-		const appliedSteering = steeringResolution.applied.map(item => item.label);
+				explicitSkillIds: options?.explicitSkillIds,
+			},
+		);
 		// Same Workspace Trust gate as Steering above — a cloned repo's .tarot/specs/** must not
 		// auto-inject content before the user has trusted the workspace.
 		const specContext = vscode.workspace.isTrusted ? await this.resolveActiveSpecContext(workspaceRoot) : undefined;

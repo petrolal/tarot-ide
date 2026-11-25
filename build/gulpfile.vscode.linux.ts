@@ -23,7 +23,10 @@ const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 const linuxDesktopName = product.linuxDesktopName;
-const copilotLinkHelper = readFileSync(path.join(root, 'resources/linux/copilot-link.sh'), 'utf8');
+const hasDefaultChatAgent = Boolean((product as { defaultChatAgent?: unknown }).defaultChatAgent);
+const copilotLinkHelper = hasDefaultChatAgent
+	? readFileSync(path.join(root, 'resources/linux/copilot-link.sh'), 'utf8')
+	: '# Tarot IDE: Copilot CLI symlink disabled\nvscode_copilot_link() { :; }';
 const rpmCopilotLinkHelper = copilotLinkHelper.replace(/%/g, '%%');
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);

@@ -43,8 +43,9 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const copilotRuntimeVersion = getCopilotRuntimeVersion(path.join(root, 'node_modules'));
-if (packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
+const hasDefaultChatAgent = Boolean((product as { defaultChatAgent?: unknown }).defaultChatAgent);
+const copilotRuntimeVersion = hasDefaultChatAgent ? getCopilotRuntimeVersion(path.join(root, 'node_modules')) : undefined;
+if (hasDefaultChatAgent && packageJson.copilotRuntimeVersion !== copilotRuntimeVersion) {
 	throw new Error(`package.json declares Copilot runtime ${packageJson.copilotRuntimeVersion}, but @microsoft/copilot-sdk bundles ${copilotRuntimeVersion}.`);
 }
 
@@ -204,10 +205,12 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				json.date = readISODate(out);
 				json.checksums = checksums;
 				json.version = version;
-				json.copilotVersions = {
-					runtime: copilotRuntimeVersion,
-					sdk: getLockedPackageVersion('@microsoft/copilot-sdk'),
-				};
+				if (hasDefaultChatAgent && copilotRuntimeVersion) {
+					json.copilotVersions = {
+						runtime: copilotRuntimeVersion,
+						sdk: getLockedPackageVersion('@microsoft/copilot-sdk'),
+					};
+				}
 				// Stamp agentSdks from the per-platform results file produced
 				// by `build/agent-sdk/produce.ts` (an earlier pipeline step).
 				// Local dev: file absent → empty → not stamped.
@@ -251,13 +254,17 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(depFilterPattern))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)));
-		ensureCopilotPlatformPackage(platform, arch);
-		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		if (hasDefaultChatAgent) {
+			ensureCopilotPlatformPackage(platform, arch);
+		}
+		const copilotRuntimePrebuilds = hasDefaultChatAgent
+			? gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true })
+			: es.readArray([]);
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		// `cleanedDeps` has already dropped dot files; keep those of the platform packages, such as SDK plugin manifests.
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(hasDefaultChatAgent ? getCopilotExcludeFilter(platform, arch) : ['**', '!**/@microsoft/copilot-sdk*/**', '!**/@github/copilot*/**'], { dot: true }))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch), { dot: true }))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch), { dot: true }))
 			.pipe(filter(getFoundryLocalExcludeFilter(), { dot: true }))
@@ -428,19 +435,21 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder ? `${versionedResourcesFolder}\\` : ''))
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
 
-			// Setup publishes it next to the copilot.exe shim; see build/win32/copilot.iss.
-			result = es.merge(result, gulp.src('resources/win32/bin/copilot.sh', { base: 'resources/win32' })
-				.pipe(es.through(function (file) {
-					file.contents = Buffer.from(renderCopilotShimLauncher(file.contents.toString('utf8'), {
-						commit: String(commit),
-						quality: String(quality),
-						applicationName: product.applicationName,
-						dataFolderName: product.dataFolderName,
-						serverDataFolderName: product.serverDataFolderName || '.vscode-remote',
-					}));
-					this.emit('data', file);
-				}))
-				.pipe(rename(f => { f.dirname = 'bin/copilot-shim'; f.basename = 'copilot'; f.extname = ''; })));
+			if (hasDefaultChatAgent) {
+				// Setup publishes it next to the copilot.exe shim; see build/win32/copilot.iss.
+				result = es.merge(result, gulp.src('resources/win32/bin/copilot.sh', { base: 'resources/win32' })
+					.pipe(es.through(function (file) {
+						file.contents = Buffer.from(renderCopilotShimLauncher(file.contents.toString('utf8'), {
+							commit: String(commit),
+							quality: String(quality),
+							applicationName: product.applicationName,
+							dataFolderName: product.dataFolderName,
+							serverDataFolderName: product.serverDataFolderName || '.vscode-remote',
+						}));
+						this.emit('data', file);
+					}))
+					.pipe(rename(f => { f.dirname = 'bin/copilot-shim'; f.basename = 'copilot'; f.extname = ''; })));
+			}
 
 			result = es.merge(result, gulp.src('.build/policies/win32/**', { base: '.build/policies/win32' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`)));
@@ -565,8 +574,10 @@ function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinati
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
 		const appNodeModulesDir = path.join(appBase, 'node_modules.asar.unpacked');
 
-		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
-		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
+		if (hasDefaultChatAgent) {
+			const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
+			prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
+		}
 	};
 }
 

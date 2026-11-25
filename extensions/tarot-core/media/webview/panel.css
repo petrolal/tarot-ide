@@ -1,3 +1,23 @@
+:root {
+	--tarot-bg: var(--vscode-sideBar-background, #0A0A16);
+	--tarot-fg: var(--vscode-foreground, #F2EFE9);
+	--tarot-accent: #8B5CF6;
+	--tarot-gold: #D4AF37;
+	--tarot-teal: #4FD1C5;
+	--tarot-border-subtle: rgba(255, 255, 255, 0.06);
+	--tarot-tabbar-bg: var(--vscode-editorGroupHeader-tabsBackground, #0E0B1A);
+}
+
+body.vscode-light {
+	--tarot-bg: var(--vscode-sideBar-background, #FAF9FD);
+	--tarot-fg: var(--vscode-foreground, #1D1135);
+	--tarot-accent: #4B0082;
+	--tarot-gold: #8F6B0A;
+	--tarot-teal: #0D7377;
+	--tarot-border-subtle: var(--vscode-sideBar-border, #DDD6EC);
+	--tarot-tabbar-bg: var(--vscode-sideBarSectionHeader-background, #EFEAF8);
+}
+
 * {
 	box-sizing: border-box;
 }
@@ -6,8 +26,8 @@ html, body {
 	margin: 0;
 	padding: 0;
 	height: 100%;
-	background: var(--vscode-sideBar-background, #0A0A16);
-	color: var(--vscode-foreground, #F2EFE9);
+	background: var(--tarot-bg);
+	color: var(--tarot-fg);
 	font-family: var(--vscode-font-family, sans-serif);
 	font-size: var(--vscode-font-size, 13px);
 }
