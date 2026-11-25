@@ -17,6 +17,7 @@ import { KeyedHookQueue, runHooksForTrigger, TarotHookEngine } from './hooks/hoo
 import { TarotMcpConfigService } from './mcp/mcpConfigService';
 import { TarotPermissionsService } from './permissions/permissionsService';
 import { TarotTrustService } from './permissions/trustService';
+import { parseYamlLite } from './permissions/yamlLite';
 import { TarotPowersService } from './powers/powersService';
 import { TarotSkillsService } from './skills/skillsService';
 import { formatMarkdownReviewBatch, MarkdownReviewComment } from './specs/markdownReview';
@@ -32,6 +33,7 @@ import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
 import { validateWorkflow } from './workflows/recipeValidator';
 import { TarotWorkflowRunStore } from './workflows/runStore';
+import { runWatchPoll } from './workflows/watchHandlers';
 import { TarotWorkflowEngine } from './workflows/workflowEngine';
 import { LoadedRecipe, WorkflowNode, WorkflowRecipe, WorkflowRunState } from './workflows/workflowTypes';
 
@@ -167,12 +169,29 @@ export function activate(context: vscode.ExtensionContext): void {
 							workflowRunEditor.updateOpenRun(updated, recipe);
 							workflowRunsProvider.refresh();
 						},
+						executeWatch: async (node, currentRun) => {
+							if (node.handler === 'command') {
+								const cmd = String(node.config.command ?? '');
+								const evalRes = await permissionsService.evaluateShellCommand(cmd, { headless: true });
+								if (evalRes.decision.effect === 'deny') {
+									const msg = evalRes.decision.reason ?? vscode.l10n.t('Watch command denied by permissions policy.');
+									outputChannel!.appendLine(`[Permissions] workflow watch "${node.id}" denied: ${cmd} — ${msg}`);
+									return { outcome: 'idle', cursor: currentRun.watchCursors[node.id], error: msg };
+								}
+							}
+							return runWatchPoll(node, {
+								workspacePath: root,
+								cursor: currentRun.watchCursors[node.id],
+								config: node.config,
+							});
+						},
 						executeStep: async req => {
 							progress.report({ message: vscode.l10n.t('Step {0} ({1})', req.step.id, req.step.agent) });
 							const targetAdapter = runtimeManager.getAdapter(req.step.agent) ?? runtimeManager.getAdapter(activeAgentId);
 							if (!targetAdapter) {
 								return { ok: false, output: `No agent adapter available for "${req.step.agent}".` };
 							}
+							const cpId = await checkpointService.createCheckpoint(req.workspaceRoot, req.runId);
 							let output = '';
 							let hadErr = false;
 							await targetAdapter.run(
@@ -195,6 +214,20 @@ export function activate(context: vscode.ExtensionContext): void {
 								},
 								token,
 							);
+							if (cpId) {
+								const diff = await checkpointService.getCheckpointDiff(req.workspaceRoot, req.runId, cpId);
+								const deniedPaths: string[] = [];
+								for (const entry of diff) {
+									const decision = await permissionsService.evaluate('fs_write', entry.relativePath, { headless: true });
+									if (decision.effect === 'deny') {
+										deniedPaths.push(entry.relativePath);
+									}
+								}
+								if (deniedPaths.length > 0) {
+									const rev = await checkpointService.restoreCheckpointFiles(req.workspaceRoot, req.runId, cpId, deniedPaths);
+									outputChannel!.appendLine(`[Permissions] workflow step "${req.step.id}" fs_write denied, reverted: ${rev.reverted.join(', ') || '(none)'}`);
+								}
+							}
 							return { ok: !hadErr && !token.isCancellationRequested, output: output.trim() };
 						},
 					},
@@ -383,11 +416,15 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 			const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 			try {
-				const raw = editor.document.uri.fsPath.endsWith('.json')
-					? JSON.parse(editor.document.getText()) as WorkflowRecipe
-					: undefined;
+				const fsPath = editor.document.uri.fsPath.toLowerCase();
+				let raw: WorkflowRecipe | undefined;
+				if (fsPath.endsWith('.json')) {
+					raw = JSON.parse(editor.document.getText()) as WorkflowRecipe;
+				} else if (fsPath.endsWith('.yaml') || fsPath.endsWith('.yml')) {
+					raw = parseYamlLite(editor.document.getText()) as WorkflowRecipe;
+				}
 				if (!raw) {
-					vscode.window.showInformationMessage(vscode.l10n.t('Use .workflow.json or run discovery to validate YAML recipes.'));
+					vscode.window.showWarningMessage(vscode.l10n.t('Open a .workflow.json, .workflow.yaml or .workflow.yml file to validate.'));
 					return;
 				}
 				const result = validateWorkflow(raw, root);
