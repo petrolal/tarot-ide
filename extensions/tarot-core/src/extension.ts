@@ -32,6 +32,7 @@ import { TarotScheduleService } from './schedule/scheduleService';
 import { TarotSkillsService } from './skills/skillsService';
 import { TarotSpecService } from './specs/specService';
 import { SpecTaskCodeLensProvider } from './specs/taskCodeLensProvider';
+import { SpecTaskDecorator } from './specs/taskDecorations';
 import { SteeringInclusion, TarotSteeringService } from './steering/steeringService';
 import { TarotAgentPanelProvider } from './views/agentPanelView';
 import { CrewAutomationTreeProvider } from './views/crewAutomationView';
@@ -138,6 +139,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	});
 	const fileHookQueue = new KeyedHookQueue(250);
 	const specCodeLensProvider = new SpecTaskCodeLensProvider();
+	const specTaskDecorator = new SpecTaskDecorator();
 
 	// Left Sidebar (Kiro-style) TreeViews
 	const specsProvider = new SpecsTreeProvider(specService, context.extensionUri);
@@ -330,6 +332,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		focusModeManager,
 		agentPanelProvider,
 		specCodeLensProvider,
+		specTaskDecorator,
 		...powersAndSkillsCommands,
 		...crewCommands,
 		...crewAutomationCommands,

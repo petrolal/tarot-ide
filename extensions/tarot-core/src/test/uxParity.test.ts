@@ -7,6 +7,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { parseClaudeStreamJsonLine } from '../agents/adapters/claudeStreamParser';
 import { AgentEvent } from '../agents/types';
+import { computeCompletedTaskLineRanges } from '../specs/taskParser';
 import { extractStepVerdict, formatRelativeTime } from '../workflows/workflowViewHelpers';
 
 describe('UX Parity — ClaudeCodeAdapter stream-json result fallback', () => {
@@ -70,5 +71,26 @@ describe('UX Parity — Workflow relative timestamps & verdicts', () => {
 		assert.deepEqual(extractStepVerdict('CHANGES REQUESTED: fix null check', 'completed'), { label: 'Changes requested', tone: 'warn' });
 		assert.deepEqual(extractStepVerdict('All tests green. PASSED', 'completed'), { label: 'Passed', tone: 'ok' });
 		assert.deepEqual(extractStepVerdict('', 'paused'), { label: 'Needs input', tone: 'warn' });
+	});
+});
+
+describe('UX Parity — Spec tasks.md completed green bar ranges', () => {
+	it('computes multi-line ranges for completed tasks including indented Requirements/Property lines', () => {
+		const md = [
+			'# Implementation Plan',
+			'',
+			'- [x] 1. Add coupon lookup',
+			'  - _Requirements: 1.1_',
+			'- [ ] 2. Pending task',
+			'  - _Requirements: 1.2_',
+			'- [x] 2.1 Write property test',
+			'  - **Property 1: Discount never exceeds subtotal**',
+			'  - **Validates: Requirements 1.2**',
+		].join('\n');
+		const ranges = computeCompletedTaskLineRanges(md);
+		assert.deepEqual(ranges, [
+			{ startLine: 2, endLine: 3 },
+			{ startLine: 6, endLine: 8 },
+		]);
 	});
 });

@@ -129,3 +129,45 @@ export async function markTaskCompletedInFile(filePath: string, lineIndex: numbe
 
 	return parseTasksMarkdown(lines.join(eol));
 }
+
+export interface CompletedTaskLineRange {
+	readonly startLine: number;
+	readonly endLine: number;
+}
+
+/**
+ * Finds all completed task blocks (`- [x] ...` plus their indented sub-lines such as
+ * `_Requirements:_`, `**Property N:**`, `**Validates:**`) in a Spec `tasks.md` file. Pure.
+ */
+export function computeCompletedTaskLineRanges(text: string): CompletedTaskLineRange[] {
+	const lines = text.split(/\r?\n/);
+	const ranges: CompletedTaskLineRange[] = [];
+
+	for (let i = 0; i < lines.length; i++) {
+		const m = lines[i].match(/^(\s*)[-*]\s+\[[xX]\]\s+/);
+		if (!m) {
+			continue;
+		}
+		const baseIndent = m[1].length;
+		let endLine = i;
+		for (let j = i + 1; j < lines.length; j++) {
+			const next = lines[j];
+			if (!next.trim() || /^\s*#/.test(next)) {
+				break;
+			}
+			const nextItem = next.match(/^(\s*)[-*]\s+\[[ xX]\]\s+/);
+			if (nextItem && nextItem[1].length <= baseIndent) {
+				break;
+			}
+			const leadingSpaces = next.match(/^(\s*)/)?.[1].length ?? 0;
+			if (leadingSpaces > baseIndent) {
+				endLine = j;
+			} else {
+				break;
+			}
+		}
+		ranges.push({ startLine: i, endLine });
+		i = endLine;
+	}
+	return ranges;
+}

@@ -43,7 +43,7 @@ export class SpecTaskCodeLensProvider implements vscode.CodeLensProvider, vscode
 			if (task.completed) {
 				lenses.push(
 					new vscode.CodeLens(range, {
-						title: vscode.l10n.t('✓ Completed'),
+						title: vscode.l10n.t('✓ Task completed'),
 						command: '',
 						tooltip: vscode.l10n.t('Task #{0} completed', task.index),
 					}),

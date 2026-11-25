@@ -459,36 +459,48 @@
 		}
 	}
 
-	function createDisclosure(summaryText, itemsOrText) {
+	function createToolCallCard(tool) {
+		const row = document.createElement('div');
+		row.className = 'tool-call-card';
+		const icon = document.createElement('span');
+		icon.className = 'tool-call-icon';
+		const raw = String(tool || '');
+		const lower = raw.toLowerCase();
+		icon.textContent = lower.includes('write') || lower.includes('edit') || lower.includes('replace')
+			? '✎'
+			: lower.includes('bash') || lower.includes('shell') || lower.includes('run')
+				? '⌘'
+				: '◈';
+		const labelSpan = document.createElement('span');
+		labelSpan.className = 'tool-call-name';
+		const parts = raw.split(/\s+(?=[./\w-]+\.\w+)/);
+		labelSpan.textContent = parts[0] || raw;
+		row.appendChild(icon);
+		row.appendChild(labelSpan);
+		if (parts.length > 1) {
+			const chip = document.createElement('span');
+			chip.className = 'tool-call-file-chip';
+			chip.textContent = parts.slice(1).join(' ');
+			row.appendChild(chip);
+		}
+		const check = document.createElement('span');
+		check.className = 'tool-call-check';
+		check.textContent = '✓';
+		row.appendChild(check);
+		return row;
+	}
+
+	function createDisclosure(label, itemsOrText) {
 		const details = document.createElement('details');
 		details.className = 'msg-disclosure';
-
 		const summary = document.createElement('summary');
-		summary.textContent = summaryText;
+		summary.textContent = label;
 		details.appendChild(summary);
-
 		const body = document.createElement('div');
 		body.className = 'disclosure-body';
 		if (Array.isArray(itemsOrText)) {
 			for (const tool of itemsOrText) {
-				const row = document.createElement('div');
-				row.className = 'tool-call-card';
-				const check = document.createElement('span');
-				check.className = 'tool-call-check';
-				check.textContent = '✓';
-				const labelSpan = document.createElement('span');
-				labelSpan.className = 'tool-call-name';
-				const parts = String(tool).split(/\s+(?=[./\w-]+\.\w+)/);
-				labelSpan.textContent = parts[0] || String(tool);
-				row.appendChild(check);
-				row.appendChild(labelSpan);
-				if (parts.length > 1) {
-					const chip = document.createElement('span');
-					chip.className = 'tool-call-file-chip';
-					chip.textContent = parts.slice(1).join(' ');
-					row.appendChild(chip);
-				}
-				body.appendChild(row);
+				body.appendChild(createToolCallCard(tool));
 			}
 		} else {
 			body.textContent = itemsOrText || '';
@@ -1204,10 +1216,7 @@
 					liveToolsCount += 1;
 					liveToolsDetails.classList.remove('hidden');
 					liveToolsSummary.textContent = liveToolsCount === 1 ? t('toolCall') : t('toolCalls', liveToolsCount);
-					const row = document.createElement('div');
-					row.className = 'tool-list-item';
-					row.textContent = `• ${msg.toolName}`;
-					liveToolsBody.appendChild(row);
+					liveToolsBody.appendChild(createToolCallCard(msg.toolName));
 				}
 				break;
 			case 'streamThought':
