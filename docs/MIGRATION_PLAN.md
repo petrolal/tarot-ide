@@ -13,8 +13,8 @@
 | --- | --- | --- | --- |
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
-| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.9b ✅ · próximo: M3.9c → M3.10)** | **Sim — iniciar por M3.9c** |
-| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | Após M3.9c |
+| **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy`)** | 🚧 **Em progresso (M3.1–M3.9c ✅ · próximo: M3.10 opcional ou Fase 4)** | **Sim — iniciar por M3.10 ou Fase 4** |
+| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | **Sim** |
 | **Fase 5** | *(Opcional)* "Tarot Crew": bots, webhooks, heartbeat, apps, gateways, ACP | 💤 Backlog | Após Fase 4 |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -290,7 +290,7 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
 
 ---
 
-### Marco M3.9c — Sessions & Tarot Agent Mode / Agent Focus Mode (Desktop, estilo `app.kiro.dev`) (UC-02, UC-07)
+### Marco M3.9c — Sessions & Tarot Agent Mode / Agent Focus Mode (Desktop, estilo `app.kiro.dev`) (UC-02, UC-07) — ✅ Concluído
 - **Fonte**: `kiro.dev/docs/ide/chat` (Agent Focus Mode), `kiro.dev/web/` (`app.kiro.dev`, adaptado para **Desktop nativo** no Tarot IDE) e Prints 3 e 4.
 - **Arquivos-alvo**: `extensions/tarot-core/src/views/{sessionsView,focusModeView}.ts`, `agentPanelView.ts`, `media/webview/panel.{js,css}`.
 - **Decisão arquitetural**: a experiência de orquestração estilo `app.kiro.dev` **roda como modo Desktop nativo dentro do Tarot IDE** (`extensions/tarot-core`, 100% Extension-First — funcionando também via `tarot-server` no navegador), substituindo integralmente a Agents Window nativa `src/vs/sessions/` do VS Code (cujos pontos de entrada ficam ocultos).
@@ -300,8 +300,8 @@ Três inconsistências encontradas na auditoria do fork, resolvidas antes de ini
   - **Agent Focus Mode (3 painéis)**: Sessions à esquerda | chat expandido ao centro | painel auxiliar recolhível de Specs/Diffs/Artefatos à direita; toggle em 1 clique no canto superior direito alternando entre *Editor View* e *Tarot Agent Mode*; modos de permissão disponíveis; sessões paralelas; seletor de workflow no início. *Não* oferece Fork nos painéis de step.
   - **Concorrência segura**: chats Spec/Quick Spec/Bug Fix esperam um ao outro (`The agent is currently busy`); Plan e custom agents rodam em paralelo; aviso quando duas sessões podem editar os mesmos arquivos (com oferta de worktree isolado).
 - **Critérios de Aceite (DoD)**:
-  - [ ] Sessions filtra/pesquisa, mostra badge de repo, `Needs input` / badges *parked* e atalhos de rodapé (**Schedule**, **Agent Config**, **Settings**).
-  - [ ] Tarot Agent Mode / Focus Mode alterna em 1 clique com o Editor View, exibe os 3 painéis e permite selecionar repo/worktree e agente local direto no composer.
+  - [x] Sessions filtra/pesquisa, mostra badge de repo, `Needs input` / badges *parked* e atalhos de rodapé (**Schedule**, **Agent Config**, **Settings**). *(`views/sessionsView.ts` + `agents/sessionConcurrency.ts` + `tarot.views.sessions` + comandos `tarot.sessions.{new,search,filter,open}`, `tarot.agentConfig.open`, `tarot.schedule.open`, `tarot.settings.open`; coberto por `sessionConcurrency.test.ts`.)*
+  - [x] Tarot Agent Mode / Focus Mode alterna em 1 clique com o Editor View, exibe os 3 painéis e permite selecionar repo/worktree e agente local direto no composer. *(`views/focusModeView.ts` + `media/webview/focusMode.{js,css}` com CSP estrita e zero `innerHTML`, ligado a `tarot.agent.toggleFocusMode` e `worktreeManager`.)*
 
 ---
 

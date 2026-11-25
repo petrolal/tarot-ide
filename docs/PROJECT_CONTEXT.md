@@ -203,7 +203,7 @@ extensions/tarot-core/
 │   ├── splash.png                      # Arte splash 800x600 ("Divining Clean Code...")
 │   ├── tarot-activity-icon.svg         # Ícone vetorial monocromático para Activity Bar / Secondary Side Bar (preservado intacto)
 │   ├── arcana/{*.png,arcana-manifest.json} # Adição complementar: 8 cartas ilustradas dos Arcanos Maiores + manifesto
-│   └── webview/{panel,workflow}.{css,js} # UIs CSP-estritas (zero innerHTML) do Painel Agêntico e da aba Workflow Run Editor
+│   └── webview/{panel,workflow,focusMode}.{css,js} # UIs CSP-estritas (zero innerHTML) do Painel Agêntico, Workflow Run Editor e Tarot Agent Mode (3 painéis)
 ├── recipes/                            # M3.9a/b — 7 recipes bundled (*.workflow.json: investigate, feature-pipeline, publish-pr, semantic-review-multi-model, autoresearch, goal, ralph)
 ├── package.json                        # Manifesto (tema, ícones, views Kiro, settings tarot.*, submenus, keybindings, walkthrough)
 ├── package.nls.json                    # Strings localizáveis
@@ -221,6 +221,7 @@ extensions/tarot-core/
     │   ├── commandLineLimits.ts        # Teto puro e testável (binário+argv) por plataforma — bem mais estrito no Windows — para falhar com erro claro em vez de E2BIG/ENAMETOOLONG do SO
     │   ├── promptBuilder.ts            # Composição de prompt (modo Vibe/Spec/Plan, autonomy, steering/skills/powers/custom-agent, Spec ativo, histórico, anexos #); cada seção truncada em 50k chars, nunca o prompt do usuário
     │   ├── sessionStore.ts             # Persistência multi-sessão agnóstica em .tarot/sessions/<id>.json + hydrateFromDisk no boot, listPersistedSessions/deletePersistedSession, forkSession e truncateBeforeCheckpoint (M3.8c)
+    │   ├── sessionConcurrency.ts       # M3.9c — Classificação/filtro de cards de sessão e regras de concorrência segura (mutex Spec, paralelo Plan/custom, aviso worktree)
     │   ├── runtimeManager.ts           # Auto-detecção (claude, agy, codex, custom CLI/ACP + catálogo ACP instalado no PATH), cache de listModelsForAgent() e Status Bar enxuta (Tarot · <agente>); agente ativo persiste em globalState
     │   ├── agentCatalog.ts             # M3.8b — Catálogo declarativo de CLIs ACP (agy-acp, kiro-cli, opencode, goose)
     │   ├── customAgentService.ts       # M3.8b — Descoberta e parse de Custom Agents (.tarot/agents/*.{md,json}, ~/.tarot/agents/, suporte a subpastas team/planner) + perfis Built-in
@@ -273,11 +274,13 @@ extensions/tarot-core/
     │   ├── workflowViewHelpers.ts      # Helpers puros de classificação/busca de runs e flattening da árvore de steps (testados via `node --test`)
     │   └── workflowEngine.ts           # Execução com checkpoint por fronteira, pause cooperativa, retomada pós-reinício e `updateWorkflow`
     ├── test/
-    │   └── *.test.ts                   # 42 suítes / 138 testes unitários puros via `node --test` (sem importar `vscode`)
+    │   └── *.test.ts                   # 43 suítes / 141 testes unitários puros via `node --test` (sem importar `vscode`)
     ├── git/
     │   ├── gitReviewService.ts         # Review Queue (git status/diff --numstat, HEAD diff, revert) + AI Commit Message (✦)
-    │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks
+    │   └── worktreeManager.ts          # Worktrees Git isolados com rollback automático se falhar escrita do manifesto, aplicado em Run Task / Run all Tasks e sessões em Focus Mode
     └── views/
+        ├── sessionsView.ts             # M3.9c — TreeView `SESSIONS` (busca, filtros, badges repo/worktree/Needs input/parked, Older Sessions e atalhos Schedule/Agent Config/Settings)
+        ├── focusModeView.ts            # M3.9c — Tarot Agent Mode / Agent Focus Mode de 3 painéis (Sessions | Transcript+Composer com repo/worktree/agente | Inspector)
         ├── tarotSidebarViews.ts        # 5 TreeViews (Specs, Hooks, Steering, Local Agents, MCP Servers) todas com gate de Workspace Trust
         ├── workflowRunsView.ts         # M3.9b — TreeView `WORKFLOW RUNS` agrupada por status ("Needs you" primeiro) com busca
         ├── recipesView.ts              # M3.9b — TreeView `RECIPES` (Workspace/Global/Bundled) com ação inline `▷`
