@@ -237,7 +237,8 @@ extensions/tarot-core/
     │   ├── semanticIndex.ts            # Fase 5 — Motor de busca semântica híbrida local (BM25 + embeddings vetoriais 128d cosseno + Reciprocal Rank Fusion)
     │   ├── heartbeatService.ts         # Fase 5 — Heartbeat Daemon periódico (git-status, git-branch, comandos validados por política) com logs JSONL e alertas deduplicados
     │   ├── gatewayService.ts           # Fase 5 — Servidor local de Webhooks (127.0.0.1, HMAC-SHA256) + gateways Slack/Discord/Telegram/Teams (segredos em SecretStorage + anti-SSRF)
-    │   └── appsAndRemoteService.ts     # Fase 5 — Crew Apps SDK (.tarot/crew/apps/*/app.json) e instâncias remotas SSH (.tarot/crew/remotes.json, BatchMode=yes, shell: false)
+    │   ├── appsAndRemoteService.ts     # Fase 5 — Crew Apps SDK (.tarot/crew/apps/*/app.json) e instâncias remotas SSH (.tarot/crew/remotes.json, BatchMode=yes, shell: false)
+    │   └── devServerService.ts         # Descoberta de scripts dev/start/serve/preview/watch em package.json + terminais gerenciados (`tarot.devServers.manage`)
     ├── mcp/
     │   └── mcpConfigService.ts         # M3.8b — Descoberta hierárquica (.tarot/settings/mcp.json + ~/.tarot/settings/mcp.json), stdio + remote, redação de segredos em formatMcpContext
     ├── context/
@@ -271,7 +272,8 @@ extensions/tarot-core/
     │   ├── taskParser.ts               # Parser de checklists `- [ ]`/`- [x]` + opcionais `*`, `_Requirements:_`, `_Depends:_`, `**Property N**`/`**Validates:**`
     │   ├── taskGraph.ts                # Grafo de dependências puro: agrupa tasks pendentes em ondas (Kahn)
     │   ├── taskRunner.ts               # Orquestra "Run all Tasks" onda a onda, pulando dependentes de tarefas que falharam
-    │   ├── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... / ↺ View changes / ▶ Run all Tasks / ↻ Sync Files
+    │   ├── taskCodeLensProvider.ts     # CodeLens ▶ Run Task / ▶ Run Task with... / ✓ Task completed / ↺ View changes / ▶ Run all Tasks / ↻ Sync Files
+    │   ├── taskDecorations.ts          # Barra vertical verde na margem esquerda de blocos de tarefas concluídas (`- [x]`) em `.tarot/specs/*/tasks.md`
     │   ├── specSync.ts                 # Merge puro do Sync Files preservando tarefas concluídas via numberLabel + titleSimilarity
     │   └── specTaskCheckpoints.ts      # Sidecar `.tarot/specs/<slug>/.task-checkpoints.json` com chave estável `computeTaskCheckpointKey` (numberLabel ou `title:<sha1-10>`)
     ├── workflows/                      # M3.9a — Motor de Workflows & Recipes

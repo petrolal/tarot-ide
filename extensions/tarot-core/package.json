@@ -538,6 +538,10 @@
           "when": "false"
         },
         {
+          "command": "tarot.workflows.previewRecipe",
+          "when": "false"
+        },
+        {
           "command": "tarot.agents.selectById",
           "when": "false"
         },
@@ -1374,6 +1378,11 @@
         "title": "%command.devServers.manage.title%",
         "category": "Tarot IDE",
         "icon": "$(server-process)"
+      },
+      {
+        "command": "tarot.workflows.previewRecipe",
+        "title": "%command.workflows.previewRecipe.title%",
+        "category": "Tarot IDE"
       }
     ]
   },

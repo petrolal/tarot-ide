@@ -45,7 +45,7 @@ import {
 } from './views/crewView';
 import { TarotFocusModeManager } from './views/focusModeView';
 import { AvailablePowersTreeProvider, InstalledPowersTreeProvider } from './views/powersView';
-import { RecipesTreeProvider } from './views/recipesView';
+import { RecipesTreeProvider, TarotRecipePreviewPanel } from './views/recipesView';
 import { SessionsTreeProvider } from './views/sessionsView';
 import { CustomAgentsTreeProvider, SkillsTreeProvider } from './views/skillsAndAgentsView';
 import { TarotSubagentsDagPanel } from './views/subagentsPanel';
@@ -228,6 +228,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	focusModeStatusBar.show();
 
 	const subagentsDagPanel = new TarotSubagentsDagPanel(runtimeManager, outputChannel);
+	const recipePreviewPanel = new TarotRecipePreviewPanel(() => recipesProvider.refresh());
 	const devServerService = new TarotDevServerService();
 	const devServerTerminals = new Map<string, vscode.Terminal>();
 	const terminalCloseSub = vscode.window.onDidCloseTerminal(term => {
@@ -241,7 +242,13 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		focusModeStatusBar,
 		subagentsDagPanel,
+		recipePreviewPanel,
 		terminalCloseSub,
+		vscode.commands.registerCommand('tarot.workflows.previewRecipe', (loaded?: import('./workflows/workflowTypes').LoadedRecipe) => {
+			if (loaded) {
+				recipePreviewPanel.show(loaded);
+			}
+		}),
 		vscode.commands.registerCommand('tarot.subagents.runDag', () => {
 			subagentsDagPanel.show();
 		}),
