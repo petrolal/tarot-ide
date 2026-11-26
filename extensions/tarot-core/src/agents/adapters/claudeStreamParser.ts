@@ -29,7 +29,8 @@ export function parseClaudeStreamJsonLine(
 			let produced = false;
 			for (const block of message?.content ?? []) {
 				if (block.type === 'text' && block.text) {
-					onEvent({ type: 'text', content: block.text });
+					const prefix = (alreadyEmittedText || produced) && !block.text.startsWith('\n') ? '\n\n' : '';
+					onEvent({ type: 'text', content: `${prefix}${block.text}` });
 					produced = true;
 				} else if (block.type === 'tool_use' && block.name) {
 					if (block.id) {

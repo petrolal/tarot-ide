@@ -5,6 +5,7 @@
 
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
+import { createAgyStreamParseState, parseAgyStreamLine } from '../agents/adapters/agyStreamParser';
 import { parseClaudeStreamJsonLine } from '../agents/adapters/claudeStreamParser';
 import { AgentEvent } from '../agents/types';
 import { extractDevServerScripts } from '../crew/devServerService';
@@ -54,6 +55,33 @@ describe('UX Parity — ClaudeCodeAdapter stream-json result fallback', () => {
 			true,
 		);
 		assert.equal(events.filter(e => e.type === 'text').length, 1);
+	});
+
+	it('separates distinct assistant text blocks with blank lines so turns never glue together', () => {
+		const events: AgentEvent[] = [];
+		const pending = new Map<string, string>();
+		const emitted1 = parseClaudeStreamJsonLine(
+			JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Vou verificar o projeto.' }] } }),
+			ev => events.push(ev),
+			pending,
+			false,
+		);
+		parseClaudeStreamJsonLine(
+			JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'Sim, consigo.' }] } }),
+			ev => events.push(ev),
+			pending,
+			emitted1,
+		);
+		const combined = events.filter(e => e.type === 'text').map(e => e.content).join('');
+		assert.equal(combined, 'Vou verificar o projeto.\n\nSim, consigo.');
+	});
+
+	it('agyStreamParser appends final result.response when it was not already streamed via text_delta', () => {
+		const state = createAgyStreamParseState();
+		const ev1 = parseAgyStreamLine(JSON.stringify({ event: 'step_update', step_update: { step_index: 1, text_delta: 'Vou explorar o projeto.' } }), state);
+		const ev2 = parseAgyStreamLine(JSON.stringify({ event: 'result', result: { status: 'OK', response: 'Resumo final do projeto.' } }), state);
+		const combined = [...ev1, ...ev2].filter(e => e.type === 'text').map(e => e.content).join('');
+		assert.equal(combined, 'Vou explorar o projeto.\n\nResumo final do projeto.');
 	});
 });
 

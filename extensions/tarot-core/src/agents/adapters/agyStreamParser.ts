@@ -15,12 +15,14 @@ export interface AgyUsageInfo {
 
 export interface AgyStreamParseState {
 	emittedText: boolean;
+	streamedText: string;
 	seenToolSteps: Set<number>;
 }
 
 export function createAgyStreamParseState(): AgyStreamParseState {
 	return {
 		emittedText: false,
+		streamedText: '',
 		seenToolSteps: new Set<number>(),
 	};
 }
@@ -91,6 +93,7 @@ export function parseAgyStreamLine(line: string, state: AgyStreamParseState): Ag
 		const textDelta = typeof su.text_delta === 'string' ? su.text_delta : '';
 		if (textDelta) {
 			state.emittedText = true;
+			state.streamedText += textDelta;
 			events.push({ type: 'text', content: textDelta });
 		}
 
@@ -117,9 +120,17 @@ export function parseAgyStreamLine(line: string, state: AgyStreamParseState): Ag
 		const res = payload.result as Record<string, unknown>;
 		if (res.status === 'ERROR' || typeof res.error === 'string') {
 			events.push({ type: 'error', content: typeof res.error === 'string' ? res.error : 'agy execution failed.' });
-		} else if (!state.emittedText && typeof res.response === 'string' && res.response.length > 0) {
-			state.emittedText = true;
-			events.push({ type: 'text', content: res.response });
+		} else if (typeof res.response === 'string' && res.response.trim().length > 0) {
+			const respTrim = res.response.trim();
+			if (!state.emittedText) {
+				state.emittedText = true;
+				state.streamedText += res.response;
+				events.push({ type: 'text', content: res.response });
+			} else if (!state.streamedText.includes(respTrim) && !respTrim.startsWith(state.streamedText.trim())) {
+				const sep = state.streamedText.endsWith('\n') ? '\n' : '\n\n';
+				state.streamedText += sep + res.response;
+				events.push({ type: 'text', content: sep + res.response });
+			}
 		}
 		if (res.usage && typeof res.usage === 'object') {
 			events.push({ type: 'status', metadata: { usage: res.usage as AgyUsageInfo } });

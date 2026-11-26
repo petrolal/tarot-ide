@@ -403,6 +403,31 @@
 		}
 	}
 
+	function appendTextBlocks(container, text) {
+		const lines = text.split('\n');
+		let plainBuf = [];
+		const flushPlain = () => {
+			if (plainBuf.length === 0) { return; }
+			const span = document.createElement('span');
+			appendInlineSegments(span, plainBuf.join('\n'));
+			container.appendChild(span);
+			plainBuf = [];
+		};
+		for (let i = 0; i < lines.length; i++) {
+			const hm = lines[i].match(/^(#{1,4})\s+(.+)$/);
+			if (hm) {
+				flushPlain();
+				const h = document.createElement('div');
+				h.className = `msg-md-h msg-md-h${hm[1].length}`;
+				appendInlineSegments(h, hm[2]);
+				container.appendChild(h);
+			} else {
+				plainBuf.push(lines[i]);
+			}
+		}
+		flushPlain();
+	}
+
 	function renderFormattedContent(container, rawText) {
 		container.textContent = '';
 		const fenceRegex = /```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g;
@@ -411,9 +436,7 @@
 
 		while ((match = fenceRegex.exec(rawText)) !== null) {
 			if (match.index > lastIndex) {
-				const span = document.createElement('span');
-				appendInlineSegments(span, rawText.slice(lastIndex, match.index));
-				container.appendChild(span);
+				appendTextBlocks(container, rawText.slice(lastIndex, match.index));
 			}
 
 			const lang = match[1] || 'code';
@@ -453,9 +476,7 @@
 		}
 
 		if (lastIndex < rawText.length) {
-			const tail = document.createElement('span');
-			appendInlineSegments(tail, rawText.slice(lastIndex));
-			container.appendChild(tail);
+			appendTextBlocks(container, rawText.slice(lastIndex));
 		}
 	}
 
@@ -669,8 +690,9 @@
 			wrapper.appendChild(body);
 
 			if (msg.role === 'assistant' && msg.content) {
-				const wfRunMatch = msg.content.match(/\b(run-[a-zA-Z0-9_-]{6,})\b/);
-				if (wfRunMatch && /workflow/i.test(msg.content)) {
+				const isWorkflowNotification = /^\*\*Workflow\s+"/i.test(msg.content.trim());
+				const wfRunMatch = isWorkflowNotification ? msg.content.match(/Run\s+`(run-[a-zA-Z0-9_-]{6,})`/) : null;
+				if (wfRunMatch) {
 					const wfActions = document.createElement('div');
 					wfActions.className = 'wf-chat-card-actions';
 					const openBtn = document.createElement('button');
