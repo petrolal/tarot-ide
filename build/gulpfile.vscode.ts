@@ -167,7 +167,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
+		const copilotPackagingExclusions = hasDefaultChatAgent
+			? []
+			: ['!.build/extensions/copilot', '!.build/extensions/copilot/**'];
+
+		const extensions = gulp.src(
+			['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions, ...copilotPackagingExclusions],
+			{ base: '.build', dot: true },
+		);
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']

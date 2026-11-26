@@ -44,7 +44,9 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192
         run: |
           pnpm exec gulp vscode-linux-x64-min
+          pnpm exec gulp vscode-linux-x64-prepare-deb
           pnpm exec gulp vscode-linux-x64-build-deb
+          pnpm exec gulp vscode-linux-x64-prepare-rpm
           pnpm exec gulp vscode-linux-x64-build-rpm
 
       - name: Upload Linux installers

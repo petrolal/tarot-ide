@@ -5,14 +5,13 @@ Depends: @@DEPENDS@@
 Recommends: @@RECOMMENDS@@
 Priority: optional
 Architecture: @@ARCHITECTURE@@
-Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>
-Homepage: https://code.visualstudio.com/
+Maintainer: Lucas Petrola <petrolal@users.noreply.github.com>
+Homepage: https://github.com/petrolal/tarot-ide
 Installed-Size: @@INSTALLEDSIZE@@
-Provides: visual-studio-@@NAME@@
-Conflicts: visual-studio-@@NAME@@
-Replaces: visual-studio-@@NAME@@
-Description: Code editing. Redefined.
- Visual Studio Code is a new choice of tool that combines the simplicity of
- a code editor with what developers need for the core edit-build-debug cycle.
- See https://code.visualstudio.com/docs/setup/linux for installation
- instructions and FAQ.
+Provides: tarot-ide
+Conflicts: tarot-ide
+Replaces: tarot-ide
+Description: Tarot IDE — 100% Agentic IDE (BYOA).
+ Tarot IDE is an open-source, privacy-first agentic IDE powered by your local
+ AI CLIs (Claude Code, Antigravity, Codex) with Spec-Driven Development,
+ Workflows, Powers, Skills, Tarot Crew, and Open VSX marketplace.
