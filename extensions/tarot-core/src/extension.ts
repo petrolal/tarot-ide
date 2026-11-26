@@ -51,6 +51,11 @@ import { CustomAgentsTreeProvider, SkillsTreeProvider } from './views/skillsAndA
 import { TarotSubagentsDagPanel } from './views/subagentsPanel';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 import {
+	TAROT_CHECKPOINT_BEFORE_SCHEME,
+	TarotCheckpointBeforeContentProvider,
+	TarotReviewSessionService,
+} from './review/reviewSessionService';
+import {
 	TarotHookCustomEditorProvider,
 	TarotHookVisualEditorPanel,
 	TarotMcpCustomEditorProvider,
@@ -240,6 +245,8 @@ export function activate(context: vscode.ExtensionContext): void {
 	const hookVisualEditor = new TarotHookVisualEditorPanel(() => hooksProvider.refresh());
 	const scheduleVisualEditor = new TarotScheduleVisualEditorPanel(scheduleService, () => crewSchedulesProvider.refresh());
 	const mcpVisualEditor = new TarotMcpVisualEditorPanel(mcpConfigService, () => mcpProvider.refresh());
+	const reviewSessionService = new TarotReviewSessionService(checkpointService, () => agentPanelProvider.refreshChangedFiles());
+	agentPanelProvider.setReviewSessionService(reviewSessionService);
 	const devServerService = new TarotDevServerService();
 	const devServerTerminals = new Map<string, vscode.Terminal>();
 	const terminalCloseSub = vscode.window.onDidCloseTerminal(term => {
@@ -257,6 +264,34 @@ export function activate(context: vscode.ExtensionContext): void {
 		hookVisualEditor,
 		scheduleVisualEditor,
 		mcpVisualEditor,
+		reviewSessionService,
+		vscode.workspace.registerTextDocumentContentProvider(
+			TAROT_CHECKPOINT_BEFORE_SCHEME,
+			new TarotCheckpointBeforeContentProvider(),
+		),
+		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, reviewSessionService),
+		vscode.commands.registerCommand('tarot.review.open', async () => {
+			if (!reviewSessionService.hasPendingReview()) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No pending agent file changes to review.'));
+				return;
+			}
+			await reviewSessionService.openActiveDiff();
+		}),
+		vscode.commands.registerCommand('tarot.review.acceptFile', async (arg?: string | vscode.Uri) => {
+			await reviewSessionService.acceptFile(arg);
+		}),
+		vscode.commands.registerCommand('tarot.review.rejectFile', async (arg?: string | vscode.Uri) => {
+			await reviewSessionService.rejectFile(arg);
+		}),
+		vscode.commands.registerCommand('tarot.review.acceptAll', async () => {
+			await reviewSessionService.acceptAll();
+		}),
+		vscode.commands.registerCommand('tarot.review.rejectAll', async () => {
+			await reviewSessionService.rejectAll();
+		}),
+		vscode.commands.registerCommand('tarot.review.nextFile', async () => {
+			await reviewSessionService.nextFile();
+		}),
 		vscode.window.registerCustomEditorProvider(
 			'tarot.scheduleCustomEditor',
 			new TarotScheduleCustomEditorProvider(scheduleService, () => crewSchedulesProvider.refresh()),

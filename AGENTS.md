@@ -46,11 +46,12 @@ O **Tarot IDE** é um fork do `microsoft/vscode` (Code - OSS `1.148.0`, branch d
 | Documento | Quando ler |
 | --- | --- |
 | `docs/PROJECT_CONTEXT.md` | **Sempre primeiro**: visão do produto, stack, regras e guardrails (Seção 3), casos de uso `UC-01..UC-11`, mapa de alterações em `src/vs/` (Seção 5), estrutura de `tarot-core` (Seção 6), comandos e troubleshooting. |
-| `docs/MIGRATION_PLAN.md` | Antes de implementar qualquer marco: especificação, arquivos-alvo e critérios de aceite (DoD) por marco, Fase 4/5 e **matriz de conflitos de sincronização com o upstream**. |
+| `docs/EVOLUTION_PLAN_V2.md` | **Roadmap ativo (Fase 6: `M6.1–M6.10`)**: Cursor-style Diff Review (`Accept/Reject`), `/comandos` unificados, Inline Edit `Ctrl+K` + `Fix with Tarot`, Imagens no Chat, NL Hooks/Schedules, NL-to-Shell, Inline Diffs, `/rewind`, Focus Mode redimensionável e Export `.zip` + Spec Drift. |
+| `docs/MIGRATION_PLAN.md` | Registro concluído das Fases 1–5 (`M3.1–M3.10`, Fase 4 `.deb`/CI e Fase 5 Tarot Crew) e **matriz de conflitos de sincronização com o upstream**. |
 | `docs/KIRO_ARCHITECTURE_REFERENCE.md` | Ao tocar Specs, Steering, Hooks, Permissões, Workflows, Sessions ou UX do painel: referência validada da doc oficial do Kiro (Seção 4) e tabela Kiro × Tarot. |
 
-**Status do plano**: **TODAS as Fases 1–5 100% concluídas** (`M3.1–M3.10` + saneamento `#25–#40` + Activity Bar 5 containers + Tarot Crew completo + Paridade Visual & UX + **Fase 4 empacotamento de produção `.deb` validado sem Copilot + CI/CD `.github/workflows/tarot-release.yml`**) · ciclo atual: manutenção, polimento de UI (ex.: editores visuais de Hooks/Schedules/MCP) e sincronização periódica com o upstream `microsoft/vscode`.
-Se este status divergir do `docs/MIGRATION_PLAN.md`, **o `MIGRATION_PLAN.md` vence**; atualize este arquivo.
+**Status do plano**: **Fases 1–5 100% concluídas** (`MIGRATION_PLAN.md`) · **Fase 6 ativa (`docs/EVOLUTION_PLAN_V2.md`)** — `M6.1` ✅ concluído · próximo marco: **`M6.2` (Sistema Unificado de `/comandos`)**.
+Se este status divergir do `docs/EVOLUTION_PLAN_V2.md`, **o `EVOLUTION_PLAN_V2.md` vence**; atualize este arquivo.
 
 ## 4. Mapa Rápido do Repositório
 

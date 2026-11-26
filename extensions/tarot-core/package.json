@@ -425,6 +425,31 @@
           "command": "tarot.specs.syncFiles",
           "when": "resourceFilename == tasks.md",
           "group": "navigation@51"
+        },
+        {
+          "command": "tarot.review.acceptFile",
+          "when": "tarot.hasPendingReview",
+          "group": "navigation@10"
+        },
+        {
+          "command": "tarot.review.rejectFile",
+          "when": "tarot.hasPendingReview",
+          "group": "navigation@11"
+        },
+        {
+          "command": "tarot.review.acceptAll",
+          "when": "tarot.hasPendingReview",
+          "group": "navigation@12"
+        },
+        {
+          "command": "tarot.review.rejectAll",
+          "when": "tarot.hasPendingReview",
+          "group": "navigation@13"
+        },
+        {
+          "command": "tarot.review.nextFile",
+          "when": "tarot.hasPendingReview",
+          "group": "navigation@14"
         }
       ],
       "scm/title": [
@@ -1401,6 +1426,42 @@
         "command": "tarot.schedule.openEditor",
         "title": "%command.schedule.openEditor.title%",
         "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.review.open",
+        "title": "%command.review.open.title%",
+        "category": "Tarot IDE",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "tarot.review.acceptFile",
+        "title": "%command.review.acceptFile.title%",
+        "category": "Tarot IDE",
+        "icon": "$(check)"
+      },
+      {
+        "command": "tarot.review.rejectFile",
+        "title": "%command.review.rejectFile.title%",
+        "category": "Tarot IDE",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "tarot.review.acceptAll",
+        "title": "%command.review.acceptAll.title%",
+        "category": "Tarot IDE",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "tarot.review.rejectAll",
+        "title": "%command.review.rejectAll.title%",
+        "category": "Tarot IDE",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "tarot.review.nextFile",
+        "title": "%command.review.nextFile.title%",
+        "category": "Tarot IDE",
+        "icon": "$(arrow-right)"
       }
     ],
     "customEditors": [

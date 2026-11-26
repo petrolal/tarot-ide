@@ -23,7 +23,8 @@ import {
 	SpecApprovalGate,
 	TaskProgressCard,
 } from '../agents/types';
-import { TarotCheckpointService } from '../checkpoints/checkpointService';
+import { CheckpointDiffEntry, TarotCheckpointService } from '../checkpoints/checkpointService';
+import { TarotReviewSessionService } from '../review/reviewSessionService';
 import { getTarotConfig } from '../config/tarotConfig';
 import { compactConversationMessages, computeContextMeter, formatSessionExportBundle, formatSessionExportMarkdown } from '../context/compactionService';
 import { resolveContextProvider } from '../context/contextProviders';
@@ -71,7 +72,12 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private activeCancellation: vscode.CancellationTokenSource | undefined;
 	private runningSessionId: string | undefined;
 	private readonly queuedHookPrompts: string[] = [];
+	private reviewSessionService: TarotReviewSessionService | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
+
+	setReviewSessionService(service: TarotReviewSessionService): void {
+		this.reviewSessionService = service;
+	}
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -993,6 +999,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				break;
 			case 'openFileDiff':
 				if (msg.relativePath && msg.fileStatus) {
+					if (this.reviewSessionService?.hasPendingFile(msg.relativePath)) {
+						await this.reviewSessionService.openFile(msg.relativePath);
+						break;
+					}
 					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 					if (cwd) {
 						await this.gitReviewService.openFileDiff(cwd, msg.relativePath, msg.fileStatus);
@@ -1544,10 +1554,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			}
 			this.postState();
 
-			// Auto-open edited files in the editor when files await user approval (Supervised / policy `ask`)
-			// so the user can review diffs immediately next to the Approve / Revert card.
-			if (fileWriteGate && fileWriteGate.files.length > 0) {
-				void this.openEditedFilesForReview(cwd, fileWriteGate.files.slice(0, 3));
+			// Start Cursor-style Diff Review session (M6.1) for all non-denied edits in this turn.
+			// Auto-opens the Git-style `Before ↔ Agent Edit` diff editor with Accept/Reject controls
+			// in both `supervised` and `acceptFileChanges` modes (only `approveForMe` stays silent).
+			if (fileWriteReview && fileWriteReview.diffEntries.length > 0 && checkpointId) {
+				const autoOpen = Boolean(fileWriteGate) || this.autonomy !== 'approveForMe';
+				if (this.reviewSessionService) {
+					void this.reviewSessionService.startReview(cwd, session.id, checkpointId, fileWriteReview.diffEntries, autoOpen);
+				} else if (fileWriteGate && fileWriteGate.files.length > 0) {
+					void this.openEditedFilesForReview(cwd, fileWriteGate.files.slice(0, 3));
+				}
 			}
 
 			if (!wasCancelled && workspaceHooks.length > 0) {
@@ -1776,7 +1792,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		cwd: string,
 		sessionId: string,
 		checkpointId: string,
-	): Promise<{ gate?: FileWriteApprovalGate; changedFiles: ChangedFileInfo[] } | undefined> {
+	): Promise<{ gate?: FileWriteApprovalGate; changedFiles: ChangedFileInfo[]; diffEntries: CheckpointDiffEntry[] } | undefined> {
 		const diff = await this.checkpointService.getCheckpointDiff(cwd, sessionId, checkpointId);
 		if (diff.length === 0) {
 			return undefined;
@@ -1792,11 +1808,6 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			if (decision.effect === 'deny') {
 				denied.push(entry.relativePath);
 			} else if (decision.effect === 'ask') {
-				// An explicit rule (a Tarot invariant like `.git/**`, or something the user wrote
-				// into permissions.yaml) always asks, regardless of autonomy mode — that is the
-				// point of configuring it. The bare "ask when nothing matches" default only asks
-				// in Supervised: Accept File Changes/Approve For Me chose to skip per-edit review
-				// for ordinary files, and this gate must not quietly reintroduce it for every turn.
 				if (!decision.defaulted || this.autonomy === 'supervised') {
 					asked.push(entry.relativePath);
 				}
@@ -1806,8 +1817,6 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			const result = await this.checkpointService.restoreCheckpointFiles(cwd, sessionId, checkpointId, denied);
 			this.outputChannel.appendLine(`[Permissions] fs_write denied, auto-reverted: ${result.reverted.join(', ') || '(none)'}`);
 			if (result.skipped.length > 0) {
-				// Denied by policy but no backup exists to revert it (no git, pre-existing file) —
-				// the content is still on disk; surface this instead of pretending it was handled.
 				this.outputChannel.appendLine(`[Permissions] fs_write denied but could NOT be reverted (no backup): ${result.skipped.join(', ')}`);
 				vscode.window.showWarningMessage(vscode.l10n.t(
 					'{0} file(s) were written against denied permissions but could not be auto-reverted (no backup available): {1}',
@@ -1816,17 +1825,17 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			}
 		}
 		const deniedSet = new Set(denied);
-		const changedFiles: ChangedFileInfo[] = diff
-			.filter(entry => !deniedSet.has(entry.relativePath))
-			.map(entry => ({
-				relativePath: entry.relativePath,
-				status: entry.status === 'added' ? 'A' : entry.status === 'deleted' ? 'D' : 'M',
-				added: 0,
-				removed: 0,
-			}));
+		const diffEntries = diff.filter(entry => !deniedSet.has(entry.relativePath));
+		const changedFiles: ChangedFileInfo[] = diffEntries.map(entry => ({
+			relativePath: entry.relativePath,
+			status: entry.status === 'added' ? 'A' : entry.status === 'deleted' ? 'D' : 'M',
+			added: 0,
+			removed: 0,
+		}));
 		return {
 			gate: asked.length > 0 ? { sessionId, checkpointId, files: asked } : undefined,
 			changedFiles,
+			diffEntries,
 		};
 	}
 

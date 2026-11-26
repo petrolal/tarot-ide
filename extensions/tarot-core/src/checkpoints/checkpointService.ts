@@ -69,9 +69,16 @@ export interface CheckpointDiffEntry {
 }
 
 export class TarotCheckpointService {
+	private async isInsideGitRepo(gitPath: string, workspaceRoot: string): Promise<boolean> {
+		const res = await execSimple(gitPath, ['-C', workspaceRoot, 'rev-parse', '--is-inside-work-tree'], 4000).catch(() => undefined);
+		return res?.exitCode === 0 && res.stdout.trim() === 'true';
+	}
+
 	/**
 	 * Captures a lightweight snapshot of currently modified/untracked files before an agent turn
 	 * so the user can restore to this point in 1 click without losing chat history.
+	 * In non-Git workspaces, also snapshots small existing workspace files (<= 512 KB, up to 200)
+	 * so post-turn Before ↔ After diffs and Reject File revert work identically without Git.
 	 */
 	async createCheckpoint(workspaceRoot: string, sessionId: string): Promise<string | undefined> {
 		const id = `cp-${Date.now()}-${crypto.randomBytes(2).toString('hex')}`;
@@ -80,16 +87,21 @@ export class TarotCheckpointService {
 
 		try {
 			await fs.mkdir(filesDir, { recursive: true });
+			const gitPath = await resolveBinaryPath('git');
+			const isGitRepo = Boolean(gitPath && await this.isInsideGitRepo(gitPath, workspaceRoot));
+
 			const candidateFiles = await this.collectDirtyFiles(workspaceRoot);
 			const entries: CheckpointFileEntry[] = [];
+			const seen = new Set<string>();
 
-			for (let i = 0; i < candidateFiles.length; i++) {
-				const rel = candidateFiles[i];
+			let backupCounter = 0;
+			for (const rel of candidateFiles) {
+				seen.add(rel);
 				const abs = path.join(workspaceRoot, rel);
 				try {
 					const stat = await fs.stat(abs);
 					if (stat.isFile() && stat.size <= 2 * 1024 * 1024) {
-						const backupName = `f_${i}.bak`;
+						const backupName = `f_${backupCounter++}.bak`;
 						await fs.copyFile(abs, path.join(filesDir, backupName));
 						entries.push({ relativePath: rel, existed: true, backupName });
 					}
@@ -98,14 +110,37 @@ export class TarotCheckpointService {
 				}
 			}
 
-			const gitPath = await resolveBinaryPath('git');
+			let baseline: BaselineFileEntry[] | undefined;
+			if (!isGitRepo) {
+				baseline = await this.scanWorkspaceFingerprint(workspaceRoot);
+				let extraBackedUp = 0;
+				for (const base of baseline) {
+					if (extraBackedUp >= 200) {
+						break;
+					}
+					if (seen.has(base.relativePath) || base.size > 512 * 1024) {
+						continue;
+					}
+					const abs = path.join(workspaceRoot, base.relativePath);
+					try {
+						const backupName = `f_${backupCounter++}.bak`;
+						await fs.copyFile(abs, path.join(filesDir, backupName));
+						entries.push({ relativePath: base.relativePath, existed: true, backupName });
+						seen.add(base.relativePath);
+						extraBackedUp++;
+					} catch {
+						// Best-effort non-git backup
+					}
+				}
+			}
+
 			const manifest: CheckpointManifest = {
 				id,
 				sessionId,
 				createdAt: new Date().toISOString(),
 				workspaceRoot,
 				files: entries,
-				baseline: gitPath ? undefined : await this.scanWorkspaceFingerprint(workspaceRoot),
+				baseline,
 			};
 
 			await fs.writeFile(path.join(cpDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');

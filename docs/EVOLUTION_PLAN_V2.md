@@ -1,0 +1,232 @@
+# Tarot IDE — Plano de Evolução Agêntica v2 (Agent-Ready · Fase 6)
+
+> **Guia de execução estruturado para agentes de IA e engenheiros.**
+> Este documento dá continuidade ao [MIGRATION_PLAN.md](./MIGRATION_PLAN.md) (Fases 1–5 **100% concluídas**).
+> Cada marco abaixo define: **Objetivo**, **Arquivos-Alvo**, **Contratos/Especificação**, **Critérios de Aceite (DoD)** e **Comandos de Verificação**.
+>
+> **Invariantes obrigatórias** (ver [AGENTS.md](../AGENTS.md) e [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md)):
+> - **100% Extension-First** (`extensions/tarot-core/`), sem tocar `src/vs/`.
+> - **Package manager**: somente `pnpm` (nunca `npm`).
+> - **Segurança BYOA & Webviews**: `spawn(bin, args, { shell: false })`, `vscode.workspace.isTrusted` antes de carregar `.tarot/`, CSP estrita com `nonce` e **zero `innerHTML`**.
+> - **Idioma**: UI chrome em Inglês (`vscode.l10n.t()` + `package.nls.json`), prompts/templates gerados em PT-BR, docs em PT-BR.
+
+---
+
+## Mapa Geral da Fase 6 (`M6.1–M6.10`)
+
+| Marco | Título | Inspiração | Prioridade | Dependências | Status |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| **M6.1** | **Cursor-Style Diff Review (`Accept / Reject` por Arquivo, Git e Non-Git)** | Cursor + Kiro | P0 | `checkpointService.ts`, `agentPanelView.ts` | ✅ Concluído |
+| **M6.2** | **Sistema Unificado de Slash Commands (`/comando`) no Chat e Focus Mode** | Kiro + Claude Code | P0 | `agentPanelView.ts`, `focusModeView.ts` | 📋 Planejado |
+| **M6.3** | **Inline Quick Edit (`Ctrl+K`) + Quick Fix Agêntico (`Fix with Tarot`)** | Kiro + Cursor | P0 | `M6.1` | 📋 Planejado |
+| **M6.4** | **Colar & Arrastar Imagens no Chat e Focus Mode (`Ctrl+V` / Drag & Drop)** | Kiro | P0 | `panel.js`, `focusMode.js` | 📋 Planejado |
+| **M6.5** | **Criação em Linguagem Natural de Agent Hooks & Schedules (*"Ask Tarot to create..."*)** | Kiro | P0 | `visualConfigEditors.ts` | 📋 Planejado |
+| **M6.6** | **Natural Language to Shell no Terminal com Gate de Permissões** | Kiro | P0 | `permissionsService.ts` | 📋 Planejado |
+| **M6.7** | **Inline Code Diffs Coloridos (`+`/`-`) na Conversa + `Keep`/`Revert` por Arquivo** | Kiro + Cursor | P0 | `M6.1`, `panel.js` | 📋 Planejado |
+| **M6.8** | **Comando `/rewind` Interativo por Turno (*Fork* vs *Restore Checkpoint*)** | Kiro | P1 | `M6.2`, `checkpointService.ts` | 📋 Planejado |
+| **M6.9** | **Painéis Redimensionáveis (Drag Handles) + Strip só de Ícones no Focus Mode** | Kiro | P1 | `focusMode.{js,css}` | 📋 Planejado |
+| **M6.10** | **Exportação Portável de Sessão `.zip` + Spec-to-Code Drift Check** | Kiro | P1 | `compactionService.ts`, `specService.ts` | 📋 Planejado |
+
+---
+
+## M6.1 — Cursor-Style Diff Review (`Accept / Reject` por Arquivo, Git e Non-Git)
+
+### Objetivo
+Entregar uma experiência de revisão de código estilo Cursor/Git nativa no VS Code após edições de qualquer agente BYOA (`claude`, `agy`, `codex`): abrir automaticamente o **Diff Editor (`Before ↔ Agent Edit`)** com botões de **`✓ Accept File`**, **`✕ Reject File`**, **`✓ Accept All`**, **`✕ Reject All`** e **`Next File`** no CodeLens, na barra de título do editor e na Status Bar — funcionando **tanto em repositórios Git quanto em pastas sem Git**.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/review/reviewSessionService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/checkpoints/checkpointService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`
+- `[MODIFY]` `extensions/tarot-core/package.json` & `package.nls.json`
+- `[NEW]` `extensions/tarot-core/src/test/reviewSessionService.test.ts`
+
+### Contratos & Especificação
+1. **Snapshot pré-turno universal (Git e Non-Git)**:
+   - Em `checkpointService.ts`, quando o workspace **não** tem `.git`, fazer backup leve dos arquivos de texto existentes (≤ 512 KB, limite seguro de arquivos) no diretório do checkpoint pré-turno para que `getCheckpointDiff` sempre tenha `backupAbsPath` real para diffs `Before ↔ After` e `Reject` reversível.
+2. **Provedor de Diff `tarot-checkpoint-before:`**:
+   - `TextDocumentContentProvider` que serve o conteúdo exato pré-turno do arquivo (`backupAbsPath`, ou vazio para arquivos recém-criados).
+   - Abre `vscode.diff(beforeUri, workingUri, "<file> (Before ↔ Agent Edit)")`.
+3. **Controles Cursor-style no Editor**:
+   - `CodeLensProvider` na linha 0 de qualquer arquivo pendente de revisão: `$(check) Accept File`, `$(discard) Reject File`, `$(check-all) Accept All (N)`, `$(close-all) Reject All`, `$(arrow-right) Next File`.
+   - Botões na barra de título do editor (`editor/title` condicionados a `tarot.hasPendingReview`) + Status Bar pill clicável `$(git-compare) Review: N file(s)`.
+4. **Integração com `agentPanelView.ts`**:
+   - Ao concluir um turno que alterou arquivos: inicia a sessão de revisão em `TarotReviewSessionService`.
+   - Em **`Supervised`** (ou regra `ask` de `permissions.yaml`), abre automaticamente o diff do primeiro arquivo alterado.
+   - Em **`Accept File Changes`**, mantém a sessão de revisão disponível com 1 clique via comando/botão **Review Changes** e barra de arquivos alterados (que agora abre o diff `Before ↔ After` real mesmo sem Git).
+
+### Critérios de Aceite (DoD)
+- [x] `TarotReviewSessionService` implementado com `tarot-checkpoint-before:` content provider, `CodeLensProvider`, Status Bar e comandos `tarot.review.{acceptFile,rejectFile,acceptAll,rejectAll,nextFile,open}`.
+- [x] `checkpointService.ts` grava backups leves pré-turno em workspaces sem Git (≤ 512 KB) permitindo diff `Before ↔ After` e `Reject` completo.
+- [x] `Reject File` restaura o arquivo original (ou remove arquivo recém-criado) e avança automaticamente para o próximo arquivo pendente.
+- [x] `Accept File` / `Accept All` limpa o estado pendente, CodeLens e contexto `tarot.hasPendingReview`.
+- [x] Testes unitários passando + `compile-extension:tarot-core` com 0 erros + `esbuild.mts` + 0 ocorrências de `innerHTML`/`shell: true`.
+
+---
+
+## M6.2 — Sistema Unificado de Slash Commands (`/comando`) no Chat e Focus Mode
+
+### Objetivo
+Unificar e expandir o sistema de `/comandos` estilo Kiro / Claude Code com autocomplete pesquisável, navegação por teclado (`↑`/`↓`/`Tab`/`Enter`) e suporte idêntico no **Painel Lateral** e no **Focus Mode**.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/commands/slashCommandRegistry.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/focusModeView.ts`
+- `[MODIFY]` `extensions/tarot-core/media/webview/panel.js` & `media/webview/focusMode.js`
+- `[NEW]` `extensions/tarot-core/src/test/slashCommandRegistry.test.ts`
+
+### Contratos & Especificação
+- Comandos built-in agrupados por categoria:
+  - **Workflow & Modes**: `/spec`, `/quick-spec`, `/bugfix`, `/plan`, `/vibe`, `/workflow`, `/focus`
+  - **Code & Review**: `/review`, `/diff`, `/rewind`, `/undo`
+  - **Session & Context**: `/compact`, `/recap`, `/context`, `/clear`, `/export`, `/help`
+  - **Config & Tools**: `/model`, `/permissions`, `/hook`, `/schedule`, `/mcp`, `/steering`
+  - **Dynamic Discovery**: `/<agent-profile>`, `/<skill-id>`, `/<steering-id>`
+
+### Critérios de Aceite (DoD)
+- [ ] `slashCommandRegistry.ts` lista e filtra comandos estáticos + dinâmicos (agentes, skills, steering).
+- [ ] Menu `/` funciona por teclado e clique tanto no Painel Lateral quanto no Focus Mode.
+- [ ] `/diff`, `/permissions`, `/model`, `/recap`, `/compact`, `/hook`, `/schedule`, `/mcp`, `/help` executam ações reais.
+- [ ] Testes unitários para parsing, filtro fuzzy e despacho de comandos.
+
+---
+
+## M6.3 — Inline Quick Edit (`Ctrl+K`) + Quick Fix Agêntico (`Fix with Tarot`)
+
+### Objetivo
+Permitir editar código diretamente no editor via `Ctrl+K` com preview no Diff Review (`M6.1`) e corrigir diagnósticos (`Problems`) com 1 clique via lâmpada `Ctrl+.` (`✦ Fix with Tarot`).
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/editors/inlineEditService.ts`
+- `[NEW]` `extensions/tarot-core/src/editors/tarotCodeActionProvider.ts`
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`, `package.json`, `package.nls.json`
+- `[NEW]` `extensions/tarot-core/src/test/inlineEdit.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] `Ctrl+K` no editor coleta instrução + seleção/arquivo ativo, executa o agente BYOA e abre o diff no `M6.1` (`Accept / Reject`).
+- [ ] `CodeActionProvider` oferece `✦ Fix with Tarot` em erros/warnings e `✦ Explain / Refactor with Tarot` em seleções.
+- [ ] Respeita `vscode.workspace.isTrusted` e permissões configuradas.
+
+---
+
+## M6.4 — Colar & Arrastar Imagens no Chat e Focus Mode (`Ctrl+V` / Drag & Drop)
+
+### Objetivo
+Suportar colagem (`Ctrl+V`) e arraste (Drag & Drop) de screenshots/mockups (PNG, JPEG, WebP até 10 MB) no composer do Painel Lateral e do Focus Mode, salvando em `.tarot/attachments/` e anexando o caminho ao prompt BYOA.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/context/imageAttachmentService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`, `focusModeView.ts`
+- `[MODIFY]` `extensions/tarot-core/media/webview/panel.js`, `focusMode.js`, `panel.css`, `focusMode.css`
+- `[NEW]` `extensions/tarot-core/src/test/imageAttachmentService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Validação estrita de MIME (`image/png`, `image/jpeg`, `image/webp`) e limite máximo de 10 MB.
+- [ ] Preview seguro em thumbnail (DOM puro, zero `innerHTML`) com botão remover.
+- [ ] Caminho absoluto da imagem repassado aos adaptadores `claude`/`agy`/`codex`.
+
+---
+
+## M6.5 — Criação em Linguagem Natural de Agent Hooks & Schedules
+
+### Objetivo
+Adicionar fluxo *"Ask Tarot to create..."* nos editores visuais e na sidebar de Hooks e Schedules para gerar o JSON estruturado via agente BYOA, validar com `parseHookFile` / `isValidCronExpression` antes de gravar e abrir imediatamente no editor visual.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/commands/nlConfigGenerator.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/visualConfigEditors.ts`, `extension.ts`, `package.json`
+- `[NEW]` `extensions/tarot-core/src/test/nlConfigGenerator.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Geração validada de Hooks (`.tarot/hooks/*.json`) e Schedules (`.tarot/schedules/*.json`) a partir de descrição em linguagem natural.
+- [ ] Rejeição segura de JSON inválido ou cron inválido antes de gravar em disco.
+
+---
+
+## M6.6 — Natural Language to Shell no Terminal com Gate de Permissões
+
+### Objetivo
+Comando `tarot.terminal.nlToShell` (`Ctrl+Shift+K` no terminal ou Command Palette) que traduz uma intenção em linguagem natural para comando shell seguro, valida via `permissionsService.evaluateShellCommand` e pede confirmação antes de enviar ao terminal ativo.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/commands/nlToShellCommand.ts`
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`, `package.json`, `package.nls.json`
+- `[NEW]` `extensions/tarot-core/src/test/nlToShell.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Comandos `deny` na política de permissões são bloqueados antes de chegar ao terminal.
+- [ ] Preview do comando gerado + botão `Run in Terminal` / `Copy` / `Cancel`.
+
+---
+
+## M6.7 — Inline Code Diffs Coloridos (`+`/`-`) na Conversa + `Keep`/`Revert` por Arquivo
+
+### Objetivo
+Renderizar hunks coloridos (`+` verde / `-` vermelho) diretamente no card de arquivos alterados da conversa (Painel Lateral e Focus Mode), usando DOM puro (zero `innerHTML`) e conectados ao `TarotReviewSessionService` (`M6.1`).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`, `focusModeView.ts`
+- `[MODIFY]` `extensions/tarot-core/media/webview/panel.js`, `panel.css`, `focusMode.js`, `focusMode.css`
+
+### Critérios de Aceite (DoD)
+- [ ] Diff colapsável por arquivo dentro do chat/Focus Mode com botões `Open Diff`, `Keep`, `Revert`.
+- [ ] Zero `innerHTML`; 100% compatível com Dark e Light themes.
+
+---
+
+## M6.8 — Comando `/rewind` Interativo por Turno (*Fork* vs *Restore Checkpoint*)
+
+### Objetivo
+Permitir executar `/rewind` no chat para escolher qualquer turno anterior da sessão e decidir entre **Fork Conversation** (nova sessão a partir dali sem tocar arquivos) ou **Restore Checkpoint + Rewind** (restaurar código + conversa).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`, `src/commands/slashCommandRegistry.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] QuickPick listando turnos com timestamp, resumo e indicador de checkpoint disponível.
+- [ ] Ambas as opções (`Fork` e `Restore Checkpoint`) testadas e funcionais.
+
+---
+
+## M6.9 — Painéis Redimensionáveis (Drag Handles) + Strip só de Ícones no Focus Mode
+
+### Objetivo
+Adicionar divisórias arrastáveis (drag handles) entre Sessions, Chat e Inspector no Focus Mode + modo colapsado (strip só de ícones) com persistência das larguras em `globalState`.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/media/webview/focusMode.js`, `focusMode.css`
+- `[MODIFY]` `extensions/tarot-core/src/views/focusModeView.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Drag handles suaves sem seleção de texto acidental; larguras persistidas entre sessões.
+- [ ] Toggle para colapsar sidebar esquerda em strip de ícones.
+
+---
+
+## M6.10 — Exportação Portável de Sessão `.zip` + Spec-to-Code Drift Check
+
+### Objetivo
+1. Exportar uma sessão completa (transcrição Markdown, JSON da sessão, anexos e diffs) em um único arquivo `.zip` gerado em Node.js puro (sem binários externos).
+2. Comando `tarot.specs.checkDrift` que compara o estado atual do código contra `.tarot/specs/<slug>/{requirements,design}.md` e gera relatório de aderência/drift.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/sessions/zipExporter.ts`
+- `[MODIFY]` `extensions/tarot-core/src/commands/specCommands.ts`, `extension.ts`, `package.json`
+- `[NEW]` `extensions/tarot-core/src/test/zipExporter.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] `.zip` válido gerado com `zlib.deflateRawSync` + cabeçalhos PKZIP padrão e testado por teste unitário.
+- [ ] `tarot.specs.checkDrift` funcional para qualquer Spec do workspace.
+
+---
+
+## Comandos de Verificação Padrão (Todos os Marcos)
+
+```bash
+pnpm exec gulp compile-extension:tarot-core
+node --test "extensions/tarot-core/out/test/**/*.test.js"
+node extensions/tarot-core/esbuild.mts
+! rg -n "innerHTML|shell:\s*true" extensions/tarot-core/src extensions/tarot-core/media
+```
