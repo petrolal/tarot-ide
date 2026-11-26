@@ -14,7 +14,7 @@
 | **Fase 1** | Setup do ambiente, fork `microsoft/vscode` (`1.148.0`), branch `tarot-main`, `tarot-core`, licença GPL-3.0 e remote `origin` | ✅ Concluída | — |
 | **Fase 2** | Rebranding completo (assets, tema Arcana, 46 ícones, SVGs UI, `nls.ts`, walkthrough, desativação do Copilot, URLs/licença) | ✅ Concluída | — |
 | **Fase 3** | **IDE 100% Agêntica (Paridade Kiro IDE + BYOA `claude`, `codex`, `agy` + Activity Bar 5 containers + Tarot Crew local)** | ✅ **Concluída (M3.1–M3.10 + Crew Core ✅)** | — |
-| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | 📋 Planejada | **Sim — iniciar Fase 4** |
+| **Fase 4** | Empacotamento de produção, CLI `tarot`, instaladores e CI/CD | ✅ **Concluída (Linux `.deb` validado + CI/CD multiplataforma)** | — |
 | **Fase 5** | Tarot Crew Avançado: Heartbeat Daemon, Webhooks HMAC, Gateways Omnichannel, Busca Semântica Híbrida, Apps SDK e Remote SSH | ✅ **Concluída** | — |
 | **Contínuo** | Sincronização periódica com `upstream` (`microsoft/vscode`) | 🔄 Recorrente | Conforme releases |
 
@@ -393,20 +393,20 @@ Auditoria completa da codebase (qualidade de `tarot-core`, paridade dos marcos `
 
 ---
 
-## Fase 4 — Empacotamento, CLI `tarot` e Distribuição
+## Fase 4 — Empacotamento, CLI `tarot` e Distribuição — ✅ Concluída
 
 ### 4.1 Builds de Produção Locais (Linux)
 ```bash
-pnpm exec gulp vscode-linux-x64-min
-pnpm exec gulp vscode-linux-x64-build-deb
-pnpm exec gulp vscode-linux-x64-build-rpm
+NODE_OPTIONS="--max-old-space-size=8192" pnpm exec gulp vscode-linux-x64-min
+pnpm exec gulp vscode-linux-x64-prepare-deb && pnpm exec gulp vscode-linux-x64-build-deb
+pnpm exec gulp vscode-linux-x64-prepare-rpm && pnpm exec gulp vscode-linux-x64-build-rpm
 ```
-- **Critério de Aceite**: pacote `.deb` instala o binário `/usr/bin/tarot`, ícone `tarot-ide`, `.desktop` funcional, tema **Tarot Arcana Dark**, **Tarot Arcana Icons**, Open VSX ativo e sem `extensions/copilot`.
+- **Critério de Aceite**:
+  - [x] `vscode-linux-x64-min` + `vscode-linux-x64-prepare-deb` + `vscode-linux-x64-build-deb` validados localmente gerando `.build/linux/deb/amd64/deb/tarot_1.148.0-*_amd64.deb` (220 MB) com `Package: tarot`, `Maintainer: Lucas Petrola`, `Homepage: https://github.com/petrolal/tarot-ide`, ícone `/usr/share/pixmaps/tarot-ide.png`, `/usr/share/tarot/resources/app/extensions/tarot-core/`, Open VSX ativo e **0 arquivos em `extensions/copilot`** (excluído no empacotamento via `build/gulpfile.vscode.ts`, preservando `extensions/copilot/` no Git/lockfile).
 
 ### 4.2 Multiplataforma & CI/CD
-- [ ] Alvos Windows (`vscode-win32-x64-min` + Inno Setup) e macOS (`vscode-darwin-arm64-min`, `com.tarot.ide`).
-- [ ] GitHub Actions acionado por tags `v*` publicando artefatos em GitHub Releases.
-- [ ] *(Opcional)* Serviço leve de auto-update configurado via `updateUrl` em `product.json`.
+- [x] Workflow GitHub Actions [`.github/workflows/tarot-release.yml`](../.github/workflows/tarot-release.yml) acionado por tags `v*` (e `workflow_dispatch`) cobrindo Linux x64 (`.deb`/`.rpm`), Windows x64 (`vscode-win32-x64-min`) e macOS arm64 (`vscode-darwin-arm64-min`, `com.tarot.ide`) com publicação automática em GitHub Releases.
+- [ ] *(Opcional)* Serviço leve de auto-update configurado via `updateUrl` em `product.json` + bitmaps `resources/win32/inno-*.bmp`.
 
 ---
 
@@ -453,7 +453,7 @@ git checkout tarot-main && git merge --no-ff sync/vscode-1.149.0
 | `pnpm-lock.yaml` | Alto | Nunca resolver manualmente: `git checkout --theirs pnpm-lock.yaml && pnpm install`. |
 | `pnpm-workspace.yaml` & `build/npm/dirs.ts` | Baixo | Manter `extensions/tarot-core` em ordem alfabética. |
 | `build/gulpfile.extensions.ts` | Baixo | Manter `'extensions/tarot-core/tsconfig.json'` em `compilations`. |
-| `build/gulpfile.vscode.ts` & `build/gulpfile.vscode.linux.ts` | Baixo | Manter guarda `hasDefaultChatAgent = Boolean((product as { defaultChatAgent?: unknown }).defaultChatAgent)` em torno do empacotamento de Copilot SDK/shim/symlink. |
+| `build/gulpfile.vscode.ts`, `build/gulpfile.vscode.linux.ts` & `build/linux/dependencies-generator.ts` | Baixo | Manter guarda `hasDefaultChatAgent = Boolean((product as { defaultChatAgent?: unknown }).defaultChatAgent)` (excluindo `extensions/copilot/**`, SDK/shim e symlink no empacotamento), `fs.existsSync(tunnelBinPath)` para `tarot-tunnel` opcional e `FAIL_BUILD_FOR_NEW_DEPENDENCIES` opt-in via env. |
 | `package.json` & `scripts/code.{sh,bat}` | Muito baixo | Manter scripts `*-tarot*` e `--disable-extension=GitHub.copilot-chat`. |
 | `src/vs/nls.ts` | Muito baixo | Manter `_rebrandMessage` em `_format` antes da interpolação de `args`. |
 | `src/vs/workbench/services/themes/common/{workbenchThemeService,themeExtensionPoints}.ts` | Muito baixo | Manter `Tarot Arcana Dark`/`Tarot Arcana Light` (Dark/Light/HC), `FILE_ICON_THEME = 'tarot-arcana-icons'` e o filtro de `vscode.theme-*`/`vscode-theme-seti` (preservando `extensions/theme-*` no Git). |
