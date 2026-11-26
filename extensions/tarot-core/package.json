@@ -1402,6 +1402,38 @@
         "title": "%command.schedule.openEditor.title%",
         "category": "Tarot IDE"
       }
+    ],
+    "customEditors": [
+      {
+        "viewType": "tarot.scheduleCustomEditor",
+        "displayName": "%customEditor.schedule.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "**/.tarot/schedules/*.json"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "tarot.hookCustomEditor",
+        "displayName": "%customEditor.hook.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "**/.tarot/hooks/*.json"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "tarot.mcpCustomEditor",
+        "displayName": "%customEditor.mcp.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "**/.tarot/settings/mcp.json"
+          }
+        ],
+        "priority": "default"
+      }
     ]
   },
   "devDependencies": {

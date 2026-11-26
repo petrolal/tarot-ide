@@ -107,8 +107,7 @@ export class TarotHookVisualEditorPanel implements vscode.Disposable {
 				}
 				const m = msg as Record<string, unknown>;
 				if (m.type === 'openJson') {
-					const doc = await vscode.workspace.openTextDocument(this.activeHook.sourceFile);
-					await vscode.window.showTextDocument(doc);
+					await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(this.activeHook.sourceFile), 'default');
 				} else if (m.type === 'runNow') {
 					await vscode.commands.executeCommand('tarot.hooks.runManual', { hook: this.activeHook });
 				} else if (m.type === 'save') {
@@ -340,8 +339,7 @@ export class TarotScheduleVisualEditorPanel implements vscode.Disposable {
 				}
 				const m = msg as Record<string, unknown>;
 				if (m.type === 'openJson') {
-					const doc = await vscode.workspace.openTextDocument(this.activeJob.sourceFile);
-					await vscode.window.showTextDocument(doc);
+					await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(this.activeJob.sourceFile), 'default');
 				} else if (m.type === 'openDigest' && typeof m.path === 'string') {
 					const doc = await vscode.workspace.openTextDocument(m.path);
 					await vscode.window.showTextDocument(doc);
@@ -601,8 +599,7 @@ export class TarotMcpVisualEditorPanel implements vscode.Disposable {
 				} else if (m.type === 'openJson') {
 					const target = await this.ensureMcpFile();
 					if (target) {
-						const doc = await vscode.workspace.openTextDocument(target);
-						await vscode.window.showTextDocument(doc);
+						await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(target), 'default');
 					}
 				} else if (m.type === 'addServer') {
 					await this.addServer(m);
@@ -846,5 +843,457 @@ window.addEventListener('message', ev => {
 		for (const d of this.disposables) {
 			d.dispose();
 		}
+	}
+}
+
+async function replaceDocumentJson(document: vscode.TextDocument, nextJson: string): Promise<void> {
+	const edit = new vscode.WorkspaceEdit();
+	const fullRange = new vscode.Range(
+		document.positionAt(0),
+		document.positionAt(document.getText().length),
+	);
+	edit.replace(document.uri, fullRange, nextJson);
+	await vscode.workspace.applyEdit(edit);
+	await document.save();
+}
+
+/**
+ * CustomTextEditorProvider for `**\/.tarot/schedules/*.json`.
+ * Opens Schedule JSON files directly in the visual form by default and restores across IDE restarts.
+ */
+export class TarotScheduleCustomEditorProvider implements vscode.CustomTextEditorProvider {
+	private readonly helper: TarotScheduleVisualEditorPanel;
+
+	constructor(
+		private readonly scheduleService: TarotScheduleService,
+		private readonly onChanged: () => void,
+	) {
+		this.helper = new TarotScheduleVisualEditorPanel(scheduleService, onChanged);
+	}
+
+	async resolveCustomTextEditor(
+		document: vscode.TextDocument,
+		webviewPanel: vscode.WebviewPanel,
+		_token: vscode.CancellationToken,
+	): Promise<void> {
+		webviewPanel.webview.options = { enableScripts: true };
+		webviewPanel.webview.html = (this.helper as unknown as { buildHtml(w: vscode.Webview): string }).buildHtml(webviewPanel.webview);
+
+		const parseJob = (): ScheduledJobDefinition => {
+			const fallbackName = path.basename(document.uri.fsPath, '.json');
+			try {
+				const raw = JSON.parse(document.getText()) as { jobs?: Array<Record<string, unknown>> } & Record<string, unknown>;
+				const obj = Array.isArray(raw.jobs) && raw.jobs[0] ? raw.jobs[0] : raw;
+				const actionObj = (obj.action && typeof obj.action === 'object' ? obj.action : {}) as Record<string, unknown>;
+				const actionType = actionObj.type === 'command' ? 'command' : 'agent';
+				return {
+					id: typeof obj.id === 'string' && obj.id ? obj.id : fallbackName,
+					name: typeof obj.name === 'string' && obj.name ? obj.name : fallbackName,
+					description: typeof obj.description === 'string' ? obj.description : undefined,
+					enabled: obj.enabled !== false,
+					cron: typeof obj.cron === 'string' && obj.cron ? obj.cron : '0 9 * * 1-5',
+					timezone: typeof obj.timezone === 'string' && obj.timezone ? obj.timezone : 'America/Sao_Paulo',
+					timeoutSec: typeof obj.timeoutSec === 'number' && obj.timeoutSec > 0 ? obj.timeoutSec : 300,
+					jitterSec: typeof obj.jitterSec === 'number' ? obj.jitterSec : 0,
+					excludeDates: Array.isArray(obj.excludeDates) ? obj.excludeDates.filter((x): x is string => typeof x === 'string') : [],
+					action: actionType === 'command'
+						? { type: 'command', command: typeof actionObj.command === 'string' ? actionObj.command : '' }
+						: { type: 'agent', prompt: typeof actionObj.prompt === 'string' ? actionObj.prompt : '' },
+					scope: document.uri.fsPath.startsWith(this.scheduleService.getGlobalSchedulesDir()) ? 'global' : 'workspace',
+					sourceFile: document.uri.fsPath,
+				};
+			} catch {
+				return {
+					id: fallbackName,
+					name: fallbackName,
+					enabled: true,
+					cron: '0 9 * * 1-5',
+					timezone: 'America/Sao_Paulo',
+					timeoutSec: 300,
+					jitterSec: 0,
+					excludeDates: [],
+					action: { type: 'agent', prompt: '' },
+					scope: 'workspace',
+					sourceFile: document.uri.fsPath,
+				};
+			}
+		};
+
+		const postRender = async (): Promise<void> => {
+			const job = parseJob();
+			const root = getWorkspaceRoot();
+			const digests = root ? (await this.scheduleService.listDigests(root)).slice(0, 8) : [];
+			void webviewPanel.webview.postMessage({
+				type: 'render',
+				job,
+				digests: digests.map(p => ({ name: path.basename(p), path: p })),
+			});
+		};
+
+		const changeSub = vscode.workspace.onDidChangeTextDocument(e => {
+			if (e.document.uri.toString() === document.uri.toString()) {
+				void postRender();
+			}
+		});
+
+		const msgSub = webviewPanel.webview.onDidReceiveMessage(async msg => {
+			if (!msg || typeof msg !== 'object') {
+				return;
+			}
+			const m = msg as Record<string, unknown>;
+			if (m.type === 'openJson') {
+				await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+			} else if (m.type === 'openDigest' && typeof m.path === 'string') {
+				const doc = await vscode.workspace.openTextDocument(m.path);
+				await vscode.window.showTextDocument(doc);
+			} else if (m.type === 'runNow') {
+				await vscode.commands.executeCommand('tarot.schedule.runNow');
+			} else if (m.type === 'save') {
+				const cron = typeof m.cron === 'string' ? m.cron.trim() : '';
+				if (!isValidCronExpression(cron)) {
+					vscode.window.showErrorMessage(vscode.l10n.t('Invalid 5-field cron expression: "{0}".', cron));
+					return;
+				}
+				try {
+					const raw = JSON.parse(document.getText() || '{}') as { jobs?: Array<Record<string, unknown>> } & Record<string, unknown>;
+					const current = parseJob();
+					const updateObj = (target: Record<string, unknown>): void => {
+						target.name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : current.name;
+						target.enabled = m.enabled === true;
+						target.cron = cron;
+						const tz = typeof m.timezone === 'string' ? m.timezone.trim() : '';
+						if (tz) {
+							target.timezone = tz;
+						}
+						const timeoutSec = Number(m.timeoutSec);
+						if (Number.isFinite(timeoutSec) && timeoutSec > 0) {
+							target.timeoutSec = Math.floor(timeoutSec);
+						}
+						const actionType = m.actionType === 'command' ? 'command' : 'agent';
+						const value = typeof m.actionValue === 'string' ? m.actionValue.trim() : '';
+						target.action = actionType === 'command'
+							? { type: 'command', command: value }
+							: { type: 'agent', prompt: value };
+					};
+					if (Array.isArray(raw.jobs) && raw.jobs[0]) {
+						updateObj(raw.jobs[0]);
+					} else {
+						updateObj(raw);
+					}
+					await replaceDocumentJson(document, JSON.stringify(raw, null, 2) + '\n');
+					this.onChanged();
+					vscode.window.showInformationMessage(vscode.l10n.t('Schedule "{0}" saved.', String(m.name || current.name)));
+				} catch (err) {
+					vscode.window.showErrorMessage(vscode.l10n.t('Failed to save schedule: {0}', err instanceof Error ? err.message : String(err)));
+				}
+			} else if (m.type === 'delete') {
+				const current = parseJob();
+				const delLabel = vscode.l10n.t('Delete Schedule');
+				const choice = await vscode.window.showWarningMessage(
+					vscode.l10n.t('Delete schedule file "{0}"?', path.basename(document.uri.fsPath)),
+					{ modal: true },
+					delLabel,
+				);
+				if (choice !== delLabel) {
+					return;
+				}
+				const targetAbs = path.resolve(document.uri.fsPath);
+				const root = getWorkspaceRoot();
+				const allowedRoots = [this.scheduleService.getGlobalSchedulesDir()];
+				if (root) {
+					allowedRoots.push(this.scheduleService.getWorkspaceSchedulesDir(root));
+				}
+				if (!allowedRoots.some(r => targetAbs.startsWith(path.resolve(r) + path.sep))) {
+					vscode.window.showErrorMessage(vscode.l10n.t('Refusing to delete file outside .tarot/schedules/.'));
+					return;
+				}
+				await fs.rm(targetAbs, { force: true });
+				this.onChanged();
+				webviewPanel.dispose();
+				vscode.window.showInformationMessage(vscode.l10n.t('Schedule "{0}" deleted.', current.name));
+			}
+		});
+
+		webviewPanel.onDidDispose(() => {
+			changeSub.dispose();
+			msgSub.dispose();
+		});
+
+		await postRender();
+	}
+}
+
+/**
+ * CustomTextEditorProvider for `**\/.tarot/hooks/*.json`.
+ * Opens Hook JSON files directly in the visual form by default and restores across IDE restarts.
+ */
+export class TarotHookCustomEditorProvider implements vscode.CustomTextEditorProvider {
+	private readonly helper: TarotHookVisualEditorPanel;
+
+	constructor(private readonly onChanged: () => void) {
+		this.helper = new TarotHookVisualEditorPanel(onChanged);
+	}
+
+	async resolveCustomTextEditor(
+		document: vscode.TextDocument,
+		webviewPanel: vscode.WebviewPanel,
+		_token: vscode.CancellationToken,
+	): Promise<void> {
+		webviewPanel.webview.options = { enableScripts: true };
+		webviewPanel.webview.html = (this.helper as unknown as { buildHtml(w: vscode.Webview): string }).buildHtml(webviewPanel.webview);
+
+		const parseHook = (): HookDefinition => {
+			const fallbackName = path.basename(document.uri.fsPath, '.json');
+			try {
+				const raw = JSON.parse(document.getText()) as { hooks?: Array<Record<string, unknown>> } & Record<string, unknown>;
+				const obj = Array.isArray(raw.hooks) && raw.hooks[0] ? raw.hooks[0] : raw;
+				const actionObj = (obj.action && typeof obj.action === 'object' ? obj.action : {}) as Record<string, unknown>;
+				const actionType = actionObj.type === 'command' ? 'command' : 'agent';
+				const trigger = typeof obj.trigger === 'string' && (HOOK_TRIGGERS as readonly string[]).includes(obj.trigger)
+					? obj.trigger as HookTrigger
+					: 'PostFileSave';
+				return {
+					id: typeof obj.id === 'string' && obj.id ? obj.id : fallbackName,
+					name: typeof obj.name === 'string' && obj.name ? obj.name : fallbackName,
+					description: typeof obj.description === 'string' ? obj.description : undefined,
+					enabled: obj.enabled !== false,
+					trigger,
+					matcher: typeof obj.matcher === 'string' ? obj.matcher : undefined,
+					timeout: typeof obj.timeout === 'number' && obj.timeout > 0 ? obj.timeout : 60,
+					action: actionType === 'command'
+						? { type: 'command', command: typeof actionObj.command === 'string' ? actionObj.command : '' }
+						: { type: 'agent', prompt: typeof actionObj.prompt === 'string' ? actionObj.prompt : '' },
+					sourceFile: document.uri.fsPath,
+					scope: document.uri.fsPath.startsWith(path.join(os.homedir(), '.tarot', 'hooks')) ? 'global' : 'workspace',
+				};
+			} catch {
+				return {
+					id: fallbackName,
+					name: fallbackName,
+					enabled: true,
+					trigger: 'PostFileSave',
+					timeout: 60,
+					action: { type: 'agent', prompt: '' },
+					sourceFile: document.uri.fsPath,
+					scope: 'workspace',
+				};
+			}
+		};
+
+		const postRender = (): void => {
+			void webviewPanel.webview.postMessage({ type: 'render', hook: parseHook(), triggers: HOOK_TRIGGERS });
+		};
+
+		const changeSub = vscode.workspace.onDidChangeTextDocument(e => {
+			if (e.document.uri.toString() === document.uri.toString()) {
+				postRender();
+			}
+		});
+
+		const msgSub = webviewPanel.webview.onDidReceiveMessage(async msg => {
+			if (!msg || typeof msg !== 'object') {
+				return;
+			}
+			const m = msg as Record<string, unknown>;
+			if (m.type === 'openJson') {
+				await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+			} else if (m.type === 'runNow') {
+				await vscode.commands.executeCommand('tarot.hooks.runManual', { hook: parseHook() });
+			} else if (m.type === 'save') {
+				try {
+					const raw = JSON.parse(document.getText() || '{}') as { hooks?: Array<Record<string, unknown>> } & Record<string, unknown>;
+					const current = parseHook();
+					const updateObj = (target: Record<string, unknown>): void => {
+						target.name = typeof m.name === 'string' && m.name.trim() ? m.name.trim() : current.name;
+						target.description = typeof m.description === 'string' ? m.description.trim() : '';
+						target.enabled = m.enabled === true;
+						target.trigger = typeof m.trigger === 'string' ? m.trigger : current.trigger;
+						const matcher = typeof m.matcher === 'string' ? m.matcher.trim() : '';
+						if (matcher) {
+							target.matcher = matcher;
+						} else {
+							delete target.matcher;
+						}
+						const timeout = Number(m.timeout);
+						if (Number.isFinite(timeout) && timeout > 0) {
+							target.timeout = Math.floor(timeout);
+						}
+						const actionType = m.actionType === 'command' ? 'command' : 'agent';
+						const value = typeof m.actionValue === 'string' ? m.actionValue.trim() : '';
+						target.action = actionType === 'command'
+							? { type: 'command', command: value }
+							: { type: 'agent', prompt: value };
+					};
+					if (Array.isArray(raw.hooks) && raw.hooks[0]) {
+						updateObj(raw.hooks[0]);
+					} else {
+						updateObj(raw);
+					}
+					await replaceDocumentJson(document, JSON.stringify(raw, null, 2) + '\n');
+					this.onChanged();
+					vscode.window.showInformationMessage(vscode.l10n.t('Hook "{0}" saved.', String(m.name || current.name)));
+				} catch (err) {
+					vscode.window.showErrorMessage(vscode.l10n.t('Failed to save hook: {0}', err instanceof Error ? err.message : String(err)));
+				}
+			} else if (m.type === 'delete') {
+				const current = parseHook();
+				const delLabel = vscode.l10n.t('Delete Hook');
+				const choice = await vscode.window.showWarningMessage(
+					vscode.l10n.t('Delete hook file "{0}"?', path.basename(document.uri.fsPath)),
+					{ modal: true },
+					delLabel,
+				);
+				if (choice !== delLabel) {
+					return;
+				}
+				const targetAbs = path.resolve(document.uri.fsPath);
+				const root = getWorkspaceRoot();
+				const allowedRoots = [path.join(os.homedir(), '.tarot', 'hooks')];
+				if (root) {
+					allowedRoots.push(path.join(root, '.tarot', 'hooks'));
+				}
+				if (!allowedRoots.some(r => targetAbs.startsWith(path.resolve(r) + path.sep))) {
+					vscode.window.showErrorMessage(vscode.l10n.t('Refusing to delete file outside .tarot/hooks/.'));
+					return;
+				}
+				await fs.rm(targetAbs, { force: true });
+				this.onChanged();
+				webviewPanel.dispose();
+				vscode.window.showInformationMessage(vscode.l10n.t('Hook "{0}" deleted.', current.name));
+			}
+		});
+
+		webviewPanel.onDidDispose(() => {
+			changeSub.dispose();
+			msgSub.dispose();
+		});
+
+		postRender();
+	}
+}
+
+/**
+ * CustomTextEditorProvider for `**\/.tarot/settings/mcp.json`.
+ * Opens MCP config JSON directly in the visual configurator by default and restores across IDE restarts.
+ */
+export class TarotMcpCustomEditorProvider implements vscode.CustomTextEditorProvider {
+	private readonly helper: TarotMcpVisualEditorPanel;
+
+	constructor(
+		private readonly mcpService: TarotMcpConfigService,
+		private readonly onChanged: () => void,
+	) {
+		this.helper = new TarotMcpVisualEditorPanel(mcpService, onChanged);
+	}
+
+	async resolveCustomTextEditor(
+		document: vscode.TextDocument,
+		webviewPanel: vscode.WebviewPanel,
+		_token: vscode.CancellationToken,
+	): Promise<void> {
+		webviewPanel.webview.options = { enableScripts: true };
+		webviewPanel.webview.html = (this.helper as unknown as { buildHtml(w: vscode.Webview): string }).buildHtml(webviewPanel.webview);
+
+		const isGlobal = path.resolve(document.uri.fsPath) === path.resolve(this.mcpService.getGlobalMcpConfigPath());
+
+		const readData = (): { mcpServers: Record<string, Record<string, unknown>> } => {
+			try {
+				const parsed = JSON.parse(document.getText() || '{}') as { mcpServers?: Record<string, Record<string, unknown>> };
+				return { mcpServers: parsed.mcpServers && typeof parsed.mcpServers === 'object' ? parsed.mcpServers : {} };
+			} catch {
+				return { mcpServers: {} };
+			}
+		};
+
+		const postRender = (): void => {
+			const data = readData();
+			const servers = Object.entries(data.mcpServers).map(([name, cfg]) => ({
+				name,
+				transport: typeof cfg.url === 'string' && cfg.url ? 'remote' : 'stdio',
+				summary: typeof cfg.url === 'string' && cfg.url
+					? cfg.url
+					: `${String(cfg.command ?? '')} ${Array.isArray(cfg.args) ? cfg.args.join(' ') : ''}`.trim(),
+				enabled: cfg.disabled !== true,
+			}));
+			void webviewPanel.webview.postMessage({
+				type: 'render',
+				scope: isGlobal ? 'global' : 'workspace',
+				filePath: document.uri.fsPath,
+				hasWorkspace: Boolean(getWorkspaceRoot() && vscode.workspace.isTrusted),
+				servers,
+			});
+		};
+
+		const changeSub = vscode.workspace.onDidChangeTextDocument(e => {
+			if (e.document.uri.toString() === document.uri.toString()) {
+				postRender();
+			}
+		});
+
+		const msgSub = webviewPanel.webview.onDidReceiveMessage(async msg => {
+			if (!msg || typeof msg !== 'object') {
+				return;
+			}
+			const m = msg as Record<string, unknown>;
+			if (m.type === 'openJson') {
+				await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+			} else if (m.type === 'switchScope') {
+				const target = m.scope === 'global'
+					? this.mcpService.getGlobalMcpConfigPath()
+					: (getWorkspaceRoot() ? this.mcpService.getWorkspaceMcpConfigPath(getWorkspaceRoot()!) : this.mcpService.getGlobalMcpConfigPath());
+				await fs.mkdir(path.dirname(target), { recursive: true });
+				try {
+					await fs.access(target);
+				} catch {
+					await fs.writeFile(target, JSON.stringify({ mcpServers: {} }, null, 2) + '\n', 'utf8');
+				}
+				await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(target), 'tarot.mcpCustomEditor');
+			} else if (m.type === 'addServer') {
+				const name = typeof m.name === 'string' ? m.name.trim() : '';
+				if (!name) {
+					vscode.window.showWarningMessage(vscode.l10n.t('Server name is required.'));
+					return;
+				}
+				const data = readData();
+				if (m.transport === 'remote') {
+					const url = typeof m.url === 'string' ? m.url.trim() : '';
+					if (!url) {
+						vscode.window.showWarningMessage(vscode.l10n.t('Remote server URL is required.'));
+						return;
+					}
+					data.mcpServers[name] = { url, disabled: false };
+				} else {
+					const command = typeof m.command === 'string' ? m.command.trim() : '';
+					if (!command) {
+						vscode.window.showWarningMessage(vscode.l10n.t('Executable command is required.'));
+						return;
+					}
+					const args = typeof m.args === 'string' && m.args.trim() ? m.args.trim().split(/\s+/) : [];
+					data.mcpServers[name] = { command, args, disabled: false };
+				}
+				await replaceDocumentJson(document, JSON.stringify(data, null, 2) + '\n');
+				this.onChanged();
+				vscode.window.showInformationMessage(vscode.l10n.t('MCP Server "{0}" added.', name));
+			} else if (m.type === 'toggleServer' && typeof m.name === 'string') {
+				const data = readData();
+				if (data.mcpServers[m.name]) {
+					data.mcpServers[m.name].disabled = data.mcpServers[m.name].disabled !== true;
+					await replaceDocumentJson(document, JSON.stringify(data, null, 2) + '\n');
+					this.onChanged();
+				}
+			} else if (m.type === 'removeServer' && typeof m.name === 'string') {
+				const data = readData();
+				delete data.mcpServers[m.name];
+				await replaceDocumentJson(document, JSON.stringify(data, null, 2) + '\n');
+				this.onChanged();
+			}
+		});
+
+		webviewPanel.onDidDispose(() => {
+			changeSub.dispose();
+			msgSub.dispose();
+		});
+
+		postRender();
 	}
 }

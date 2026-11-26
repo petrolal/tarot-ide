@@ -300,8 +300,7 @@ export function registerScheduleAndLessonsCommands(deps: ScheduleAndLessonsDeps)
 				slug,
 				{ name: name.trim(), cron: cron.trim(), actionType: kindPick.actionKind, commandOrPrompt: body.trim() },
 			);
-			const doc = await vscode.workspace.openTextDocument(filePath);
-			await vscode.window.showTextDocument(doc);
+			await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(filePath));
 		}),
 
 		vscode.commands.registerCommand('tarot.schedule.runNow', async () => {

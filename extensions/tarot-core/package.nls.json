@@ -155,5 +155,8 @@
 	"walkthrough.step.theme.title": "Tarot Arcana Dark & Icons",
 	"walkthrough.step.theme.description": "Your editor comes pre-configured with Tarot Arcana Dark and Tarot Arcana Icons.\n[Choose Color Theme](command:workbench.action.selectTheme)\n[Choose File Icon Theme](command:workbench.action.selectIconTheme)",
 	"walkthrough.step.extensions.title": "Install Extensions from Open VSX",
-	"walkthrough.step.extensions.description": "Browse and install community extensions directly from the Open VSX Registry.\n[Browse Extensions](command:workbench.view.extensions)"
+	"walkthrough.step.extensions.description": "Browse and install community extensions directly from the Open VSX Registry.\n[Browse Extensions](command:workbench.view.extensions)",
+	"customEditor.schedule.displayName": "Tarot Schedule Editor",
+	"customEditor.hook.displayName": "Tarot Hook Editor",
+	"customEditor.mcp.displayName": "Tarot MCP Servers Editor"
 }

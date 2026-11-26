@@ -1514,9 +1514,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 			}
 
-			const fileWriteGate = !wasCancelled && !hadError && checkpointId
+			const fileWriteReview = !wasCancelled && !hadError && checkpointId
 				? await this.reviewFileWritesForTurn(cwd, session.id, checkpointId)
 				: undefined;
+			const fileWriteGate = fileWriteReview?.gate;
 
 			if (accumulatedText.trim().length > 0 || usedTools.length > 0 || taskProgress || fileWriteGate) {
 				await this.sessionStore.appendMessage(session, {
@@ -1538,7 +1539,16 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 			this.postMessage({ type: 'streamEnd' });
 			await this.refreshChangedFiles();
+			if (this.changedFiles.length === 0 && fileWriteReview && fileWriteReview.changedFiles.length > 0) {
+				this.changedFiles = fileWriteReview.changedFiles;
+			}
 			this.postState();
+
+			// Auto-open edited files in the editor when files await user approval (Supervised / policy `ask`)
+			// so the user can review diffs immediately next to the Approve / Revert card.
+			if (fileWriteGate && fileWriteGate.files.length > 0) {
+				void this.openEditedFilesForReview(cwd, fileWriteGate.files.slice(0, 3));
+			}
 
 			if (!wasCancelled && workspaceHooks.length > 0) {
 				void this.runStopHooks(workspaceHooks, cwd, session.id);
@@ -1737,7 +1747,36 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	 * said no), `ask` surfaces a real approval card naming the files, with a revert path that
 	 * actually works (`checkpointService.restoreCheckpointFiles`, scoped to exactly those files).
 	 */
-	private async reviewFileWritesForTurn(cwd: string, sessionId: string, checkpointId: string): Promise<FileWriteApprovalGate | undefined> {
+	private async openEditedFilesForReview(cwd: string, relativePaths: readonly string[]): Promise<void> {
+		let isGitRepo = false;
+		try {
+			await fs.access(path.join(cwd, '.git'));
+			isGitRepo = true;
+		} catch {
+			isGitRepo = false;
+		}
+		for (const rel of relativePaths) {
+			try {
+				const matched = this.changedFiles.find(f => f.relativePath === rel);
+				if (isGitRepo && matched && matched.status === 'M') {
+					await this.gitReviewService.openFileDiff(cwd, rel, 'M');
+				} else {
+					const absPath = path.join(cwd, rel);
+					await fs.access(absPath);
+					const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absPath));
+					await vscode.window.showTextDocument(doc, { preview: false, preserveFocus: true });
+				}
+			} catch {
+				// Best-effort: skip deleted or unreadable files
+			}
+		}
+	}
+
+	private async reviewFileWritesForTurn(
+		cwd: string,
+		sessionId: string,
+		checkpointId: string,
+	): Promise<{ gate?: FileWriteApprovalGate; changedFiles: ChangedFileInfo[] } | undefined> {
 		const diff = await this.checkpointService.getCheckpointDiff(cwd, sessionId, checkpointId);
 		if (diff.length === 0) {
 			return undefined;
@@ -1776,10 +1815,19 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				));
 			}
 		}
-		if (asked.length === 0) {
-			return undefined;
-		}
-		return { sessionId, checkpointId, files: asked };
+		const deniedSet = new Set(denied);
+		const changedFiles: ChangedFileInfo[] = diff
+			.filter(entry => !deniedSet.has(entry.relativePath))
+			.map(entry => ({
+				relativePath: entry.relativePath,
+				status: entry.status === 'added' ? 'A' : entry.status === 'deleted' ? 'D' : 'M',
+				added: 0,
+				removed: 0,
+			}));
+		return {
+			gate: asked.length > 0 ? { sessionId, checkpointId, files: asked } : undefined,
+			changedFiles,
+		};
 	}
 
 	/**

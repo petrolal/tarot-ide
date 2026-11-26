@@ -104,7 +104,14 @@ export class TarotGitReviewService {
 
 	async openFileDiff(cwd: string, relativePath: string, status: ChangedFileInfo['status']): Promise<void> {
 		const workingUri = vscode.Uri.file(path.join(cwd, relativePath));
-		if (status === 'U' || status === 'A') {
+		let isGitRepo = false;
+		try {
+			await fs.access(path.join(cwd, '.git'));
+			isGitRepo = true;
+		} catch {
+			isGitRepo = false;
+		}
+		if (status === 'U' || status === 'A' || !isGitRepo) {
 			const doc = await vscode.workspace.openTextDocument(workingUri);
 			await vscode.window.showTextDocument(doc, { preview: true });
 			return;

@@ -51,8 +51,11 @@ import { CustomAgentsTreeProvider, SkillsTreeProvider } from './views/skillsAndA
 import { TarotSubagentsDagPanel } from './views/subagentsPanel';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 import {
+	TarotHookCustomEditorProvider,
 	TarotHookVisualEditorPanel,
+	TarotMcpCustomEditorProvider,
 	TarotMcpVisualEditorPanel,
+	TarotScheduleCustomEditorProvider,
 	TarotScheduleVisualEditorPanel,
 } from './views/visualConfigEditors';
 import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
@@ -254,14 +257,33 @@ export function activate(context: vscode.ExtensionContext): void {
 		hookVisualEditor,
 		scheduleVisualEditor,
 		mcpVisualEditor,
+		vscode.window.registerCustomEditorProvider(
+			'tarot.scheduleCustomEditor',
+			new TarotScheduleCustomEditorProvider(scheduleService, () => crewSchedulesProvider.refresh()),
+			{ webviewOptions: { retainContextWhenHidden: true } },
+		),
+		vscode.window.registerCustomEditorProvider(
+			'tarot.hookCustomEditor',
+			new TarotHookCustomEditorProvider(() => hooksProvider.refresh()),
+			{ webviewOptions: { retainContextWhenHidden: true } },
+		),
+		vscode.window.registerCustomEditorProvider(
+			'tarot.mcpCustomEditor',
+			new TarotMcpCustomEditorProvider(mcpConfigService, () => mcpProvider.refresh()),
+			{ webviewOptions: { retainContextWhenHidden: true } },
+		),
 		terminalCloseSub,
-		vscode.commands.registerCommand('tarot.hooks.openEditor', (hook?: import('./hooks/hookTypes').HookDefinition) => {
-			if (hook) {
+		vscode.commands.registerCommand('tarot.hooks.openEditor', async (hook?: import('./hooks/hookTypes').HookDefinition) => {
+			if (hook?.sourceFile) {
+				await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(hook.sourceFile), 'tarot.hookCustomEditor');
+			} else if (hook) {
 				hookVisualEditor.show(hook);
 			}
 		}),
 		vscode.commands.registerCommand('tarot.schedule.openEditor', async (job?: import('./schedule/scheduleService').ScheduledJobDefinition) => {
-			if (job) {
+			if (job?.sourceFile) {
+				await vscode.commands.executeCommand('vscode.openWith', vscode.Uri.file(job.sourceFile), 'tarot.scheduleCustomEditor');
+			} else if (job) {
 				await scheduleVisualEditor.show(job);
 			}
 		}),
