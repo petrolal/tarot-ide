@@ -131,6 +131,14 @@ export function parseAgyStreamLine(line: string, state: AgyStreamParseState): Ag
 				state.streamedText += sep + res.response;
 				events.push({ type: 'text', content: sep + res.response });
 			}
+		} else if (!state.emittedText && Array.isArray(res.denied_actions) && res.denied_actions.length > 0) {
+			const names = res.denied_actions
+				.map(a => (a && typeof a === 'object' ? String((a as { display_name?: unknown; action?: unknown }).display_name ?? (a as { action?: unknown }).action ?? 'tool') : String(a)))
+				.join(', ');
+			events.push({
+				type: 'error',
+				content: `agy headless mode denied permission for: ${names}. Switch autonomy to "Approve For Me" or allow the action in agy settings.`,
+			});
 		}
 		if (res.usage && typeof res.usage === 'object') {
 			events.push({ type: 'status', metadata: { usage: res.usage as AgyUsageInfo } });

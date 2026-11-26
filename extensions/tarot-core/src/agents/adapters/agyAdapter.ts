@@ -103,15 +103,31 @@ export class AgyAdapter implements AgentAdapter {
 			args.push('--effort', request.effort);
 		}
 		if (request.mode === 'plan') {
-			args.push('--mode', 'plan');
-		} else if (request.autonomy === 'approveForMe' || request.autonomy === 'acceptFileChanges') {
-			// In non-interactive `--print` mode, `--mode accept-edits` blocks `run_command`
-			// without a TTY to answer prompts (causing agy to stop after 1 tool call). Using
-			// `--mode auto` lets agy complete multi-step reads/commands/edits cleanly while
-			// Tarot's own post-turn file-write gate & checkpoints remain active.
-			args.push('--mode', 'auto');
+			args.push(
+				'--mode', 'plan',
+				'--settings', JSON.stringify({
+					permissions: {
+						allow: ['command(ls *)', 'command(find *)', 'command(cat *)', 'command(rg *)', 'command(git status*)', 'command(git diff*)', 'command(git log*)'],
+						deny: ['command(rm *)'],
+					},
+				}),
+			);
+		} else if (request.autonomy === 'approveForMe') {
+			args.push('--dangerously-skip-permissions');
 		} else {
-			args.push('--mode', 'accept-edits');
+			// On hosts without terminal sandbox, `agy --mode auto` silently falls back to
+			// `request-review` and auto-denies `run_command` in headless `--print` mode.
+			// Passing session-scoped `--settings` mirrors `claudeAdapter.ts` (`acceptEdits` +
+			// denying `rm *`) while Tarot's own post-turn file-write gate & checkpoints protect edits.
+			args.push(
+				'--mode', 'accept-edits',
+				'--settings', JSON.stringify({
+					permissions: {
+						allow: ['command(*)'],
+						deny: ['command(rm *)'],
+					},
+				}),
+			);
 		}
 		args.push(`--print=${prompt}`);
 

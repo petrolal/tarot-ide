@@ -83,6 +83,15 @@ describe('UX Parity — ClaudeCodeAdapter stream-json result fallback', () => {
 		const combined = [...ev1, ...ev2].filter(e => e.type === 'text').map(e => e.content).join('');
 		assert.equal(combined, 'Vou explorar o projeto.\n\nResumo final do projeto.');
 	});
+
+	it('agyStreamParser surfaces denied_actions clearly when headless mode blocks a tool with empty response', () => {
+		const state = createAgyStreamParseState();
+		const evs = parseAgyStreamLine(
+			JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: '', denied_actions: [{ action: 'command', display_name: 'Bash' }] } }),
+			state,
+		);
+		assert.equal(evs.some(e => e.type === 'error' && e.content?.includes('Bash')), true);
+	});
 });
 
 describe('UX Parity — Workflow relative timestamps & verdicts', () => {
