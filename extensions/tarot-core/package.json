@@ -1362,6 +1362,18 @@
         "title": "%command.crew.remote.check.title%",
         "category": "Tarot IDE",
         "icon": "$(server-environment)"
+      },
+      {
+        "command": "tarot.subagents.runDag",
+        "title": "%command.subagents.runDag.title%",
+        "category": "Tarot IDE",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "tarot.devServers.manage",
+        "title": "%command.devServers.manage.title%",
+        "category": "Tarot IDE",
+        "icon": "$(server-process)"
       }
     ]
   },

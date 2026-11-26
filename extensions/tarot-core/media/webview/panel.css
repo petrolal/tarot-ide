@@ -619,6 +619,33 @@ body.vscode-light .tool-call-check {
 	border-color: rgba(21, 128, 61, 0.5);
 }
 
+.wf-chat-card-actions {
+	margin-top: 8px;
+	display: flex;
+	gap: 8px;
+}
+
+.wf-chat-open-btn {
+	border: 1px solid rgba(139, 92, 246, 0.55);
+	background: rgba(139, 92, 246, 0.16);
+	color: #E9D5FF;
+	border-radius: 6px;
+	padding: 5px 10px;
+	font-size: 11.5px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.wf-chat-open-btn:hover {
+	background: rgba(139, 92, 246, 0.28);
+}
+
+body.vscode-light .wf-chat-open-btn {
+	color: #4B0082;
+	background: #EFE8FC;
+	border-color: #B794F4;
+}
+
 .msg-body {
 	font-size: 12.5px;
 	color: #F2EFE9;

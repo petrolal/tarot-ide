@@ -37,6 +37,7 @@ export type WebviewIncomingMessage =
 	| { readonly type: 'saveSteeringRule'; readonly ruleText?: string }
 	| { readonly type: 'openLink'; readonly url?: string }
 	| { readonly type: 'selectProfile'; readonly profileId?: string }
+	| { readonly type: 'openWorkflowRun'; readonly runId?: string }
 	| { readonly type: 'refreshAgents' };
 
 export function isWebviewIncomingMessage(value: unknown): value is WebviewIncomingMessage {

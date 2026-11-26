@@ -240,6 +240,36 @@
 			item.appendChild(body);
 			transcriptEl.appendChild(item);
 		}
+
+		// Inline expandable Changed Files / Diffs summary card inside Focus Mode transcript
+		const changed = (state && Array.isArray(state.changedFiles)) ? state.changedFiles : [];
+		if (changed.length > 0) {
+			const diffDetails = document.createElement('details');
+			diffDetails.className = 'inline-diff-card';
+			diffDetails.open = true;
+			const summary = document.createElement('summary');
+			summary.textContent = `Changed Files (${changed.length})`;
+			diffDetails.appendChild(summary);
+			const list = document.createElement('div');
+			list.className = 'inline-diff-list';
+			for (const f of changed.slice(0, 12)) {
+				const row = document.createElement('button');
+				row.type = 'button';
+				row.className = 'inline-diff-row';
+				const pathSpan = document.createElement('span');
+				pathSpan.className = 'inline-diff-path';
+				pathSpan.textContent = `[${f.status}] ${f.relativePath}`;
+				row.appendChild(pathSpan);
+				const statSpan = document.createElement('span');
+				statSpan.className = 'inline-diff-stats';
+				statSpan.textContent = `+${f.added || 0} / -${f.removed || 0}`;
+				row.appendChild(statSpan);
+				row.addEventListener('click', () => vscode.postMessage({ type: 'openDiff', relativePath: f.relativePath }));
+				list.appendChild(row);
+			}
+			diffDetails.appendChild(list);
+			transcriptEl.appendChild(diffDetails);
+		}
 		transcriptEl.scrollTop = transcriptEl.scrollHeight;
 	}
 

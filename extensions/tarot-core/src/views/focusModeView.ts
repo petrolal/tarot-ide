@@ -198,7 +198,7 @@ export class TarotFocusModeManager implements vscode.Disposable {
 			})),
 			activeAgentId,
 			specs: specs.map(s => ({ slug: s.slug, kind: s.kind, dirPath: s.dirPath, done: s.taskSummary.done, total: s.taskSummary.total })),
-			changedFiles: changedFiles.map(f => ({ relativePath: f.relativePath, status: f.status })),
+			changedFiles: changedFiles.map(f => ({ relativePath: f.relativePath, status: f.status, added: f.added, removed: f.removed })),
 			workflowRuns: workflowRuns.map(r => ({ id: r.id, recipeName: r.recipeName, status: r.status, pauseReason: r.pauseReason })),
 		});
 	}

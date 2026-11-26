@@ -669,6 +669,20 @@
 			wrapper.appendChild(body);
 
 			if (msg.role === 'assistant' && msg.content) {
+				const wfRunMatch = msg.content.match(/\b(run-[a-zA-Z0-9_-]{6,})\b/);
+				if (wfRunMatch && /workflow/i.test(msg.content)) {
+					const wfActions = document.createElement('div');
+					wfActions.className = 'wf-chat-card-actions';
+					const openBtn = document.createElement('button');
+					openBtn.type = 'button';
+					openBtn.className = 'wf-chat-open-btn';
+					openBtn.textContent = `Open Workflow Run (${wfRunMatch[1]})`;
+					openBtn.addEventListener('click', () => {
+						vscode.postMessage({ type: 'openWorkflowRun', runId: wfRunMatch[1] });
+					});
+					wfActions.appendChild(openBtn);
+					wrapper.appendChild(wfActions);
+				}
 				const ceMatch = msg.content.match(/Counter-?example:\s*([^\n]+(?:\n(?!Error:|#|---|\n)[^\n]+)*)/i);
 				if (ceMatch) {
 					const errMatch = msg.content.match(/Error:\s*([^\n]+)/i);

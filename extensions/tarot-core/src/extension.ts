@@ -19,6 +19,7 @@ import { registerSpecCommands } from './commands/specCommands';
 import { registerWorkflowCommands } from './commands/workflowCommands';
 import { TarotAppsAndRemoteService } from './crew/appsAndRemoteService';
 import { TarotCrewService } from './crew/crewService';
+import { TarotDevServerService } from './crew/devServerService';
 import { TarotGatewayService } from './crew/gatewayService';
 import { TarotHeartbeatService } from './crew/heartbeatService';
 import { TAROT_GIT_HEAD_SCHEME, TarotGitHeadContentProvider, TarotGitReviewService } from './git/gitReviewService';
@@ -47,6 +48,7 @@ import { AvailablePowersTreeProvider, InstalledPowersTreeProvider } from './view
 import { RecipesTreeProvider } from './views/recipesView';
 import { SessionsTreeProvider } from './views/sessionsView';
 import { CustomAgentsTreeProvider, SkillsTreeProvider } from './views/skillsAndAgentsView';
+import { TarotSubagentsDagPanel } from './views/subagentsPanel';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
 import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
@@ -224,7 +226,69 @@ export function activate(context: vscode.ExtensionContext): void {
 	focusModeStatusBar.tooltip = vscode.l10n.t('Toggle Tarot Agent Focus Mode (Ctrl+Shift+M)');
 	focusModeStatusBar.command = 'tarot.agent.toggleFocusMode';
 	focusModeStatusBar.show();
-	context.subscriptions.push(focusModeStatusBar);
+
+	const subagentsDagPanel = new TarotSubagentsDagPanel(runtimeManager, outputChannel);
+	const devServerService = new TarotDevServerService();
+	const devServerTerminals = new Map<string, vscode.Terminal>();
+	const terminalCloseSub = vscode.window.onDidCloseTerminal(term => {
+		for (const [id, t] of devServerTerminals.entries()) {
+			if (t === term) {
+				devServerTerminals.delete(id);
+			}
+		}
+	});
+
+	context.subscriptions.push(
+		focusModeStatusBar,
+		subagentsDagPanel,
+		terminalCloseSub,
+		vscode.commands.registerCommand('tarot.subagents.runDag', () => {
+			subagentsDagPanel.show();
+		}),
+		vscode.commands.registerCommand('tarot.devServers.manage', async () => {
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace to manage Dev Servers.'));
+				return;
+			}
+			const root = await ensureWorkspaceFolder();
+			if (!root) {
+				return;
+			}
+			const scripts = await devServerService.discoverScripts(root);
+			if (scripts.length === 0) {
+				vscode.window.showInformationMessage(vscode.l10n.t('No dev server scripts (dev/start/serve/preview/watch) found in package.json.'));
+				return;
+			}
+			const picked = await vscode.window.showQuickPick(
+				scripts.map(s => {
+					const running = devServerTerminals.has(s.id);
+					return {
+						label: `${running ? '$(debug-stop)' : '$(play)'} ${s.name}`,
+						description: running ? vscode.l10n.t('Running — click to stop') : s.command,
+						script: s,
+					};
+				}),
+				{ title: vscode.l10n.t('Manage Dev Servers') },
+			);
+			if (!picked) {
+				return;
+			}
+			const existing = devServerTerminals.get(picked.script.id);
+			if (existing) {
+				existing.dispose();
+				devServerTerminals.delete(picked.script.id);
+				vscode.window.showInformationMessage(vscode.l10n.t('Stopped Dev Server "{0}".', picked.script.name));
+				return;
+			}
+			const term = vscode.window.createTerminal({
+				name: `Tarot Dev: ${picked.script.name}`,
+				cwd: picked.script.packageDir,
+			});
+			devServerTerminals.set(picked.script.id, term);
+			term.show(true);
+			term.sendText(`pnpm run ${picked.script.name}`);
+		}),
+	);
 
 	const workflowCommands = registerWorkflowCommands({
 		extensionUri: context.extensionUri,

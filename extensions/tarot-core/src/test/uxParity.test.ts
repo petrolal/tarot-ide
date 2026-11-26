@@ -7,6 +7,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { parseClaudeStreamJsonLine } from '../agents/adapters/claudeStreamParser';
 import { AgentEvent } from '../agents/types';
+import { extractDevServerScripts } from '../crew/devServerService';
 import { computeCompletedTaskLineRanges } from '../specs/taskParser';
 import { extractStepVerdict, formatRelativeTime } from '../workflows/workflowViewHelpers';
 
@@ -92,5 +93,20 @@ describe('UX Parity — Spec tasks.md completed green bar ranges', () => {
 			{ startLine: 2, endLine: 3 },
 			{ startLine: 6, endLine: 8 },
 		]);
+	});
+});
+
+describe('UX Parity — Dev Server script discovery', () => {
+	it('discovers dev/start/serve/watch scripts and ignores non-server scripts', () => {
+		const scripts = extractDevServerScripts({
+			scripts: {
+				dev: 'vite',
+				'watch-tarot': 'gulp watch-tarot',
+				build: 'tsc',
+				test: 'node --test',
+				preview: 'vite preview',
+			},
+		}, '/tmp/my-app');
+		assert.deepEqual(scripts.map(s => s.name), ['dev', 'preview', 'watch-tarot']);
 	});
 });

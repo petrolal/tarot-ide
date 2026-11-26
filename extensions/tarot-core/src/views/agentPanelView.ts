@@ -999,6 +999,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					}
 				}
 				break;
+			case 'openWorkflowRun':
+				if (msg.runId) {
+					await vscode.commands.executeCommand('tarot.workflows.openRun', msg.runId);
+				}
+				break;
 			case 'revertFile':
 				if (msg.relativePath && msg.fileStatus) {
 					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
