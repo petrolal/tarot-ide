@@ -153,9 +153,9 @@ export class HooksTreeProvider extends BaseTarotTreeProvider {
 		].filter(Boolean).join('\n');
 		item.contextValue = hook.enabled ? 'tarotHookEnabled' : 'tarotHookDisabled';
 		item.command = {
-			command: 'vscode.open',
-			title: vscode.l10n.t('Open Hook File'),
-			arguments: [vscode.Uri.file(hook.sourceFile)],
+			command: 'tarot.hooks.openEditor',
+			title: vscode.l10n.t('Open Hook Visual Editor'),
+			arguments: [hook],
 		};
 		return item;
 	}

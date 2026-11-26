@@ -542,6 +542,14 @@
           "when": "false"
         },
         {
+          "command": "tarot.hooks.openEditor",
+          "when": "false"
+        },
+        {
+          "command": "tarot.schedule.openEditor",
+          "when": "false"
+        },
+        {
           "command": "tarot.agents.selectById",
           "when": "false"
         },
@@ -1382,6 +1390,16 @@
       {
         "command": "tarot.workflows.previewRecipe",
         "title": "%command.workflows.previewRecipe.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.hooks.openEditor",
+        "title": "%command.hooks.openEditor.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.schedule.openEditor",
+        "title": "%command.schedule.openEditor.title%",
         "category": "Tarot IDE"
       }
     ]

@@ -221,9 +221,9 @@ export class CrewSchedulesTreeProvider extends BaseTarotTreeProvider {
 				vscode.l10n.t('File: {0}', job.sourceFile),
 			].join('\n');
 			item.command = {
-				command: 'vscode.open',
-				title: vscode.l10n.t('Open Schedule File'),
-				arguments: [vscode.Uri.file(job.sourceFile)],
+				command: 'tarot.schedule.openEditor',
+				title: vscode.l10n.t('Open Schedule Visual Editor'),
+				arguments: [job],
 			};
 			return item;
 		});

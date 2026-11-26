@@ -50,6 +50,11 @@ import { SessionsTreeProvider } from './views/sessionsView';
 import { CustomAgentsTreeProvider, SkillsTreeProvider } from './views/skillsAndAgentsView';
 import { TarotSubagentsDagPanel } from './views/subagentsPanel';
 import { HooksTreeProvider, LocalAgentsTreeProvider, McpServersTreeProvider, SpecsTreeProvider, SteeringTreeProvider } from './views/tarotSidebarViews';
+import {
+	TarotHookVisualEditorPanel,
+	TarotMcpVisualEditorPanel,
+	TarotScheduleVisualEditorPanel,
+} from './views/visualConfigEditors';
 import { WorkflowRunsTreeProvider } from './views/workflowRunsView';
 import { TarotRecipeLoader } from './workflows/recipeLoader';
 import { TarotWorkflowRunStore } from './workflows/runStore';
@@ -229,6 +234,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	const subagentsDagPanel = new TarotSubagentsDagPanel(runtimeManager, outputChannel);
 	const recipePreviewPanel = new TarotRecipePreviewPanel(() => recipesProvider.refresh());
+	const hookVisualEditor = new TarotHookVisualEditorPanel(() => hooksProvider.refresh());
+	const scheduleVisualEditor = new TarotScheduleVisualEditorPanel(scheduleService, () => crewSchedulesProvider.refresh());
+	const mcpVisualEditor = new TarotMcpVisualEditorPanel(mcpConfigService, () => mcpProvider.refresh());
 	const devServerService = new TarotDevServerService();
 	const devServerTerminals = new Map<string, vscode.Terminal>();
 	const terminalCloseSub = vscode.window.onDidCloseTerminal(term => {
@@ -243,7 +251,20 @@ export function activate(context: vscode.ExtensionContext): void {
 		focusModeStatusBar,
 		subagentsDagPanel,
 		recipePreviewPanel,
+		hookVisualEditor,
+		scheduleVisualEditor,
+		mcpVisualEditor,
 		terminalCloseSub,
+		vscode.commands.registerCommand('tarot.hooks.openEditor', (hook?: import('./hooks/hookTypes').HookDefinition) => {
+			if (hook) {
+				hookVisualEditor.show(hook);
+			}
+		}),
+		vscode.commands.registerCommand('tarot.schedule.openEditor', async (job?: import('./schedule/scheduleService').ScheduledJobDefinition) => {
+			if (job) {
+				await scheduleVisualEditor.show(job);
+			}
+		}),
 		vscode.commands.registerCommand('tarot.workflows.previewRecipe', (loaded?: import('./workflows/workflowTypes').LoadedRecipe) => {
 			if (loaded) {
 				recipePreviewPanel.show(loaded);
@@ -888,38 +909,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 
 		vscode.commands.registerCommand('tarot.mcp.openConfig', async () => {
-			const scopePick = await vscode.window.showQuickPick(
-				[
-					{ label: vscode.l10n.t('Workspace (.tarot/settings/mcp.json)'), scope: 'workspace' as const },
-					{ label: vscode.l10n.t('Global (~/.tarot/settings/mcp.json)'), scope: 'global' as const },
-				],
-				{ title: vscode.l10n.t('Open MCP Configuration') },
-			);
-			if (!scopePick) {
-				return;
-			}
-			let filePath: string;
-			if (scopePick.scope === 'workspace') {
-				const root = await ensureWorkspaceFolder();
-				if (!root) {
-					return;
-				}
-				if (!trustService.requireTrustedOrWarn(vscode.l10n.t('Trust this workspace before editing .tarot/settings/mcp.json.'))) {
-					return;
-				}
-				filePath = mcpConfigService.getWorkspaceMcpConfigPath(root);
-			} else {
-				filePath = mcpConfigService.getGlobalMcpConfigPath();
-			}
-			await fs.mkdir(path.dirname(filePath), { recursive: true });
-			try {
-				await fs.access(filePath);
-			} catch {
-				await fs.writeFile(filePath, JSON.stringify({ mcpServers: {} }, null, 2) + '\n', 'utf8');
-			}
-			mcpProvider.refresh();
-			const doc = await vscode.workspace.openTextDocument(filePath);
-			await vscode.window.showTextDocument(doc);
+			await mcpVisualEditor.show();
 		}),
 
 		vscode.commands.registerCommand('tarot.agents.createCustom', async () => {
