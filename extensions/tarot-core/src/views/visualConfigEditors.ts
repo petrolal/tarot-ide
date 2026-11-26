@@ -33,24 +33,41 @@ const HOOK_TRIGGERS: readonly HookTrigger[] = [
 
 function buildBaseStyle(nonce: string): string {
 	return `<style nonce="${nonce}">
-	body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 24px 28px; max-width: 820px; line-height: 1.5; }
+	body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 24px 28px; max-width: 820px; line-height: 1.5; color-scheme: dark; }
+	body.vscode-light { color-scheme: light; }
 	.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 14px; margin-bottom: 18px; flex-wrap: wrap; }
 	h1 { margin: 0; font-size: 20px; font-weight: 600; }
 	.sub { font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 3px; }
 	.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-	button { border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 500; background: #7C3AED; color: #FFFFFF; }
+	button { border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 12px; font-weight: 500; background: #7C3AED; color: #FFFFFF; transition: background 0.15s ease, border-color 0.15s ease; }
 	button:hover { background: #6D28D9; }
-	button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+	button:focus-visible { outline: 2px solid #A78BFA; outline-offset: 2px; }
+	button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid var(--vscode-panel-border); }
+	button.secondary:hover { background: rgba(139, 92, 246, 0.16); border-color: rgba(139, 92, 246, 0.45); }
 	button.danger { background: rgba(248, 113, 113, 0.16); color: #FCA5A5; border: 1px solid rgba(248, 113, 113, 0.4); }
+	button.danger:hover { background: rgba(248, 113, 113, 0.28); }
 	label.field { display: block; margin-bottom: 12px; }
-	label.field span { display: block; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); margin-bottom: 4px; }
-	input, select, textarea { width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 7px 10px; font: inherit; font-size: 12.5px; }
+	label.field span { display: block; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); margin-bottom: 5px; }
+	input:not([type="checkbox"]), select, textarea { width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.14)); border-radius: 6px; padding: 7px 10px; font: inherit; font-size: 12.5px; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+	input:not([type="checkbox"])::placeholder, textarea::placeholder { color: var(--vscode-input-placeholderForeground, rgba(169, 160, 190, 0.55)); }
+	input:not([type="checkbox"]):hover, select:hover, textarea:hover { border-color: rgba(139, 92, 246, 0.45); }
+	input:not([type="checkbox"]):focus, select:focus, textarea:focus { outline: none; border-color: #8B5CF6; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25); }
+	input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+	input[type="number"] { -moz-appearance: textfield; }
+	select { appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer; background-image: linear-gradient(45deg, transparent 50%, var(--vscode-descriptionForeground, #A9A0BE) 50%), linear-gradient(135deg, var(--vscode-descriptionForeground, #A9A0BE) 50%, transparent 50%); background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+	select option { background-color: var(--vscode-dropdown-background, #1E1B2E); color: var(--vscode-dropdown-foreground, #F2EFE9); }
 	textarea { min-height: 96px; resize: vertical; font-family: var(--vscode-editor-font-family); }
 	.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-	.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer; }
-	.toggle input { width: auto; }
+	.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; user-select: none; }
+	.toggle input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 34px; height: 19px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.2)); position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.16s ease, border-color 0.16s ease; margin: 0; padding: 0; }
+	body.vscode-light .toggle input[type="checkbox"] { background: rgba(15, 23, 42, 0.14); }
+	.toggle input[type="checkbox"]::after { content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #E2DCF5; transition: transform 0.16s ease, background 0.16s ease; }
+	.toggle input[type="checkbox"]:checked { background: #7C3AED; border-color: #8B5CF6; }
+	.toggle input[type="checkbox"]:checked::after { transform: translateX(15px); background: #FFFFFF; }
+	.toggle input[type="checkbox"]:focus-visible { outline: 2px solid #A78BFA; outline-offset: 2px; }
 	.presets { display: flex; gap: 6px; flex-wrap: wrap; margin: -6px 0 12px; }
-	.preset-btn { padding: 3px 8px; font-size: 11px; border-radius: 999px; background: rgba(139, 92, 246, 0.14); color: #DDD6FE; border: 1px solid rgba(139, 92, 246, 0.35); }
+	.preset-btn { padding: 3px 9px; font-size: 11px; border-radius: 999px; background: rgba(139, 92, 246, 0.14); color: #DDD6FE; border: 1px solid rgba(139, 92, 246, 0.35); }
+	.preset-btn:hover { background: rgba(139, 92, 246, 0.28); border-color: #8B5CF6; }
 	.card { border: 1px solid var(--vscode-panel-border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 	.card-title { font-weight: 600; font-size: 13px; }
 	.badge { font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); margin-left: 6px; }

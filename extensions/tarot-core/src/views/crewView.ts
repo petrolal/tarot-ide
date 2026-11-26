@@ -350,7 +350,8 @@ export class TarotCrewmateDashboardPanel implements vscode.Disposable {
 	.mem-li { padding-left: 8px; margin-bottom: 3px; }
 	.mem-p { margin-bottom: 4px; }
 	.note-row { display: flex; gap: 8px; margin-bottom: 12px; }
-	input { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 4px; padding: 6px 10px; font-size: 12px; }
+	input { flex: 1; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.14)); border-radius: 6px; padding: 6px 10px; font-size: 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+	input:focus { outline: none; border-color: #8B5CF6; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25); }
 	.ledger-item { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; }
 	.ledger-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--vscode-descriptionForeground); margin-bottom: 4px; }
 </style>

@@ -48,7 +48,36 @@ body.vscode-light .wf-pill.status-completed { color: #15803D; }
 body.vscode-light .wf-pill.status-paused { color: #92400E; }
 
 .wf-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.wf-follow-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; color: var(--vscode-descriptionForeground); cursor: pointer; }
+.wf-follow-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--vscode-descriptionForeground); cursor: pointer; user-select: none; }
+.wf-follow-toggle input[type="checkbox"] {
+	appearance: none;
+	-webkit-appearance: none;
+	width: 15px;
+	height: 15px;
+	border-radius: 4px;
+	border: 1px solid rgba(255, 255, 255, 0.22);
+	background: var(--vscode-input-background, rgba(255, 255, 255, 0.05));
+	cursor: pointer;
+	position: relative;
+	margin: 0;
+	flex-shrink: 0;
+	transition: background 0.15s ease, border-color 0.15s ease;
+}
+.wf-follow-toggle input[type="checkbox"]:hover { border-color: #8B5CF6; }
+.wf-follow-toggle input[type="checkbox"]:checked { background: #7C3AED; border-color: #8B5CF6; }
+.wf-follow-toggle input[type="checkbox"]:checked::after {
+	content: '';
+	position: absolute;
+	left: 4px;
+	top: 1.5px;
+	width: 4px;
+	height: 8px;
+	border: solid #FFFFFF;
+	border-width: 0 1.8px 1.8px 0;
+	transform: rotate(45deg);
+}
+.wf-follow-toggle input[type="checkbox"]:focus-visible { outline: 2px solid #A78BFA; outline-offset: 2px; }
+body.vscode-light .wf-follow-toggle input[type="checkbox"] { border-color: #C4B5FD; }
 
 .wf-btn {
 	padding: 4px 10px;

@@ -207,11 +207,13 @@ export class TarotSubagentsDagPanel implements vscode.Disposable {
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="${csp}" />
 <style nonce="${nonce}">
-	body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 22px 26px; max-width: 920px; line-height: 1.5; }
+	body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); padding: 22px 26px; max-width: 920px; line-height: 1.5; color-scheme: dark; }
+	body.vscode-light { color-scheme: light; }
 	h1 { margin: 0 0 6px; font-size: 20px; }
 	.desc { color: var(--vscode-descriptionForeground); margin: 0 0 16px; font-size: 12.5px; }
 	label { display: block; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vscode-descriptionForeground); margin: 12px 0 6px; }
-	input, textarea { width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); border-radius: 6px; padding: 8px 10px; font-family: var(--vscode-editor-font-family); font-size: 12px; }
+	input, textarea { width: 100%; box-sizing: border-box; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, rgba(255, 255, 255, 0.14)); border-radius: 6px; padding: 8px 10px; font-family: var(--vscode-editor-font-family); font-size: 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+	input:focus, textarea:focus { outline: none; border-color: #8B5CF6; box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25); }
 	textarea { min-height: 180px; resize: vertical; }
 	.actions { display: flex; gap: 8px; margin-top: 12px; }
 	button { border: none; border-radius: 6px; padding: 7px 14px; cursor: pointer; font-size: 12px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
