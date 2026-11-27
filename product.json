@@ -92,8 +92,325 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "bierner.markdown-mermaid",
+			"version": "1.32.1",
+			"sha256": "91c99eee8b7299e41efa708e20bd01a6fa13206cc4e627b43253e75c0343f442",
+			"repo": "https://github.com/mjbvz/vscode-markdown-mermaid",
+			"metadata": {
+				"id": "f8d0ffc4-66bb-4a9c-8149-ef8f043691a1",
+				"publisherId": {
+					"publisherId": "f164f116-e2aa-496b-84dc-2451248e8beb",
+					"publisherName": "bierner",
+					"displayName": "bierner",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "bierner"
+			}
 		}
 	],
+	"extensionRecommendations": {
+		"ms-python.python": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"python"
+					],
+					"important": true
+				}
+			]
+		},
+		"detachhead.basedpyright": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"python"
+					]
+				}
+			]
+		},
+		"charliermarsh.ruff": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"python"
+					]
+				}
+			]
+		},
+		"golang.go": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"go"
+					],
+					"important": true
+				}
+			]
+		},
+		"rust-lang.rust-analyzer": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"rust"
+					],
+					"important": true
+				}
+			]
+		},
+		"llvm-vs-code-extensions.vscode-clangd": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"c",
+						"cpp",
+						"objective-c",
+						"objective-cpp"
+					],
+					"important": true
+				}
+			]
+		},
+		"redhat.java": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"java"
+					],
+					"important": true
+				}
+			]
+		},
+		"ms-azuretools.vscode-docker": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"dockerfile"
+					],
+					"important": true
+				},
+				{
+					"pathGlob": "**/docker-compose*.{yml,yaml}",
+					"important": true
+				}
+			]
+		},
+		"redhat.vscode-yaml": {
+			"onFileOpen": [
+				{
+					"languages": [
+						"yaml"
+					]
+				}
+			]
+		},
+		"tamasfe.even-better-toml": {
+			"onFileOpen": [
+				{
+					"pathGlob": "**/*.toml",
+					"important": true
+				}
+			]
+		},
+		"vue.volar": {
+			"onFileOpen": [
+				{
+					"pathGlob": "**/*.vue",
+					"important": true
+				}
+			]
+		},
+		"svelte.svelte-vscode": {
+			"onFileOpen": [
+				{
+					"pathGlob": "**/*.svelte",
+					"important": true
+				}
+			]
+		},
+		"graphql.vscode-graphql-syntax": {
+			"onFileOpen": [
+				{
+					"pathGlob": "**/*.{graphql,gql}"
+				}
+			]
+		},
+		"prisma.prisma": {
+			"onFileOpen": [
+				{
+					"pathGlob": "**/*.prisma",
+					"important": true
+				}
+			]
+		},
+		"hashicorp.terraform": {
+			"onFileOpen": [
+				{
+					"pathGlob": "**/*.{tf,tfvars}",
+					"important": true
+				}
+			]
+		}
+	},
+	"configBasedExtensionTips": {
+		"pyproject": {
+			"configPath": "pyproject.toml",
+			"configName": "pyproject.toml",
+			"recommendations": {
+				"ms-python.python": {
+					"name": "Python",
+					"important": true
+				},
+				"detachhead.basedpyright": {
+					"name": "BasedPyright"
+				},
+				"charliermarsh.ruff": {
+					"name": "Ruff"
+				}
+			}
+		},
+		"python-requirements": {
+			"configPath": "requirements.txt",
+			"configName": "requirements.txt",
+			"recommendations": {
+				"ms-python.python": {
+					"name": "Python",
+					"important": true
+				}
+			}
+		},
+		"cargo": {
+			"configPath": "Cargo.toml",
+			"configName": "Cargo.toml",
+			"recommendations": {
+				"rust-lang.rust-analyzer": {
+					"name": "rust-analyzer",
+					"important": true
+				},
+				"tamasfe.even-better-toml": {
+					"name": "Even Better TOML"
+				}
+			}
+		},
+		"go-mod": {
+			"configPath": "go.mod",
+			"configName": "go.mod",
+			"recommendations": {
+				"golang.go": {
+					"name": "Go",
+					"important": true
+				}
+			}
+		},
+		"dockerfile": {
+			"configPath": "Dockerfile",
+			"configName": "Dockerfile",
+			"recommendations": {
+				"ms-azuretools.vscode-docker": {
+					"name": "Docker",
+					"important": true
+				}
+			}
+		},
+		"biome": {
+			"configPath": "biome.json",
+			"configName": "biome.json",
+			"recommendations": {
+				"biomejs.biome": {
+					"name": "Biome",
+					"important": true
+				}
+			}
+		},
+		"eslint-flat": {
+			"configPath": "eslint.config.mjs",
+			"configName": "eslint.config.mjs",
+			"recommendations": {
+				"dbaeumer.vscode-eslint": {
+					"name": "ESLint",
+					"whenNotInstalled": [
+						"biomejs.biome"
+					]
+				}
+			}
+		},
+		"eslint-flat-js": {
+			"configPath": "eslint.config.js",
+			"configName": "eslint.config.js",
+			"recommendations": {
+				"dbaeumer.vscode-eslint": {
+					"name": "ESLint",
+					"whenNotInstalled": [
+						"biomejs.biome"
+					]
+				}
+			}
+		},
+		"eslint-legacy": {
+			"configPath": ".eslintrc.json",
+			"configName": ".eslintrc.json",
+			"recommendations": {
+				"dbaeumer.vscode-eslint": {
+					"name": "ESLint",
+					"whenNotInstalled": [
+						"biomejs.biome"
+					]
+				}
+			}
+		},
+		"prettier": {
+			"configPath": ".prettierrc",
+			"configName": ".prettierrc",
+			"recommendations": {
+				"esbenp.prettier-vscode": {
+					"name": "Prettier - Code formatter",
+					"whenNotInstalled": [
+						"biomejs.biome"
+					]
+				}
+			}
+		},
+		"tailwind-ts": {
+			"configPath": "tailwind.config.ts",
+			"configName": "tailwind.config.ts",
+			"recommendations": {
+				"bradlc.vscode-tailwindcss": {
+					"name": "Tailwind CSS IntelliSense",
+					"important": true
+				}
+			}
+		},
+		"tailwind-js": {
+			"configPath": "tailwind.config.js",
+			"configName": "tailwind.config.js",
+			"recommendations": {
+				"bradlc.vscode-tailwindcss": {
+					"name": "Tailwind CSS IntelliSense",
+					"important": true
+				}
+			}
+		},
+		"prisma": {
+			"configPath": "prisma/schema.prisma",
+			"configName": "prisma/schema.prisma",
+			"recommendations": {
+				"prisma.prisma": {
+					"name": "Prisma",
+					"important": true
+				}
+			}
+		},
+		"editorconfig": {
+			"configPath": ".editorconfig",
+			"configName": ".editorconfig",
+			"recommendations": {
+				"editorconfig.editorconfig": {
+					"name": "EditorConfig for VS Code"
+				}
+			}
+		}
+	},
 	"trustedExtensionAuthAccess": {
 		"microsoft": [
 			"vscode.github-authentication"

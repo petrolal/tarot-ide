@@ -166,7 +166,7 @@ Em vez de amarrar o usuário a um único modelo proprietário em nuvem ou ao Git
 
 | Arquivo | Tipo | Finalidade |
 | --- | --- | --- |
-| `product.json` | Modificado | Rebranding completo para Tarot IDE, `Tarot Arcana Dark` + `Tarot Arcana Light` no topo de `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false`, remoção de `defaultChatAgent`, `GitHub.copilot-chat`, `agentsTelemetryAppName` e `voiceWsUrl`. |
+| `product.json` | Modificado | Rebranding completo para Tarot IDE, `Tarot Arcana Dark` + `Tarot Arcana Light` no topo de `onboardingThemes`, Open VSX Registry, `"enableTelemetry": false`, remoção de `defaultChatAgent`, `GitHub.copilot-chat`, `agentsTelemetryAppName` e `voiceWsUrl`, inclusão de `bierner.markdown-mermaid` (MIT, Open VSX) em `builtInExtensions` para preview nativo de diagramas Mermaid em Markdown/Specs, e recomendações sob demanda (`extensionRecommendations` + `configBasedExtensionTips`) de extensões open-source do Open VSX (Python/`basedpyright`/`ruff`, Go, Rust, clangd, Java, Docker, YAML, TOML, Vue, Svelte, Tailwind, Biome/ESLint/Prettier, Prisma, Terraform, EditorConfig). |
 | `package.json` | Modificado (4 scripts) | Scripts leves sem Copilot: `compile-tarot`, `watch-tarot`, `watch-tarot-fast`, `watch-tarot-core`. |
 | `scripts/code.sh` & `scripts/code.bat` | Modificados (2 linhas cada) | Passam `--disable-extension=GitHub.copilot-chat` em dev. |
 | `src/vs/nls.ts` | Modificado (~15 linhas) | `_rebrandMessage` em `_format` (antes da interpolação de `args`): rebranda `"Visual Studio Code"`, `"VS Code"` e `"Code - OSS"` para `"Tarot IDE"` em toda a UI do core (inclusive Language Packs), preservando URLs, argumentos e exceções legítimas (keymaps/importação). |

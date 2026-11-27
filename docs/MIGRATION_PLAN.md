@@ -449,7 +449,7 @@ git checkout tarot-main && git merge --no-ff sync/vscode-1.149.0
 
 | Arquivo | Risco | Regra de Resolução |
 | --- | --- | --- |
-| `product.json` | Médio-Alto | Preservar identidade Tarot, Open VSX, `enableTelemetry: false` e ausência de `defaultChatAgent`/`GitHub.copilot-chat`; aceitar atualizações upstream de `builtInExtensions` (`js-debug`) e `webviewContentExternalBaseUrlTemplate`. |
+| `product.json` | Médio-Alto | Preservar identidade Tarot, Open VSX, `enableTelemetry: false`, ausência de `defaultChatAgent`/`GitHub.copilot-chat`, built-in `bierner.markdown-mermaid` (Open VSX) e recomendações Open VSX (`extensionRecommendations`, `configBasedExtensionTips`); aceitar atualizações upstream de `builtInExtensions` (`js-debug`) e `webviewContentExternalBaseUrlTemplate`. |
 | `pnpm-lock.yaml` | Alto | Nunca resolver manualmente: `git checkout --theirs pnpm-lock.yaml && pnpm install`. |
 | `pnpm-workspace.yaml` & `build/npm/dirs.ts` | Baixo | Manter `extensions/tarot-core` em ordem alfabética. |
 | `build/gulpfile.extensions.ts` | Baixo | Manter `'extensions/tarot-core/tsconfig.json'` em `compilations`. |
