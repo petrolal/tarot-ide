@@ -164,6 +164,23 @@ export function validateSubagentDag(nodes: readonly SubagentNode[]): SubagentDag
 
 	if (visited.size < byId.size) {
 		errors.push('Sub-agent DAG contains a dependency cycle.');
+	} else {
+		// TD-09: a reviewLoop.target in the *same* wave as the node referencing it (a sibling,
+		// not a dependency) races with that target's own concurrent Promise.all execution when
+		// the loop forces a re-run — whichever write to resultsById/outputs lands last clobbers
+		// the other. Require the target to be in a strictly earlier (already-completed) wave.
+		const waveIndexById = new Map<string, number>();
+		waves.forEach((wave, idx) => wave.forEach(n => waveIndexById.set(n.id, idx)));
+		for (const node of byId.values()) {
+			if (!node.reviewLoop || node.reviewLoop.target === node.id) {
+				continue;
+			}
+			const nodeWave = waveIndexById.get(node.id);
+			const targetWave = waveIndexById.get(node.reviewLoop.target);
+			if (nodeWave !== undefined && targetWave !== undefined && targetWave >= nodeWave) {
+				errors.push(`Sub-agent "${node.id}" reviewLoop target "${node.reviewLoop.target}" must be in an earlier wave (a dependency), not the same or a later wave.`);
+			}
+		}
 	}
 
 	return { valid: errors.length === 0, errors, waves };

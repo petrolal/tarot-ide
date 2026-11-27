@@ -324,6 +324,44 @@ describe('workflows.workflowEngine execution, checkpointing and resume', () => {
 		}
 	});
 
+	it('a paused branch always wins over a failed sibling in a parallel "all" join, regardless of resolution order (TD-10)', async () => {
+		const makeRecipe = (): WorkflowRecipe => ({
+			name: 'par-pause-vs-fail',
+			steps: [
+				{
+					type: 'parallel',
+					id: 'par-all',
+					branches: [
+						{ type: 'step', id: 'pause-branch', agent: 'claude', prompt: 'Needs input' },
+						{ type: 'step', id: 'fail-branch', agent: 'claude', prompt: 'Fails' },
+					],
+				},
+			],
+		});
+
+		for (const pauseResolvesFirst of [true, false]) {
+			const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wf-pause-race-'));
+			try {
+				const store = new TarotWorkflowRunStore();
+				const engine = new TarotWorkflowEngine(store);
+				const finalRun = await engine.run(makeRecipe(), tmp, { task: 'x' }, {
+					executeStep: async req => {
+						const isPauseBranch = req.step.id === 'pause-branch';
+						const delayMs = (isPauseBranch === pauseResolvesFirst) ? 0 : 10;
+						await new Promise(resolve => setTimeout(resolve, delayMs));
+						return isPauseBranch
+							? { ok: true, output: '[SEND_MESSAGE:warning] need more info' }
+							: { ok: false, output: 'boom' };
+					},
+				});
+				assert.equal(finalRun.status, 'paused', `pauseResolvesFirst=${pauseResolvesFirst}`);
+				assert.equal(finalRun.pauseReason, 'needs_input');
+			} finally {
+				await fs.rm(tmp, { recursive: true, force: true });
+			}
+		}
+	});
+
 	it('supports fileCheck stopCondition, onMaxIterations pause/continue, and updateWorkflow preserving completed steps', async () => {
 		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wf-p1-'));
 		try {

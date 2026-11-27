@@ -57,6 +57,21 @@ describe('subagentManager DAG validation and execution', () => {
 		assert.ok(badTrigger.errors.length >= 2);
 	});
 
+	it('rejects a reviewLoop target that is a same-wave sibling instead of an earlier-wave dependency (TD-09)', () => {
+		const sameWaveSibling = validateSubagentDag([
+			{ id: 'a', kind: 'general-purpose', prompt: 'p', reviewLoop: { target: 'c', trigger: 'REDO', maxIterations: 2 } },
+			{ id: 'c', kind: 'validation', prompt: 'p' },
+		]);
+		assert.equal(sameWaveSibling.valid, false);
+		assert.ok(sameWaveSibling.errors.some(e => e.includes('earlier wave')));
+
+		const earlierWaveDependency = validateSubagentDag([
+			{ id: 'a', kind: 'general-purpose', prompt: 'p' },
+			{ id: 'b', kind: 'validation', prompt: 'p', dependsOn: ['a'], reviewLoop: { target: 'a', trigger: 'REDO', maxIterations: 2 } },
+		]);
+		assert.equal(earlierWaveDependency.valid, true);
+	});
+
 	it('executes independent nodes in parallel waves and runs bounded review loops', async () => {
 		const nodes: SubagentNode[] = [
 			{ id: 'gather', kind: 'context-gathering', prompt: 'read repo' },

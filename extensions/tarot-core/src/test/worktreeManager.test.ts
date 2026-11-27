@@ -50,3 +50,36 @@ describe('worktreeManager.createWorktree', () => {
 		}
 	});
 });
+
+describe('worktreeManager.applyWorktree', () => {
+	it('applies a renamed file (git mv) from the worktree back into the workspace (TD-13)', async () => {
+		const gitPath = await resolveBinaryPath('git');
+		if (!gitPath) {
+			return;
+		}
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wt-rename-'));
+		try {
+			await execSimple(gitPath, ['-C', tmp, 'init']);
+			await execSimple(gitPath, ['-C', tmp, 'config', 'user.email', 'test@tarot.local']);
+			await execSimple(gitPath, ['-C', tmp, 'config', 'user.name', 'Tarot Test']);
+			await fs.writeFile(path.join(tmp, 'old.ts'), 'export const x = 1;\n', 'utf8');
+			await execSimple(gitPath, ['-C', tmp, 'add', 'old.ts']);
+			await execSimple(gitPath, ['-C', tmp, 'commit', '-m', 'init']);
+
+			const manager = new TarotWorktreeManager();
+			const worktree = await manager.createWorktree(tmp, 'rename-task');
+			assert.ok(worktree, 'worktree creation should succeed');
+			if (!worktree) { return; }
+
+			await execSimple(gitPath, ['-C', worktree.path, 'mv', 'old.ts', 'new.ts']);
+
+			const applied = await manager.applyWorktree(tmp, worktree);
+			assert.equal(applied, true);
+
+			const newContent = await fs.readFile(path.join(tmp, 'new.ts'), 'utf8').catch(() => undefined);
+			assert.equal(newContent, 'export const x = 1;\n', 'renamed file must be copied to its new path in the workspace');
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
+});

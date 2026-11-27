@@ -101,6 +101,10 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 
 		panel.onDidDispose(() => {
 			this.panels.delete(runId);
+			// TD-14: unlike `panels`, this map was never cleaned up, so the full recipe object
+			// (step tree, prompts, agent configs) for every run ever opened stayed retained for
+			// the life of the extension host.
+			this.recipesByRunId.delete(runId);
 		});
 
 		this.postRunState(panel, run, focusStepId);
@@ -212,5 +216,6 @@ export class TarotWorkflowRunEditorManager implements vscode.Disposable {
 			panel.dispose();
 		}
 		this.panels.clear();
+		this.recipesByRunId.clear();
 	}
 }

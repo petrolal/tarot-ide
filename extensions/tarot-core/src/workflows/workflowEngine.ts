@@ -18,6 +18,7 @@ import {
 	WorkflowRecipe,
 	WorkflowRepeatNode,
 	WorkflowRunState,
+	WorkflowRunStatus,
 	WorkflowStepNode,
 	WorkflowWatchNode,
 } from './workflowTypes';
@@ -102,8 +103,38 @@ export function resolveStepModelAndEffort(
  * - Supports `updateWorkflow` to swap in a revised remaining plan while preserving completed nodes.
  * Pure Node.js — zero `vscode` import so the entire engine is unit-testable via `node --test`.
  */
+/**
+ * Relative importance of each terminal/semi-terminal run status, used by `escalateRunStatus` to
+ * resolve TD-10: `parallel` branches run concurrently (`Promise.all`) and each mutates the same
+ * shared `run.status` directly with no other coordination, so whichever branch writes last used
+ * to win outright — a branch that fails after a sibling already paused for input could silently
+ * clobber the pause into a failure, hiding that the run is actually blocked on a human.
+ */
+const RUN_STATUS_PRIORITY: Record<WorkflowRunStatus, number> = {
+	pending: 0,
+	running: 0,
+	completed: 1,
+	failed: 2,
+	paused: 3,
+	aborted: 4,
+};
+
 export class TarotWorkflowEngine {
 	constructor(private readonly runStore: TarotWorkflowRunStore) { }
+
+	/**
+	 * Sets `run.status` (and optionally `run.pauseReason`) only if `status` is at least as
+	 * important as whatever is already there, per `RUN_STATUS_PRIORITY`. See TD-10.
+	 */
+	private escalateRunStatus(run: WorkflowRunState, status: WorkflowRunStatus, pauseReason?: WorkflowRunState['pauseReason']): void {
+		if (RUN_STATUS_PRIORITY[status] < RUN_STATUS_PRIORITY[run.status]) {
+			return;
+		}
+		run.status = status;
+		if (pauseReason !== undefined) {
+			run.pauseReason = pauseReason;
+		}
+	}
 
 	createRunState(recipe: WorkflowRecipe, inputs: Readonly<Record<string, string>>): WorkflowRunState {
 		const now = new Date().toISOString();
@@ -190,12 +221,11 @@ export class TarotWorkflowEngine {
 
 		for (const node of nodes) {
 			if (hooks.shouldAbort?.()) {
-				run.status = 'aborted';
+				this.escalateRunStatus(run, 'aborted');
 				return false;
 			}
 			if (hooks.shouldPause?.()) {
-				run.status = 'paused';
-				run.pauseReason = 'boundary';
+				this.escalateRunStatus(run, 'paused', 'boundary');
 				return false;
 			}
 
@@ -271,14 +301,13 @@ export class TarotWorkflowEngine {
 
 				if (signal?.severity === 'warning' || (!signal && node.completion === 'need_input')) {
 					stepState.status = 'paused';
-					run.status = 'paused';
-					run.pauseReason = 'needs_input';
+					this.escalateRunStatus(run, 'paused', 'needs_input');
 					return false;
 				}
 				if (!res.ok || signal?.severity === 'error' || (!signal && node.completion === 'error')) {
 					stepState.status = 'failed';
 					if (!suppressRunFailure) {
-						run.status = 'failed';
+						this.escalateRunStatus(run, 'failed');
 					}
 					run.lastError = signal?.message || `Step "${node.id}" failed.`;
 					return false;
@@ -309,14 +338,14 @@ export class TarotWorkflowEngine {
 					if (branchResults.some(Boolean)) {
 						return true;
 					}
-					run.status = 'failed';
+					this.escalateRunStatus(run, 'failed');
 					run.lastError = run.lastError || `All branches in parallel "${node.id}" failed.`;
 					return false;
 				}
 				if (branchResults.every(Boolean)) {
 					return true;
 				}
-				run.status = 'failed';
+				this.escalateRunStatus(run, 'failed');
 				return false;
 			}
 
@@ -331,12 +360,11 @@ export class TarotWorkflowEngine {
 
 				while (true) {
 					if (hooks.shouldAbort?.()) {
-						run.status = 'aborted';
+						this.escalateRunStatus(run, 'aborted');
 						return false;
 					}
 					if (hooks.shouldPause?.()) {
-						run.status = 'paused';
-						run.pauseReason = 'boundary';
+						this.escalateRunStatus(run, 'paused', 'boundary');
 						return false;
 					}
 
@@ -351,7 +379,7 @@ export class TarotWorkflowEngine {
 						run.watchCursors[node.id] = poll.cursor;
 					}
 					if (poll.error) {
-						run.status = 'failed';
+						this.escalateRunStatus(run, 'failed');
 						run.lastError = poll.error;
 						return false;
 					}
@@ -420,11 +448,10 @@ export class TarotWorkflowEngine {
 			return true;
 		}
 		if (action === 'pause') {
-			run.status = 'paused';
-			run.pauseReason = 'iteration_cap';
+			this.escalateRunStatus(run, 'paused', 'iteration_cap');
 			return false;
 		}
-		run.status = 'aborted';
+		this.escalateRunStatus(run, 'aborted');
 		run.lastError = `Repeat "${node.id}" reached maxIterations (${node.maxIterations}).`;
 		return false;
 	}

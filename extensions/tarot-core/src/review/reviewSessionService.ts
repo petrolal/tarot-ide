@@ -288,7 +288,13 @@ export class TarotReviewSessionService implements vscode.CodeLensProvider, vscod
 		entries: readonly CheckpointDiffEntry[],
 		autoOpen: boolean,
 	): Promise<void> {
-		if (this.state && this.state.checkpointId !== checkpointId) {
+		// TD-07: only clear the previous checkpoint/close its diff tabs when *the same* session
+		// is replacing its own prior review (a normal subsequent turn). When a *different*
+		// session starts a review, leave the other session's checkpoint backups on disk —
+		// discarding them outright left that session's edited files unrecoverable with no
+		// warning. The active diff-tab UI still only tracks one session at a time (`this.state`
+		// below); isolating concurrent reviews per session is a larger follow-up (TD-17).
+		if (this.state && this.state.sessionId === sessionId && this.state.checkpointId !== checkpointId) {
 			this.beforeProvider.clearCheckpoint(this.state.checkpointId);
 			await this.closeReviewDiffTabs();
 		}

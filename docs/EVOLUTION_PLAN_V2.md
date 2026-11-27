@@ -23,15 +23,15 @@
 | **TD-03** | `tarot.workflows.runRecipe` roda sem checar Workspace Trust | Segurança | **P0** | `commands/workflowCommands.ts`, `views/recipesView.ts` | ✅ Corrigido |
 | **TD-04** | Comandos de SSH/HTTP do Crew Automation sem checar Workspace Trust | Segurança | **P0** | `commands/crewAutomationCommands.ts` | ✅ Corrigido |
 | **TD-05** | Checagem de raiz do workspace sem limite de separador de path | Segurança | **P0** | `checkpoints/checkpointService.ts` | ✅ Corrigido |
-| **TD-06** | `activeProfileId` não é por sessão; fica obsoleto ao trocar de sessão | Correção | **P1** | `views/agentPanelView.ts` | 📋 Pendente |
-| **TD-07** | Descarte de review ignora `sessionId`, apaga review pendente de outra sessão | Correção | **P1** | `review/reviewSessionService.ts` | 📋 Pendente |
+| **TD-06** | `activeProfileId` não é por sessão; fica obsoleto ao trocar de sessão | Correção | **P1** | `views/agentPanelView.ts` | ✅ Corrigido |
+| **TD-07** | Descarte de review ignora `sessionId`, apaga review pendente de outra sessão | Correção | **P1** | `review/reviewSessionService.ts` | ✅ Corrigido |
 | **TD-08** | `Object.entries()` em `Map` sempre vazio — output entre nós do DAG nunca é passado | Correção | **P1** | `views/subagentsPanel.ts` | ✅ Corrigido |
-| **TD-09** | Re-run de review-loop corre risco de corrida com o próprio nó alvo | Correção | **P1** | `agents/subagentManager.ts` | 📋 Pendente |
-| **TD-10** | Branches paralelos de workflow sobrescrevem `run.status`/`pauseReason` compartilhado | Correção | **P1** | `workflows/workflowEngine.ts` | 📋 Pendente |
-| **TD-11** | Cron usa AND em vez de OR entre dia-do-mês/dia-da-semana | Correção | **P1** | `schedule/cronParser.ts` | 📋 Pendente |
-| **TD-12** | Dois prompts de Spec em inglês, violam regra PT-BR (`AGENTS.md` §2e) | Regra | **P1** | `specs/specService.ts` | 📋 Pendente |
-| **TD-13** | Parsing de status de worktree não trata renomes (`old -> new`) | Correção | **P1** | `git/worktreeManager.ts` | 📋 Pendente |
-| **TD-14** | `recipesByRunId` nunca é limpo — memory leak | Recurso | **P1** | `views/workflowRunEditor.ts` | 📋 Pendente |
+| **TD-09** | Re-run de review-loop corre risco de corrida com o próprio nó alvo | Correção | **P1** | `agents/subagentManager.ts` | ✅ Corrigido |
+| **TD-10** | Branches paralelos de workflow sobrescrevem `run.status`/`pauseReason` compartilhado | Correção | **P1** | `workflows/workflowEngine.ts` | ✅ Corrigido |
+| **TD-11** | Cron usa AND em vez de OR entre dia-do-mês/dia-da-semana | Correção | **P1** | `schedule/cronParser.ts` | ✅ Corrigido |
+| **TD-12** | Dois prompts de Spec em inglês, violam regra PT-BR (`AGENTS.md` §2e) | Regra | **P1** | `specs/specService.ts` | ✅ Corrigido |
+| **TD-13** | Parsing de status de worktree não trata renomes (`old -> new`) | Correção | **P1** | `git/worktreeManager.ts` | ✅ Corrigido |
+| **TD-14** | `recipesByRunId` nunca é limpo — memory leak | Recurso | **P1** | `views/workflowRunEditor.ts` | ✅ Corrigido |
 | **TD-15** | Listagem de digests ordena por nome do job, não por recência real | Correção | **P2** | `schedule/scheduleService.ts` | 📋 Pendente |
 | **TD-16** | Workspace Trust garantido só por convenção de comentário, não no código | Arquitetura | **P2** | `hooks/hookEngine.ts`, `skills/skillsService.ts`, `mcp/mcpConfigService.ts`, `agents/customAgentService.ts`, `workflows/recipeLoader.ts`, `powers/powersService.ts` | 📋 Pendente |
 | **TD-17** | `agentPanelView.ts` é um god object de ~2.100 linhas | Manutenibilidade | **P2** | `views/agentPanelView.ts` | 📋 Pendente |

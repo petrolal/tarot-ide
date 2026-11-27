@@ -126,13 +126,24 @@ export function matchesCronAt(
 	// Support both 0 and 7 as Sunday in day-of-week field
 	const dowMatched = matchCronField(dowF, parts.dayOfWeek, 0, 7)
 		|| (parts.dayOfWeek === 0 && matchCronField(dowF, 7, 0, 7));
+	const domMatched = matchCronField(domF, parts.day, 1, 31);
+
+	// TD-11: standard cron semantics — when BOTH day-of-month and day-of-week are restricted
+	// (neither is `*`), the day matches if EITHER field matches, not only when both do at once
+	// (e.g. "0 9 1 * MON" means "the 1st OR every Monday", not "the 1st when it's also a Monday").
+	// When only one (or neither) is restricted, the unrestricted `*` field always matches on its
+	// own, so plain AND already reduces to "whichever field is restricted must match".
+	const domRestricted = domF !== '*';
+	const dowRestricted = dowF !== '*';
+	const dayMatched = (domRestricted && dowRestricted)
+		? (domMatched || dowMatched)
+		: (domMatched && dowMatched);
 
 	return (
 		matchCronField(minF, parts.minute, 0, 59)
 		&& matchCronField(hourF, parts.hour, 0, 23)
-		&& matchCronField(domF, parts.day, 1, 31)
 		&& matchCronField(monF, parts.month, 1, 12)
-		&& dowMatched
+		&& dayMatched
 	);
 }
 

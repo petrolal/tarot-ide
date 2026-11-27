@@ -74,4 +74,38 @@ describe('specService & M3.6.6 UX helpers', () => {
 			await fs.rm(tmpDir, { recursive: true, force: true });
 		}
 	});
+
+	// TD-12: buildTaskExecutionPrompt/buildPhaseAdvancePrompt previously built their prompt body
+	// in English, breaking the project's PT-BR rule for text sent to the BYOA agent CLI
+	// (AGENTS.md §2e), unlike every sibling prompt-builder in this file.
+	it('builds Task Execution and Phase Advance prompts in PT-BR (TD-12)', async () => {
+		const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-specservice-ptbr-'));
+		const service = new TarotSpecService();
+		try {
+			const { dirPath } = await service.createSpec(tmpDir, 'rate-limiter', 'quick-spec');
+			const loaded = await service.loadSpecContext(dirPath);
+			const task = {
+				lineIndex: 0, index: 1, title: 'Implementar o rate limiter', completed: false, rawLine: '', optional: false,
+			} as import('../specs/taskParser').SpecTask;
+
+			const taskPrompt = service.buildTaskExecutionPrompt(loaded, task);
+			assert.match(taskPrompt, /Execute APENAS a Tarefa #1/);
+			assert.doesNotMatch(taskPrompt, /Execute ONLY Task/i);
+
+			const designPrompt = service.buildPhaseAdvancePrompt(loaded, 'design');
+			assert.match(designPrompt, /Com base no/);
+			assert.doesNotMatch(designPrompt, /Based on the approved/i);
+
+			const tasksPrompt = service.buildPhaseAdvancePrompt(loaded, 'tasks');
+			assert.doesNotMatch(tasksPrompt, /Based on the approved/i);
+
+			const requirementsPrompt = service.buildPhaseAdvancePrompt(loaded, 'requirements');
+			assert.doesNotMatch(requirementsPrompt, /^Refine .* using strict/im);
+
+			const bugfixPrompt = service.buildPhaseAdvancePrompt(loaded, 'bugfix');
+			assert.doesNotMatch(bugfixPrompt, /^Refine .* with the 3 EARS/im);
+		} finally {
+			await fs.rm(tmpDir, { recursive: true, force: true });
+		}
+	});
 });

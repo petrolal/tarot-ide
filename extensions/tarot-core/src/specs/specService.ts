@@ -256,8 +256,8 @@ export class TarotSpecService {
 	buildTaskExecutionPrompt(spec: LoadedSpecContext, task: SpecTask): string {
 		return (
 			`[Tarot Spec Execution — ${spec.slug} (${spec.kind})]\n` +
-			`Execute ONLY Task #${task.index}: "${task.title}"\n\n` +
-			`Follow the Spec documents below strictly, keep changes focused on this task, and verify with build/tests when applicable.\n\n` +
+			`Execute APENAS a Tarefa #${task.index}: "${task.title}"\n\n` +
+			`Siga estritamente os documentos da Spec abaixo, mantenha as alterações focadas nesta tarefa e valide com build/testes quando aplicável.\n\n` +
 			`${spec.contextText}`
 		);
 	}
@@ -267,29 +267,29 @@ export class TarotSpecService {
 		if (targetPhase === 'design') {
 			return (
 				`[Tarot Spec Phase — Design]\n` +
-				`Based on the approved \`${spec.kind === 'bugfix' ? 'bugfix.md' : 'requirements.md'}\` in \`${relDir}/\`, ` +
-				`update \`${relDir}/design.md\` with a concrete architecture, component interfaces, and Correctness / Property-Based Testing (PBT) invariants.\n\n` +
+				`Com base no \`${spec.kind === 'bugfix' ? 'bugfix.md' : 'requirements.md'}\` aprovado em \`${relDir}/\`, ` +
+				`atualize \`${relDir}/design.md\` com uma arquitetura concreta, interfaces de componentes e invariantes de Corretude / Property-Based Testing (PBT).\n\n` +
 				`${spec.contextText}`
 			);
 		}
 		if (targetPhase === 'tasks') {
 			return (
 				`[Tarot Spec Phase — Tasks]\n` +
-				`Based on the approved design in \`${relDir}/design.md\`, ` +
-				`update \`${relDir}/tasks.md\` with a discrete, dependency-ordered Markdown checklist (\`- [ ] 1. ...\`) ready to run task-by-task.\n\n` +
+				`Com base no design aprovado em \`${relDir}/design.md\`, ` +
+				`atualize \`${relDir}/tasks.md\` com uma checklist Markdown discreta, ordenada por dependência (\`- [ ] 1. ...\`), pronta para executar tarefa a tarefa.\n\n` +
 				`${spec.contextText}`
 			);
 		}
 		if (targetPhase === 'requirements') {
 			return (
 				`[Tarot Spec Phase — Requirements (EARS)]\n` +
-				`Refine \`${relDir}/requirements.md\` using strict EARS notation (WHEN ... THE SYSTEM SHALL ...) aligned with \`${relDir}/design.md\`.\n\n` +
+				`Refine \`${relDir}/requirements.md\` usando notação EARS estrita (WHEN ... THE SYSTEM SHALL ...) alinhada com \`${relDir}/design.md\`.\n\n` +
 				`${spec.contextText}`
 			);
 		}
 		return (
 			`[Tarot Spec Phase — Bugfix (EARS)]\n` +
-			`Refine \`${relDir}/bugfix.md\` with the 3 EARS sections (Current Behavior, Expected Behavior, Unchanged Behavior).\n\n` +
+			`Refine \`${relDir}/bugfix.md\` com as 3 seções EARS (Current Behavior, Expected Behavior, Unchanged Behavior).\n\n` +
 			`${spec.contextText}`
 		);
 	}

@@ -199,9 +199,18 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		});
 	}
 
+	/**
+	 * `activeProfileId` is panel-wide, not per-session (TD-06): resync it to the mode's default
+	 * profile whenever the active session changes, so a turn never silently runs with another
+	 * session's explicitly-picked custom profile (tools/permissions/system-prompt).
+	 */
+	private resetActiveProfileForMode(mode: AgentMode): void {
+		this.activeProfileId = mode === 'vibe' ? 'default' : mode;
+	}
+
 	async setMode(mode: AgentMode): Promise<void> {
 		this.mode = mode;
-		this.activeProfileId = mode === 'vibe' ? 'default' : mode;
+		this.resetActiveProfileForMode(mode);
 		const session = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
 		session.mode = mode;
 		this.postState();
@@ -312,6 +321,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		if (found) {
 			this.mode = found.mode;
 			this.autonomy = found.autonomy;
+			this.resetActiveProfileForMode(found.mode);
 			await this.runtimeManager.setActiveAgent(found.activeAgentId);
 			this.postState();
 		}
@@ -1012,6 +1022,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					if (selected) {
 						this.mode = selected.mode;
 						this.autonomy = selected.autonomy;
+						this.resetActiveProfileForMode(selected.mode);
 						this.postState();
 					}
 				}
@@ -1024,6 +1035,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					const next = this.sessionStore.closeSession(msg.sessionId, activeAgent);
 					this.mode = next.mode;
 					this.autonomy = next.autonomy;
+					this.resetActiveProfileForMode(next.mode);
 					this.postState();
 				}
 				break;

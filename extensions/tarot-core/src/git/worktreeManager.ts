@@ -7,6 +7,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
+import { parsePorcelainStatusLine } from '../review/diffHunkEngine';
 
 export interface TarotWorktree {
 	readonly id: string;
@@ -129,9 +130,15 @@ export class TarotWorktreeManager {
 		const statusRes = await execSimple(gitPath, ['-C', worktree.path, 'status', '--porcelain']).catch(() => undefined);
 		if (statusRes?.exitCode === 0) {
 			for (const line of statusRes.stdout.split('\n')) {
-				const trimmed = line.slice(3).trim();
-				if (trimmed && !changes.has(trimmed)) {
-					changes.set(trimmed, 'modified');
+				if (!line.trim()) {
+					continue;
+				}
+				// TD-13: a plain `line.slice(3).trim()` left a rename's "old -> new" porcelain
+				// format as one bogus path, silently dropping the rename; parsePorcelainStatusLine
+				// (already used by gitReviewService.ts/checkpointService.ts) handles it correctly.
+				const parsed = parsePorcelainStatusLine(line);
+				if (parsed && !changes.has(parsed.relativePath)) {
+					changes.set(parsed.relativePath, parsed.status === 'deleted' ? 'deleted' : 'modified');
 				}
 			}
 		}
