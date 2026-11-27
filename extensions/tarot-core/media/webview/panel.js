@@ -345,7 +345,35 @@
 	function renderAttachments() {
 		attachmentsEl.textContent = '';
 		const list = state.attachments || [];
-		attachmentsEl.classList.toggle('hidden', list.length === 0);
+		const autoFile = state.autoActiveFile || null;
+		attachmentsEl.classList.toggle('hidden', list.length === 0 && !autoFile);
+
+		if (autoFile) {
+			const chip = document.createElement('span');
+			chip.className = 'attachment-chip auto-active';
+			chip.title = autoFile.relativePath;
+
+			const label = document.createElement('span');
+			label.textContent = autoFile.label;
+			chip.appendChild(label);
+
+			const badge = document.createElement('span');
+			badge.className = 'attachment-auto-badge';
+			badge.textContent = t('currentFileBadge');
+			chip.appendChild(badge);
+
+			const rm = document.createElement('button');
+			rm.className = 'attachment-remove';
+			rm.type = 'button';
+			rm.title = t('dismissCurrentFile');
+			rm.textContent = '×';
+			rm.addEventListener('click', () => {
+				vscode.postMessage({ type: 'dismissAutoActiveFile' });
+			});
+			chip.appendChild(rm);
+			attachmentsEl.appendChild(chip);
+		}
+
 		list.forEach((att, idx) => {
 			const chip = document.createElement('span');
 			chip.className = 'attachment-chip';

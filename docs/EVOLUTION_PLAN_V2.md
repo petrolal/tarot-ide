@@ -12,11 +12,12 @@
 
 ---
 
-## Mapa Geral da Fase 6 (`M6.1–M6.10`)
+## Mapa Geral da Fase 6 (`M6.1–M6.16`)
 
 | Marco | Título | Inspiração | Prioridade | Dependências | Status |
 | :--- | :--- | :--- | :---: | :--- | :--- |
 | **M6.1** | **Cursor-Style Diff Review (`Accept / Reject` por Arquivo, Git e Non-Git)** | Cursor + Kiro | P0 | `checkpointService.ts`, `agentPanelView.ts` | ✅ Concluído |
+| **M6.1b** | **Auto-Contexto do Arquivo Atual no Chat (*Current File Chip* + Seleção ao Vivo)** | Cursor + Kiro + VS Code | P0 | `agentPanelView.ts`, `panel.js`, `activeFileContext.ts` | ✅ Concluído |
 | **M6.2** | **Sistema Unificado de Slash Commands (`/comando`) no Chat e Focus Mode** | Kiro + Claude Code | P0 | `agentPanelView.ts`, `focusModeView.ts` | 📋 Planejado |
 | **M6.3** | **Inline Quick Edit (`Ctrl+K`) + Quick Fix Agêntico (`Fix with Tarot`)** | Kiro + Cursor | P0 | `M6.1` | 📋 Planejado |
 | **M6.4** | **Colar & Arrastar Imagens no Chat e Focus Mode (`Ctrl+V` / Drag & Drop)** | Kiro | P0 | `panel.js`, `focusMode.js` | 📋 Planejado |
@@ -26,6 +27,12 @@
 | **M6.8** | **Comando `/rewind` Interativo por Turno (*Fork* vs *Restore Checkpoint*)** | Kiro | P1 | `M6.2`, `checkpointService.ts` | 📋 Planejado |
 | **M6.9** | **Painéis Redimensionáveis (Drag Handles) + Strip só de Ícones no Focus Mode** | Kiro | P1 | `focusMode.{js,css}` | 📋 Planejado |
 | **M6.10** | **Exportação Portável de Sessão `.zip` + Spec-to-Code Drift Check** | Kiro | P1 | `compactionService.ts`, `specService.ts` | 📋 Planejado |
+| **M6.11** | **Autocomplete Inline de Arquivos & Símbolos (`@arquivo` / `#arquivo`) no Composer** | Kiro + Cursor | P0 | `M6.1b`, `panel.js`, `focusMode.js` | 📋 Planejado |
+| **M6.12** | **Fila de Mensagens (*Prompt Queue*) enquanto o Agente Executa** | Kiro + Cursor | P0 | `agentPanelView.ts`, `panel.js` | 📋 Planejado |
+| **M6.13** | **Guided Compaction (`/compact <diretriz>`)** | Kiro (Nov/2026) | P0 | `M6.2`, `compactionService.ts` | 📋 Planejado |
+| **M6.14** | **Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`) + Trigger `SubagentStop`** | Kiro (Nov/2026) | P0 | `hookEngine.ts`, `subagentManager.ts` | 📋 Planejado |
+| **M6.15** | **Live Browser Preview (`localhost`) + Captura de Erros de Console no Chat** | Kiro `browser-harness` | P1 | `M6.4`, `devServerService.ts` | 📋 Planejado |
+| **M6.16** | **Spec Task Waves + Evidence Summary Pré-PR Consolidado** | Kiro Specs + Frontier | P1 | `M6.10`, `specService.ts`, `gitReviewService.ts` | 📋 Planejado |
 
 ---
 
@@ -213,6 +220,102 @@ Adicionar divisórias arrastáveis (drag handles) entre Sessions, Chat e Inspect
 ### Critérios de Aceite (DoD)
 - [ ] `.zip` válido gerado com `zlib.deflateRawSync` + cabeçalhos PKZIP padrão e testado por teste unitário.
 - [ ] `tarot.specs.checkDrift` funcional para qualquer Spec do workspace.
+
+---
+
+## M6.11 — Autocomplete Inline de Arquivos & Símbolos (`@arquivo` / `#arquivo`) no Composer
+
+### Objetivo
+Permitir digitar `@` ou `#` seguido de qualquer parte do nome de arquivo, pasta, spec ou símbolo diretamente no composer do Painel Lateral e do Focus Mode, exibindo popup fuzzy navegável por teclado (`↑`/`↓`/`Tab`/`Enter`) sem abrir modais QuickPick.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/context/inlineMentionService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/{agentPanelView.ts,focusModeView.ts,panelProtocol.ts}`
+- `[MODIFY]` `extensions/tarot-core/media/webview/{panel.js,panel.css,focusMode.js}`
+- `[NEW]` `extensions/tarot-core/src/test/inlineMentionService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Digitar `@` ou `#` + texto no composer consulta arquivos/pastas/specs do workspace com ranking fuzzy e insere o chip diretamente ao confirmar.
+- [ ] Funciona por teclado e clique tanto no Painel Lateral quanto no Focus Mode, respeitando exclusões (`node_modules`, `.git`, `.tarot/sessions`, `.tarot/checkpoints`).
+
+---
+
+## M6.12 — Fila de Mensagens (*Prompt Queue*) enquanto o Agente Executa
+
+### Objetivo
+Permitir que o usuário continue digitando e enfileirando prompts de follow-up enquanto o agente executa o turno atual (em vez de bloquear com *"The agent is currently busy"*), exibindo a fila acima do composer com opções de editar, remover ou executar imediatamente ao fim do turno.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/views/{agentPanelView.ts,panelProtocol.ts,panelStrings.ts}`
+- `[MODIFY]` `extensions/tarot-core/media/webview/{panel.js,panel.css}`
+- `[NEW]` `extensions/tarot-core/src/test/promptQueue.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Enviar mensagem durante `isRunning === true` adiciona à fila da sessão ativa (com snapshot dos anexos) e exibe pill/lista compacta acima do composer.
+- [ ] Ao concluir o turno sem cancelamento, o próximo item da fila é despachado automaticamente; cancelar o turno oferece limpar ou manter a fila.
+
+---
+
+## M6.13 — Guided Compaction (`/compact <diretriz>`)
+
+### Objetivo
+Estender `/compact` e `compactionService.ts` para aceitar instruções explícitas do usuário (ex.: `/compact Preserve as decisões de migração e os passos de validação`), garantindo que o resumo compactado destaque e preserve integralmente o foco solicitado.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/context/compactionService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/compactionService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] `/compact <diretriz>` repassa a diretriz ao resumo estruturado e destaca uma seção `Guided Focus` preservada na compactação.
+- [ ] Testes unitários validam compactação guiada vs padrão.
+
+---
+
+## M6.14 — Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`) + Trigger `SubagentStop`
+
+### Objetivo
+1. Quando um Agent Hook produzir saída superior a 3.000 caracteres, salvar o log completo em `.tarot/hooks/output/<timestamp>-<hook>.log` e injetar no contexto apenas um resumo + caminho do arquivo, evitando estourar a janela de contexto.
+2. Adicionar o gatilho `SubagentStop` ao `hookEngine.ts` e `subagentManager.ts`, disparado ao término de cada sub-agente para permitir validação ou uma instrução extra antes de retornar o resultado ao agente pai.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/hooks/{hookTypes.ts,hookEngine.ts,hookRunner.ts}`
+- `[MODIFY]` `extensions/tarot-core/src/agents/subagentManager.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/hookEngine.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Saídas de hook `> 3.000` chars gravam arquivo em `.tarot/hooks/output/` e retornam referência + tail truncado ao agente.
+- [ ] Trigger `SubagentStop` suportado no schema `v1`, editor visual de hooks e execução de sub-agentes, respeitando `vscode.workspace.isTrusted`.
+
+---
+
+## M6.15 — Live Browser Preview (`localhost`) + Captura de Erros de Console no Chat
+
+### Objetivo
+Integrar o `devServerService.ts` com um painel Webview de Preview para apps locais (`http://127.0.0.1:*` / `http://localhost:*`), permitindo visualizar a aplicação rodando e enviar erros de console/runtime ou captura visual diretamente para o chat do agente em 1 clique.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/views/browserPreviewPanel.ts`
+- `[MODIFY]` `extensions/tarot-core/src/crew/devServerService.ts`, `src/extension.ts`, `package.json`
+
+### Critérios de Aceite (DoD)
+- [ ] Restrito estritamente a origens locais (`localhost` / `127.0.0.1`), respeitando CSP segura e zero `innerHTML`.
+- [ ] Ação *"Send Console Error / Preview to Tarot"* anexa o diagnóstico diretamente ao composer ativo.
+
+---
+
+## M6.16 — Spec Task Waves + Evidence Summary Pré-PR Consolidado
+
+### Objetivo
+Consolidar um **Evidence Summary** automático ao concluir `Run All Tasks` (ondas por dependência) ou ao acionar **Pre-PR Review**, reunindo testes executados, status de lint/build, diff total e checagem de Spec Drift (`M6.10`) em um cartão pronto para revisão humana ou descrição de PR.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/specs/evidenceSummary.ts`
+- `[MODIFY]` `extensions/tarot-core/src/commands/specCommands.ts`, `src/git/gitReviewService.ts`
+- `[NEW]` `extensions/tarot-core/src/test/evidenceSummary.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Gera resumo Markdown estruturado (Spec, ondas/tarefas concluídas, testes/evidências, arquivos alterados e drift) copiável para PR ou exibido no chat.
 
 ---
 

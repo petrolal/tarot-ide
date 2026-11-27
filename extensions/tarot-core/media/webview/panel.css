@@ -1406,6 +1406,21 @@ body.vscode-light .inline-diff-stat-del {
 	font-size: 11px;
 }
 
+.attachment-chip.auto-active {
+	background: rgba(196, 165, 247, 0.10);
+	border: 1px dashed rgba(196, 165, 247, 0.45);
+	color: #D8C7FA;
+}
+
+.attachment-auto-badge {
+	font-size: 9.5px;
+	padding: 0 4px;
+	border-radius: 3px;
+	background: rgba(245, 224, 142, 0.14);
+	color: #F5E08E;
+	text-transform: lowercase;
+}
+
 .attachment-remove {
 	background: transparent;
 	border: none;
@@ -1978,6 +1993,17 @@ body.vscode-light .attachment-chip {
 	background: rgba(13, 115, 119, 0.1);
 	border-color: rgba(13, 115, 119, 0.3);
 	color: #0D7377;
+}
+
+body.vscode-light .attachment-chip.auto-active {
+	background: rgba(75, 0, 130, 0.07);
+	border-color: rgba(75, 0, 130, 0.35);
+	color: #4B0082;
+}
+
+body.vscode-light .attachment-auto-badge {
+	background: rgba(176, 132, 20, 0.14);
+	color: #8A6112;
 }
 
 body.vscode-light .action-icon-btn {

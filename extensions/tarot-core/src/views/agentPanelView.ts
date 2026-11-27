@@ -26,6 +26,11 @@ import {
 import { CheckpointDiffEntry, TarotCheckpointService } from '../checkpoints/checkpointService';
 import { TarotReviewSessionService } from '../review/reviewSessionService';
 import { getTarotConfig } from '../config/tarotConfig';
+import {
+	ActiveFileSnapshot,
+	buildAutoActiveFileAttachment,
+	buildAutoActiveFileChip,
+} from '../context/activeFileContext';
 import { compactConversationMessages, computeContextMeter, formatSessionExportBundle, formatSessionExportMarkdown } from '../context/compactionService';
 import { resolveContextProvider } from '../context/contextProviders';
 import { ChangedFileInfo, TarotGitReviewService } from '../git/gitReviewService';
@@ -73,6 +78,9 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	private runningSessionId: string | undefined;
 	private readonly queuedHookPrompts: string[] = [];
 	private reviewSessionService: TarotReviewSessionService | undefined;
+	private lastActiveFileEditor: vscode.TextEditor | undefined;
+	private autoContextDismissedForPath: string | undefined;
+	private lastAutoActiveChipKey: string | undefined;
 	private readonly disposables: vscode.Disposable[] = [];
 
 	setReviewSessionService(service: TarotReviewSessionService): void {
@@ -129,10 +137,31 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		if (savedEffort && VALID_EFFORTS.includes(savedEffort)) {
 			this.selectedEffort = savedEffort;
 		}
+		if (vscode.window.activeTextEditor?.document.uri.scheme === 'file') {
+			this.lastActiveFileEditor = vscode.window.activeTextEditor;
+		} else {
+			this.lastActiveFileEditor = vscode.window.visibleTextEditors.find(e => e.document.uri.scheme === 'file');
+		}
 		this.disposables.push(
 			this.runtimeManager.onDidChangeAgents(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			this.runtimeManager.onDidChangeActiveAgent(() => { void this.refreshAvailableModels().then(() => this.postState()); }),
 			vscode.workspace.onDidGrantWorkspaceTrust(() => { void this.refreshDynamicCatalogs().then(() => this.postState()); }),
+			vscode.window.onDidChangeActiveTextEditor(editor => {
+				if (editor && editor.document.uri.scheme === 'file') {
+					const nextPath = editor.document.uri.fsPath;
+					if (this.autoContextDismissedForPath && this.autoContextDismissedForPath !== nextPath) {
+						this.autoContextDismissedForPath = undefined;
+					}
+					this.lastActiveFileEditor = editor;
+				}
+				this.syncAutoActiveFileState();
+			}),
+			vscode.window.onDidChangeTextEditorSelection(e => {
+				if (e.textEditor.document.uri.scheme === 'file') {
+					this.lastActiveFileEditor = e.textEditor;
+					this.syncAutoActiveFileState();
+				}
+			}),
 			vscode.workspace.onDidSaveTextDocument(doc => {
 				void this.refreshChangedFiles();
 				const norm = doc.uri.fsPath.replace(/\\/g, '/');
@@ -952,6 +981,12 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			case 'attachActiveFile':
 				await this.attachActiveEditor();
 				break;
+			case 'dismissAutoActiveFile': {
+				const snap = this.captureActiveFileSnapshot();
+				this.autoContextDismissedForPath = snap?.fsPath;
+				this.postState();
+				break;
+			}
 			case 'pickContextProvider':
 				if (msg.kind) {
 					const resolved = await resolveContextProvider(msg.kind);
@@ -1132,8 +1167,59 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 	}
 
+	private resolveActiveFileEditor(): vscode.TextEditor | undefined {
+		if (vscode.window.activeTextEditor?.document.uri.scheme === 'file') {
+			this.lastActiveFileEditor = vscode.window.activeTextEditor;
+			return vscode.window.activeTextEditor;
+		}
+		if (this.lastActiveFileEditor && !this.lastActiveFileEditor.document.isClosed) {
+			return this.lastActiveFileEditor;
+		}
+		const visible = vscode.window.visibleTextEditors.find(e => e.document.uri.scheme === 'file');
+		if (visible) {
+			this.lastActiveFileEditor = visible;
+		}
+		return visible;
+	}
+
+	private captureActiveFileSnapshot(): ActiveFileSnapshot | undefined {
+		const editor = this.resolveActiveFileEditor();
+		if (!editor || editor.document.uri.scheme !== 'file') {
+			return undefined;
+		}
+		const fsPath = editor.document.uri.fsPath;
+		const relativePath = vscode.workspace.asRelativePath(editor.document.uri, false);
+		const hasSelection = !editor.selection.isEmpty;
+		const selectionText = hasSelection ? editor.document.getText(editor.selection) : undefined;
+		return {
+			fsPath,
+			relativePath,
+			content: editor.document.getText(),
+			selectionText,
+			selectionStartLine: hasSelection ? editor.selection.start.line + 1 : undefined,
+			selectionEndLine: hasSelection ? editor.selection.end.line + 1 : undefined,
+		};
+	}
+
+	private getActiveAutoChip(): { readonly label: string; readonly relativePath: string; readonly hasSelection: boolean } | undefined {
+		const snap = this.captureActiveFileSnapshot();
+		if (!snap || this.autoContextDismissedForPath === snap.fsPath) {
+			return undefined;
+		}
+		return buildAutoActiveFileChip(snap, this.attachments);
+	}
+
+	private syncAutoActiveFileState(): void {
+		const chip = this.getActiveAutoChip();
+		const key = chip ? `${chip.relativePath}::${chip.label}` : '';
+		if (key !== this.lastAutoActiveChipKey) {
+			this.lastAutoActiveChipKey = key;
+			this.postState();
+		}
+	}
+
 	private async attachActiveEditor(): Promise<void> {
-		const editor = vscode.window.activeTextEditor;
+		const editor = this.resolveActiveFileEditor();
 		if (!editor) {
 			const picked = await resolveContextProvider('file');
 			if (picked) {
@@ -1471,7 +1557,15 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 		const historySnapshot = [...session.messages];
 		const requestAttachments = [...this.attachments];
+		const activeSnap = this.captureActiveFileSnapshot();
+		if (activeSnap && this.autoContextDismissedForPath !== activeSnap.fsPath) {
+			const autoAtt = buildAutoActiveFileAttachment(activeSnap, requestAttachments);
+			if (autoAtt) {
+				requestAttachments.unshift(autoAtt);
+			}
+		}
 		this.attachments = [];
+		this.autoContextDismissedForPath = undefined;
 
 		await this.sessionStore.appendMessage(session, {
 			role: 'user',
@@ -1969,6 +2063,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			activeSessionId: activeSession.id,
 			sessions,
 			attachments: this.attachments.map(a => ({ kind: a.kind, label: a.label })),
+			autoActiveFile: this.getActiveAutoChip(),
 			manualSteeringCommands: this.manualSteeringCommands,
 			changedFiles: this.changedFiles,
 			pendingReviewFiles: this.reviewSessionService?.getPendingFiles().map(f => f.relativePath) ?? [],

@@ -16,6 +16,7 @@ export type WebviewIncomingMessage =
 	| { readonly type: 'setMode'; readonly mode?: AgentMode }
 	| { readonly type: 'setAutonomy'; readonly autonomy?: AutonomyMode }
 	| { readonly type: 'attachActiveFile' }
+	| { readonly type: 'dismissAutoActiveFile' }
 	| { readonly type: 'pickContextProvider'; readonly kind?: ContextProviderKind }
 	| { readonly type: 'removeAttachment'; readonly index?: number }
 	| { readonly type: 'newSession' }

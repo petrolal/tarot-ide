@@ -243,6 +243,7 @@ extensions/tarot-core/
     ├── mcp/
     │   └── mcpConfigService.ts         # M3.8b — Descoberta hierárquica (.tarot/settings/mcp.json + ~/.tarot/settings/mcp.json), stdio + remote, redação de segredos em formatMcpContext
     ├── context/
+    │   ├── activeFileContext.ts        # M6.1b — Helpers puros do chip automático de arquivo ativo (*Current File* + range de seleção + deduplicação contra anexos manuais)
     │   ├── contextProviders.ts         # Provedores # completos (#File, #Folder, #Problems, #Git Diff, #Terminal, #Codebase, #Steering, #Spec, #MCP, #Current, #Code, #URL, #Repository, #Docs)
     │   ├── urlSafety.ts                # Validação pura anti-SSRF para #URL (exige https://, bloqueia loopback/RFC1918/link-local/metadata)
     │   └── compactionService.ts        # M3.8c — Medidor real de tokens (computeContextMeter), compaction estruturada (compactConversationMessages), forkSessionMessages e export Markdown/JSONL

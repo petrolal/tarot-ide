@@ -125,6 +125,8 @@ export interface TarotPanelStrings {
 	readonly reviewAcceptAll: string;
 	readonly reviewRejectAll: string;
 	readonly reviewOpenDiff: string;
+	readonly currentFileBadge: string;
+	readonly dismissCurrentFile: string;
 }
 
 /** Builds the localized webview string catalog for the current UI language. */
@@ -239,5 +241,7 @@ export function getPanelStrings(): TarotPanelStrings {
 		reviewAcceptAll: vscode.l10n.t('Accept All'),
 		reviewRejectAll: vscode.l10n.t('Reject All'),
 		reviewOpenDiff: vscode.l10n.t('Review Diff'),
+		currentFileBadge: vscode.l10n.t('current'),
+		dismissCurrentFile: vscode.l10n.t('Exclude current file from this turn'),
 	};
 }
