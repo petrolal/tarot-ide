@@ -411,6 +411,81 @@
 			}
 		}
 	},
+	"exeBasedExtensionTips": {
+		"python3": {
+			"friendlyName": "Python",
+			"recommendations": {
+				"ms-python.python": {
+					"name": "Python"
+				},
+				"detachhead.basedpyright": {
+					"name": "BasedPyright"
+				},
+				"charliermarsh.ruff": {
+					"name": "Ruff"
+				}
+			}
+		},
+		"docker": {
+			"friendlyName": "Docker",
+			"windowsPath": "%ProgramFiles%\\Docker\\Docker\\resources\\bin\\docker.exe",
+			"recommendations": {
+				"ms-azuretools.vscode-docker": {
+					"name": "Docker"
+				}
+			}
+		},
+		"go": {
+			"friendlyName": "Go",
+			"windowsPath": "%ProgramFiles%\\Go\\bin\\go.exe",
+			"recommendations": {
+				"golang.go": {
+					"name": "Go"
+				}
+			}
+		},
+		"rustc": {
+			"friendlyName": "Rust",
+			"windowsPath": "%USERPROFILE%\\.cargo\\bin\\rustc.exe",
+			"recommendations": {
+				"rust-lang.rust-analyzer": {
+					"name": "rust-analyzer"
+				}
+			}
+		},
+		".cargo/bin/rustc": {
+			"friendlyName": "Rust",
+			"recommendations": {
+				"rust-lang.rust-analyzer": {
+					"name": "rust-analyzer"
+				}
+			}
+		},
+		"java": {
+			"friendlyName": "Java",
+			"recommendations": {
+				"redhat.java": {
+					"name": "Language Support for Java"
+				}
+			}
+		},
+		"clangd": {
+			"friendlyName": "clangd",
+			"recommendations": {
+				"llvm-vs-code-extensions.vscode-clangd": {
+					"name": "clangd"
+				}
+			}
+		},
+		"terraform": {
+			"friendlyName": "Terraform",
+			"recommendations": {
+				"hashicorp.terraform": {
+					"name": "HashiCorp Terraform"
+				}
+			}
+		}
+	},
 	"trustedExtensionAuthAccess": {
 		"microsoft": [
 			"vscode.github-authentication"
