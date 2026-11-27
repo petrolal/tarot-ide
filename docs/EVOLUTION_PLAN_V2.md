@@ -12,7 +12,7 @@
 
 ---
 
-## Mapa Geral da Fase 6 (`M6.1–M6.16`)
+## Mapa Geral da Fase 6 (`M6.1–M6.23`)
 
 | Marco | Título | Inspiração | Prioridade | Dependências | Status |
 | :--- | :--- | :--- | :---: | :--- | :--- |
@@ -33,6 +33,13 @@
 | **M6.14** | **Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`) + Trigger `SubagentStop`** | Kiro (Nov/2026) | P0 | `hookEngine.ts`, `subagentManager.ts` | 📋 Planejado |
 | **M6.15** | **Live Browser Preview (`localhost`) + Captura de Erros de Console no Chat** | Kiro `browser-harness` | P1 | `M6.4`, `devServerService.ts` | 📋 Planejado |
 | **M6.16** | **Spec Task Waves + Evidence Summary Pré-PR Consolidado** | Kiro Specs + Frontier | P1 | `M6.10`, `specService.ts`, `gitReviewService.ts` | 📋 Planejado |
+| **M6.17** | **Card Clicável de Comandos Pendentes no Chat (`▶ Run & Feed Output`)** | Cursor + Claude Code | P0 | `permissionsService.ts`, `agentPanelView.ts` | 📋 Planejado |
+| **M6.18** | **Auto-Detecção de Diagnósticos Pós-Edição (`✦ Fix N errors` na Review Bar)** | Cursor + Windsurf | P0 | `M6.1`, `reviewSessionService.ts` | 📋 Planejado |
+| **M6.19** | **Quick Fix Direto em Erros do Terminal (`registerTerminalQuickFixProvider`)** | Cursor + VS Code | P0 | `extension.ts`, `agentPanelView.ts` | 📋 Planejado |
+| **M6.20** | **Compatibilidade Nativa com Regras Externas (`CLAUDE.md`, `.cursor/rules/*.mdc`, `.windsurfrules`)** | Cursor + Windsurf + Claude | P0 | `steeringService.ts` | 📋 Planejado |
+| **M6.21** | **Execução Paralela Real em Background (Multi-Sessão Concorrente em Worktrees)** | Cursor + Zed | P1 | `agentPanelView.ts`, `worktreeManager.ts` | 📋 Planejado |
+| **M6.22** | **Tab Autocomplete Inline (Ghost-Text FIM Opt-in via Ollama / Endpoint Local)** | Cursor + Zed | P1 | `extension.ts`, `tarotConfig.ts` | 📋 Planejado |
+| **M6.23** | **Telemetria Local de Sessão (Tokens, Custo por Turno e Timeline de Ferramentas)** | Claude Code + Cursor | P1 | `sessionStore.ts`, `compactionService.ts`, `panel.js` | 📋 Planejado |
 
 ---
 
@@ -316,6 +323,108 @@ Consolidar um **Evidence Summary** automático ao concluir `Run All Tasks` (onda
 
 ### Critérios de Aceite (DoD)
 - [ ] Gera resumo Markdown estruturado (Spec, ondas/tarefas concluídas, testes/evidências, arquivos alterados e drift) copiável para PR ou exibido no chat.
+
+---
+
+## M6.17 — Card Clicável de Comandos Pendentes no Chat (`▶ Run & Feed Output`)
+
+### Objetivo
+Quando um agente headless (`claude`/`agy`/`codex`) sugerir um comando shell bloqueado por permissão (ex.: `node --test`, `pnpm test`), renderizar um card clicável **`▶ Run & Send Output to Tarot`** diretamente na mensagem do chat, validando o comando via `permissionsService.evaluateShellCommand`, executando-o com `spawn(..., { shell: false })` ou terminal integrado e devolvendo o stdout/stderr ao agente em 1 clique.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/commands/pendingShellCard.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/{agentPanelView.ts,panelProtocol.ts,panelStrings.ts}`
+- `[MODIFY]` `extensions/tarot-core/media/webview/{panel.js,panel.css}`
+- `[NEW]` `extensions/tarot-core/src/test/pendingShellCard.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Comandos `deny` na política de permissões são bloqueados antes da execução; comandos aprovados rodam e anexam a saída ao próximo turno do agente.
+
+---
+
+## M6.18 — Auto-Detecção de Diagnósticos Pós-Edição (`✦ Fix N errors`)
+
+### Objetivo
+Escutar `vscode.languages.onDidChangeDiagnostics` nos arquivos tocados pela sessão de revisão (`M6.1`): se novos erros de compilação/lint surgirem após a edição do agente, exibir um pill **`✦ N error(s) — Fix with Tarot`** na Review Bar para corrigir em 1 clique.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/review/reviewSessionService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts` & `media/webview/{panel.js,panel.css}`
+
+### Critérios de Aceite (DoD)
+- [ ] Detecta diagnósticos `DiagnosticSeverity.Error` nos arquivos pendentes de revisão e dispara prompt focado com arquivo + mensagens exatas de erro ao clicar.
+
+---
+
+## M6.19 — Quick Fix Direto em Erros do Terminal (`registerTerminalQuickFixProvider`)
+
+### Objetivo
+Registrar `vscode.window.registerTerminalQuickFixProvider` para oferecer **`✦ Fix with Tarot`** diretamente na linha de erros do terminal integrado, enviando comando + saída de erro + arquivos do stack trace para o chat do agente.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/editors/terminalQuickFixProvider.ts`
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`, `package.json`
+
+### Critérios de Aceite (DoD)
+- [ ] Erros comuns de build/test/runtime no terminal oferecem ação rápida **`✦ Fix with Tarot`** que abre o chat com o diagnóstico anexado.
+
+---
+
+## M6.20 — Compatibilidade Nativa com Regras Externas (`CLAUDE.md`, `.cursor/rules/*.mdc`, `.windsurfrules`)
+
+### Objetivo
+Estender `steeringService.ts` para descobrir automaticamente arquivos de regras de outros ecossistemas (`CLAUDE.md`, `.cursorrules`, `.cursor/rules/*.mdc`, `.windsurfrules`, `.github/copilot-instructions.md`) respeitando `vscode.workspace.isTrusted`, além de oferecer comando 1-clique para importá-los em `.tarot/steering/`.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/steering/steeringService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/steeringService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Regras externas descobertas com precedência abaixo de `.tarot/steering/` e `AGENTS.md`, sem duplicação e com testes unitários cobrindo parsing de frontmatter `.mdc`.
+
+---
+
+## M6.21 — Execução Paralela Real em Background (Multi-Sessão Concorrente em Worktrees)
+
+### Objetivo
+Substituir o lock global único `runningSessionId` em `agentPanelView.ts` por `Map<sessionId, CancellationTokenSource>`, permitindo executar múltiplos agentes simultaneamente em sessões/Git Worktrees isolados com badge de progresso nas abas e notificação quando um agente em background concluir ou pedir aprovação.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`, `focusModeView.ts`
+- `[MODIFY]` `extensions/tarot-core/src/agents/sessionConcurrency.ts` & `src/test/sessionConcurrency.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Duas sessões em worktrees distintos rodam simultaneamente sem bloqueio mútuo; cada aba exibe seu próprio estado de execução e botão Stop independente.
+
+---
+
+## M6.22 — Tab Autocomplete Inline (Ghost-Text FIM Opt-in via Ollama / Endpoint Local)
+
+### Objetivo
+Registrar `vscode.languages.registerInlineCompletionItemProvider` (desligado por padrão / 100% opt-in e privado) suportando modelos locais de Fill-in-the-Middle (Ollama `qwen2.5-coder` / `deepseek-coder` ou endpoint OpenAI-compatible configurado pelo usuário), com debounce configurável e toggle rápido na Status Bar.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/editors/fimCompletionProvider.ts`
+- `[MODIFY]` `extensions/tarot-core/src/config/tarotConfig.ts`, `src/extension.ts`, `package.json`, `package.nls.json`
+- `[NEW]` `extensions/tarot-core/src/test/fimCompletionProvider.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Opt-in via `tarot.autocomplete.enabled` (default `false`), com `CancellationToken`, debounce e validação anti-SSRF/local-only segura.
+
+---
+
+## M6.23 — Telemetria Local de Sessão (Tokens, Custo por Turno e Timeline de Ferramentas)
+
+### Objetivo
+Persistir e exibir no painel/inspector do chat o detalhamento local de cada turno (tokens input/output/cache, custo estimado quando reportado pelo CLI `claude`/`codex`, latência e timeline de tool calls), sem nenhuma telemetria externa.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/agents/types.ts`, `src/context/compactionService.ts`
+- `[MODIFY]` `extensions/tarot-core/media/webview/{panel.js,panel.css,focusMode.js}`
+- `[MODIFY]` `extensions/tarot-core/src/test/compactionService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Tooltip/popover no anel de contexto exibe breakdown por turno (tokens, custo estimado, latência e arquivos alterados), 100% local.
 
 ---
 
