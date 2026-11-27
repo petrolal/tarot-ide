@@ -240,7 +240,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	focusModeStatusBar.command = 'tarot.agent.toggleFocusMode';
 	focusModeStatusBar.show();
 
-	const subagentsDagPanel = new TarotSubagentsDagPanel(runtimeManager, outputChannel);
+	const subagentsDagPanel = new TarotSubagentsDagPanel(runtimeManager, outputChannel, checkpointService, permissionsService);
 	const recipePreviewPanel = new TarotRecipePreviewPanel(() => recipesProvider.refresh());
 	const hookVisualEditor = new TarotHookVisualEditorPanel(() => hooksProvider.refresh());
 	const scheduleVisualEditor = new TarotScheduleVisualEditorPanel(scheduleService, () => crewSchedulesProvider.refresh());
@@ -448,6 +448,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		scheduleService,
 		runtimeManager,
 		gitReviewService,
+		checkpointService,
+		permissionsService,
 		agentPanelProvider,
 		crewmatesProvider,
 		crewTasksProvider,

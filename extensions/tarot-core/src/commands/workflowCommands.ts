@@ -330,6 +330,12 @@ export function registerWorkflowCommands(deps: WorkflowCommandsDeps): {
 				await vscode.commands.executeCommand('tarot.workflows.run');
 				return;
 			}
+			// TD-03: unlike its siblings `tarot.workflows.run`/`tarot.workflows.openRun`, this
+			// command previously ran a recipe's shell/agent steps with no Workspace Trust check.
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before running a workflow recipe.'));
+				return;
+			}
 			if (!(await ensureWorkflowsEnabled())) {
 				return;
 			}

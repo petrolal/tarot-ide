@@ -6,7 +6,7 @@
 /** One sub-command of a composite shell line, with the operator that preceded it (`undefined` for the first). */
 export interface ShellSegment {
 	readonly text: string;
-	readonly precedingOperator?: ';' | '&&' | '||' | '|';
+	readonly precedingOperator?: ';' | '&&' | '||' | '|' | '&';
 }
 
 export type ParsedShellCommand =
@@ -21,7 +21,7 @@ const UNPARSEABLE_PATTERNS: ReadonlyArray<{ regex: RegExp; reason: string }> = [
 ];
 
 /**
- * Splits a composite shell command on the top-level `;`, `&&`, `||` and `|` operators (per
+ * Splits a composite shell command on the top-level `;`, `&&`, `||`, `|` and bare `&` operators (per
  * `AGENTS.md`/`MIGRATION_PLAN.md` M3.8a), respecting single/double quotes and `(...)` subshell
  * grouping so operators inside them are not split. Flags constructs the policy engine cannot
  * safely reason about (command substitution, heredocs) as unparseable — callers must block these
@@ -91,6 +91,12 @@ export function parseShellCommand(command: string): ParsedShellCommand {
 			if (ch === '&' && next === '&') {
 				flush('&&');
 				i++;
+				continue;
+			}
+			if (ch === '&') {
+				// Bare `&` (background/sequencing operator) — must be split like `;`, otherwise an
+				// injected command stays glued to an allow-listed prefix (TD-01, AGENTS.md §2d).
+				flush('&');
 				continue;
 			}
 			if (ch === '|' && next === '|') {

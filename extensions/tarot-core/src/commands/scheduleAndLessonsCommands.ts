@@ -11,6 +11,7 @@ import { TarotSessionStore } from '../agents/sessionStore';
 import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import { runHookCommand } from '../hooks/hookRunner';
 import { TarotPermissionsService } from '../permissions/permissionsService';
+import { reviewFileWritesForTurn } from '../review/fileWriteReviewGate';
 import { computeJitterMs, isValidCronExpression, matchesCronAt } from '../schedule/cronParser';
 import { ScheduledJobDefinition, TarotScheduleService } from '../schedule/scheduleService';
 import { TarotSkillsService } from '../skills/skillsService';
@@ -157,6 +158,15 @@ export function registerScheduleAndLessonsCommands(deps: ScheduleAndLessonsDeps)
 				);
 			} finally {
 				cts.dispose();
+			}
+
+			// Unattended run — the CLI's own auto-approve is never sufficient review on its own;
+			// re-check every write against the configured fs_write policy (TD-02, AGENTS.md §2d).
+			if (!hadError && checkpointId) {
+				await reviewFileWritesForTurn(
+					{ checkpointService: deps.checkpointService, permissionsService: deps.permissionsService, outputChannel: deps.outputChannel },
+					{ cwd: root, sessionId: session.id, checkpointId, autonomy: 'acceptFileChanges', headless: true },
+				);
 			}
 
 			await deps.sessionStore.appendMessage(session, {

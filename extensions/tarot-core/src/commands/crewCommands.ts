@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { TarotCustomAgentService } from '../agents/customAgentService';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
+import { TarotCheckpointService } from '../checkpoints/checkpointService';
 import {
 	CrewmateDefinition,
 	CrewScope,
@@ -16,6 +17,8 @@ import {
 	TarotCrewService,
 } from '../crew/crewService';
 import { TarotGitReviewService } from '../git/gitReviewService';
+import { TarotPermissionsService } from '../permissions/permissionsService';
+import { reviewFileWritesForTurn } from '../review/fileWriteReviewGate';
 import { TarotScheduleService } from '../schedule/scheduleService';
 import { TarotAgentPanelProvider } from '../views/agentPanelView';
 import {
@@ -37,6 +40,8 @@ export interface CrewCommandDeps {
 	readonly scheduleService: TarotScheduleService;
 	readonly runtimeManager: AgentRuntimeManager;
 	readonly gitReviewService: TarotGitReviewService;
+	readonly checkpointService: TarotCheckpointService;
+	readonly permissionsService: TarotPermissionsService;
 	readonly agentPanelProvider: TarotAgentPanelProvider;
 	readonly crewmatesProvider: CrewmatesTreeProvider;
 	readonly crewTasksProvider: CrewTasksTreeProvider;
@@ -299,6 +304,11 @@ export function registerCrewCommands(deps: CrewCommandDeps): vscode.Disposable[]
 							break;
 						}
 
+						// Headless Crew run — checkpoint before writes so the fs_write policy can be
+						// re-checked afterward, same as the chat/Schedule/Subagent-DAG paths (TD-02).
+						const crewCheckpointSessionId = `crew-task-${task.index}-${Date.now()}`;
+						const crewCheckpointId = await deps.checkpointService.createCheckpoint(root, crewCheckpointSessionId);
+
 						for (let attempt = 1; attempt <= 3; attempt++) {
 							if (token.isCancellationRequested) {
 								break;
@@ -334,6 +344,13 @@ export function registerCrewCommands(deps: CrewCommandDeps): vscode.Disposable[]
 							} catch (err) {
 								hadError = true;
 								errorText = err instanceof Error ? err.message : String(err);
+							}
+
+							if (!hadError && crewCheckpointId) {
+								await reviewFileWritesForTurn(
+									{ checkpointService: deps.checkpointService, permissionsService: deps.permissionsService, outputChannel: deps.outputChannel },
+									{ cwd: root, sessionId: crewCheckpointSessionId, checkpointId: crewCheckpointId, autonomy: 'acceptFileChanges', headless: true },
+								);
 							}
 
 							if (!hadError && !token.isCancellationRequested) {

@@ -12,6 +12,9 @@ import {
 	SubagentNodeResult,
 	validateSubagentDag,
 } from '../agents/subagentManager';
+import { TarotCheckpointService } from '../checkpoints/checkpointService';
+import { TarotPermissionsService } from '../permissions/permissionsService';
+import { reviewFileWritesForTurn } from '../review/fileWriteReviewGate';
 
 const DEFAULT_DAG_NODES: readonly SubagentNode[] = [
 	{
@@ -45,6 +48,8 @@ export class TarotSubagentsDagPanel implements vscode.Disposable {
 	constructor(
 		private readonly runtimeManager: AgentRuntimeManager,
 		private readonly outputChannel: vscode.OutputChannel,
+		private readonly checkpointService: TarotCheckpointService,
+		private readonly permissionsService: TarotPermissionsService,
 	) { }
 
 	show(): void {
@@ -150,7 +155,9 @@ export class TarotSubagentsDagPanel implements vscode.Disposable {
 		const cts = new vscode.CancellationTokenSource();
 		try {
 			const summary = await runSubagentDag(nodes, async (node, depOutputs) => {
-				const depContext = Object.entries(depOutputs)
+				// depOutputs is a Map — Object.entries() on it always returns [] (TD-08), which
+				// silently dropped every dependency's output from downstream prompts.
+				const depContext = Array.from(depOutputs.entries())
 					.map(([k, v]) => `### Dependency (${k})\n${v}`)
 					.join('\n\n');
 				const prompt = [
@@ -159,6 +166,11 @@ export class TarotSubagentsDagPanel implements vscode.Disposable {
 					node.prompt,
 					depContext,
 				].filter(Boolean).join('\n\n');
+
+				// Headless DAG run — checkpoint before writes so the fs_write policy can be
+				// re-checked afterward, same as the chat/Schedule/Crew paths (TD-02).
+				const nodeCheckpointSessionId = `subagent-dag-${node.id}-${Date.now()}`;
+				const nodeCheckpointId = await this.checkpointService.createCheckpoint(root, nodeCheckpointSessionId);
 
 				let fullText = '';
 				let hadError = false;
@@ -180,6 +192,12 @@ export class TarotSubagentsDagPanel implements vscode.Disposable {
 					},
 					cts.token,
 				);
+				if (!hadError && nodeCheckpointId) {
+					await reviewFileWritesForTurn(
+						{ checkpointService: this.checkpointService, permissionsService: this.permissionsService, outputChannel: this.outputChannel },
+						{ cwd: root, sessionId: nodeCheckpointSessionId, checkpointId: nodeCheckpointId, autonomy: 'acceptFileChanges', headless: true },
+					);
+				}
 				this.outputChannel.appendLine(`[Subagent DAG] Node "${node.id}" finished (ok=${!hadError}).`);
 				return { ok: !hadError, output: fullText.trim() || '(no output)' };
 			});

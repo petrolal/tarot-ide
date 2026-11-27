@@ -18,14 +18,14 @@
 
 | ID | Título | Categoria | Severidade | Arquivo | Status |
 | :--- | :--- | :--- | :---: | :--- | :--- |
-| **TD-01** | Bare `&` não separado em `parseShellCommand` permite bypass de política de shell | Segurança | **P0** | `permissions/shellParser.ts` | 📋 Pendente |
-| **TD-02** | Re-check de `fs_write` ausente em runs de Cron/Crew/DAG | Segurança | **P0** | `commands/scheduleAndLessonsCommands.ts`, `crewCommands.ts`, `subagentsPanel.ts` | 📋 Pendente |
-| **TD-03** | `tarot.workflows.runRecipe` roda sem checar Workspace Trust | Segurança | **P0** | `commands/workflowCommands.ts`, `views/recipesView.ts` | 📋 Pendente |
-| **TD-04** | Comandos de SSH/HTTP do Crew Automation sem checar Workspace Trust | Segurança | **P0** | `commands/crewAutomationCommands.ts` | 📋 Pendente |
-| **TD-05** | Checagem de raiz do workspace sem limite de separador de path | Segurança | **P0** | `checkpoints/checkpointService.ts` | 📋 Pendente |
+| **TD-01** | Bare `&` não separado em `parseShellCommand` permite bypass de política de shell | Segurança | **P0** | `permissions/shellParser.ts` | ✅ Corrigido |
+| **TD-02** | Re-check de `fs_write` ausente em runs de Cron/Crew/DAG | Segurança | **P0** | `commands/scheduleAndLessonsCommands.ts`, `crewCommands.ts`, `subagentsPanel.ts` | ✅ Corrigido |
+| **TD-03** | `tarot.workflows.runRecipe` roda sem checar Workspace Trust | Segurança | **P0** | `commands/workflowCommands.ts`, `views/recipesView.ts` | ✅ Corrigido |
+| **TD-04** | Comandos de SSH/HTTP do Crew Automation sem checar Workspace Trust | Segurança | **P0** | `commands/crewAutomationCommands.ts` | ✅ Corrigido |
+| **TD-05** | Checagem de raiz do workspace sem limite de separador de path | Segurança | **P0** | `checkpoints/checkpointService.ts` | ✅ Corrigido |
 | **TD-06** | `activeProfileId` não é por sessão; fica obsoleto ao trocar de sessão | Correção | **P1** | `views/agentPanelView.ts` | 📋 Pendente |
 | **TD-07** | Descarte de review ignora `sessionId`, apaga review pendente de outra sessão | Correção | **P1** | `review/reviewSessionService.ts` | 📋 Pendente |
-| **TD-08** | `Object.entries()` em `Map` sempre vazio — output entre nós do DAG nunca é passado | Correção | **P1** | `views/subagentsPanel.ts` | 📋 Pendente |
+| **TD-08** | `Object.entries()` em `Map` sempre vazio — output entre nós do DAG nunca é passado | Correção | **P1** | `views/subagentsPanel.ts` | ✅ Corrigido |
 | **TD-09** | Re-run de review-loop corre risco de corrida com o próprio nó alvo | Correção | **P1** | `agents/subagentManager.ts` | 📋 Pendente |
 | **TD-10** | Branches paralelos de workflow sobrescrevem `run.status`/`pauseReason` compartilhado | Correção | **P1** | `workflows/workflowEngine.ts` | 📋 Pendente |
 | **TD-11** | Cron usa AND em vez de OR entre dia-do-mês/dia-da-semana | Correção | **P1** | `schedule/cronParser.ts` | 📋 Pendente |

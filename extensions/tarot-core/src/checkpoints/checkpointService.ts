@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { parsePorcelainStatusLine } from '../review/diffHunkEngine';
+import { isPathInsideRoot } from './pathGuard';
 
 interface CheckpointFileEntry {
 	readonly relativePath: string;
@@ -352,7 +353,7 @@ export class TarotCheckpointService {
 			const uris = await vscode.workspace.findFiles('**/*', WORKSPACE_SCAN_EXCLUDE, WORKSPACE_SCAN_LIMIT);
 			const entries: BaselineFileEntry[] = [];
 			for (const uri of uris) {
-				if (uri.scheme !== 'file' || !uri.fsPath.startsWith(workspaceRoot)) {
+				if (uri.scheme !== 'file' || !isPathInsideRoot(uri.fsPath, workspaceRoot)) {
 					continue;
 				}
 				try {
@@ -434,7 +435,7 @@ export class TarotCheckpointService {
 
 		// Also include currently open dirty text documents
 		for (const doc of vscode.workspace.textDocuments) {
-			if (!doc.isUntitled && doc.uri.scheme === 'file' && doc.uri.fsPath.startsWith(workspaceRoot)) {
+			if (!doc.isUntitled && doc.uri.scheme === 'file' && isPathInsideRoot(doc.uri.fsPath, workspaceRoot)) {
 				const rel = path.relative(workspaceRoot, doc.uri.fsPath);
 				if (rel && !isTarotBookkeepingPath(rel)) {
 					files.add(rel);

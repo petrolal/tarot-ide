@@ -11,7 +11,6 @@ import { execSimple, resolveBinaryPath } from '../agents/processRunner';
 import { AgentRuntimeManager } from '../agents/runtimeManager';
 import { checkSessionConcurrency } from '../agents/sessionConcurrency';
 import { TarotSessionStore } from '../agents/sessionStore';
-import { evaluateSubagentCapability } from '../agents/subagentManager';
 import {
 	AgentId,
 	AgentMode,
@@ -24,6 +23,7 @@ import {
 	TaskProgressCard,
 } from '../agents/types';
 import { CheckpointDiffEntry, TarotCheckpointService } from '../checkpoints/checkpointService';
+import { reviewFileWritesForTurn } from '../review/fileWriteReviewGate';
 import { TarotReviewSessionService } from '../review/reviewSessionService';
 import { getTarotConfig } from '../config/tarotConfig';
 import {
@@ -1963,50 +1963,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		sessionId: string,
 		checkpointId: string,
 	): Promise<{ gate?: FileWriteApprovalGate; changedFiles: ChangedFileInfo[]; diffEntries: CheckpointDiffEntry[] } | undefined> {
-		const diff = await this.checkpointService.getCheckpointDiff(cwd, sessionId, checkpointId);
-		if (diff.length === 0) {
-			return undefined;
-		}
 		const activeProfile = this.agentProfiles.find(p => p.id === this.activeProfileId);
-		const parentScopes = activeProfile?.permissions?.length ? await this.permissionsService.loadScopes() : undefined;
-		const denied: string[] = [];
-		const asked: string[] = [];
-		for (const entry of diff) {
-			const decision = parentScopes
-				? evaluateSubagentCapability(parentScopes, activeProfile?.permissions, 'fs_write', entry.relativePath)
-				: await this.permissionsService.evaluate('fs_write', entry.relativePath);
-			if (decision.effect === 'deny') {
-				denied.push(entry.relativePath);
-			} else if (decision.effect === 'ask') {
-				if (!decision.defaulted || this.autonomy === 'supervised') {
-					asked.push(entry.relativePath);
-				}
-			}
-		}
-		if (denied.length > 0) {
-			const result = await this.checkpointService.restoreCheckpointFiles(cwd, sessionId, checkpointId, denied);
-			this.outputChannel.appendLine(`[Permissions] fs_write denied, auto-reverted: ${result.reverted.join(', ') || '(none)'}`);
-			if (result.skipped.length > 0) {
-				this.outputChannel.appendLine(`[Permissions] fs_write denied but could NOT be reverted (no backup): ${result.skipped.join(', ')}`);
-				vscode.window.showWarningMessage(vscode.l10n.t(
-					'{0} file(s) were written against denied permissions but could not be auto-reverted (no backup available): {1}',
-					result.skipped.length, result.skipped.join(', '),
-				));
-			}
-		}
-		const deniedSet = new Set(denied);
-		const diffEntries = diff.filter(entry => !deniedSet.has(entry.relativePath));
-		const changedFiles: ChangedFileInfo[] = diffEntries.map(entry => ({
-			relativePath: entry.relativePath,
-			status: entry.status === 'added' ? 'A' : entry.status === 'deleted' ? 'D' : 'M',
-			added: 0,
-			removed: 0,
-		}));
-		return {
-			gate: asked.length > 0 ? { sessionId, checkpointId, files: asked } : undefined,
-			changedFiles,
-			diffEntries,
-		};
+		return reviewFileWritesForTurn(
+			{ checkpointService: this.checkpointService, permissionsService: this.permissionsService, outputChannel: this.outputChannel },
+			{ cwd, sessionId, checkpointId, profilePermissions: activeProfile?.permissions, autonomy: this.autonomy, headless: false },
+		);
 	}
 
 	/**

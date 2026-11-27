@@ -243,6 +243,12 @@ export function registerCrewAutomationCommands(deps: CrewAutomationCommandDeps):
 		}),
 
 		vscode.commands.registerCommand('tarot.crew.gateway.testSend', async (item?: GatewayTreeItem) => {
+			// TD-04: trust was enforced only by the tree view filtering its own arguments; a
+			// direct executeCommand() call bypassed it entirely and still sent a real HTTP POST.
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace to send Crew Gateway test messages.'));
+				return;
+			}
 			if (!item?.gateway) {
 				return;
 			}
@@ -342,6 +348,12 @@ export function registerCrewAutomationCommands(deps: CrewAutomationCommandDeps):
 		}),
 
 		vscode.commands.registerCommand('tarot.crew.remote.check', async (item?: RemoteSshTreeItem) => {
+			// TD-04: trust was enforced only by the tree view filtering its own arguments; a
+			// direct executeCommand() call bypassed it entirely and still spawned a real ssh.
+			if (!vscode.workspace.isTrusted) {
+				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace to check Remote Crew hosts.'));
+				return;
+			}
 			if (!item?.remote) {
 				return;
 			}
