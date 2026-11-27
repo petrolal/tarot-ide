@@ -8,6 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { execSimple, resolveBinaryPath } from '../agents/processRunner';
+import { parsePorcelainStatusLine } from '../review/diffHunkEngine';
 
 interface CheckpointFileEntry {
 	readonly relativePath: string;
@@ -321,10 +322,16 @@ export class TarotCheckpointService {
 			}
 		}
 
-		const currentDirty = await this.collectDirtyFiles(workspaceRoot);
+		const gitPath = await resolveBinaryPath('git');
+		const gitStatusMap = gitPath && await this.isInsideGitRepo(gitPath, workspaceRoot)
+			? await this.collectGitStatusMap(gitPath, workspaceRoot)
+			: new Map<string, 'added' | 'modified' | 'deleted'>();
+
+		const currentDirty = await this.collectDirtyFiles(workspaceRoot, gitStatusMap);
 		for (const rel of currentDirty) {
 			if (!manifestPaths.has(rel) && !entries.has(rel)) {
-				entries.set(rel, { relativePath: rel, status: 'added' });
+				const gitStatus = gitStatusMap.get(rel);
+				entries.set(rel, { relativePath: rel, status: gitStatus ?? 'added' });
 			}
 		}
 
@@ -387,20 +394,40 @@ export class TarotCheckpointService {
 		return changes;
 	}
 
-	private async collectDirtyFiles(workspaceRoot: string): Promise<string[]> {
+	private async collectGitStatusMap(gitPath: string, workspaceRoot: string): Promise<Map<string, 'added' | 'modified' | 'deleted'>> {
+		const statusMap = new Map<string, 'added' | 'modified' | 'deleted'>();
+		const res = await execSimple(gitPath, ['-C', workspaceRoot, 'status', '--porcelain', '-uall']).catch(() => ({ exitCode: 1, stdout: '', stderr: '' }));
+		if (res.exitCode !== 0 || !res.stdout) {
+			return statusMap;
+		}
+		for (const line of res.stdout.split(/\r?\n/)) {
+			if (line.length < 4) {
+				continue;
+			}
+			const parsed = parsePorcelainStatusLine(line);
+			if (!parsed || isTarotBookkeepingPath(parsed.relativePath)) {
+				continue;
+			}
+			statusMap.set(parsed.relativePath, parsed.status);
+		}
+		return statusMap;
+	}
+
+	private async collectDirtyFiles(
+		workspaceRoot: string,
+		precomputedGitStatus?: ReadonlyMap<string, 'added' | 'modified' | 'deleted'>,
+	): Promise<string[]> {
 		const files = new Set<string>();
-		const gitPath = await resolveBinaryPath('git');
-		if (gitPath) {
-			const res = await execSimple(gitPath, ['-C', workspaceRoot, 'status', '--porcelain']).catch(() => ({ exitCode: 1, stdout: '', stderr: '' }));
-			if (res.exitCode === 0 && res.stdout) {
-				for (const line of res.stdout.split('\n')) {
-					const trimmed = line.slice(3).trim();
-					if (trimmed) {
-						const cleanPath = trimmed.includes(' -> ') ? trimmed.split(' -> ').pop()!.trim() : trimmed;
-						if (!isTarotBookkeepingPath(cleanPath)) {
-							files.add(cleanPath);
-						}
-					}
+		if (precomputedGitStatus) {
+			for (const rel of precomputedGitStatus.keys()) {
+				files.add(rel);
+			}
+		} else {
+			const gitPath = await resolveBinaryPath('git');
+			if (gitPath) {
+				const map = await this.collectGitStatusMap(gitPath, workspaceRoot);
+				for (const rel of map.keys()) {
+					files.add(rel);
 				}
 			}
 		}

@@ -609,6 +609,14 @@
         {
           "command": "tarot.sessions.open",
           "when": "false"
+        },
+        {
+          "command": "tarot.review.acceptHunk",
+          "when": "false"
+        },
+        {
+          "command": "tarot.review.rejectHunk",
+          "when": "false"
         }
       ]
     },
@@ -640,6 +648,18 @@
         "command": "tarot.agent.toggleFocusMode",
         "key": "ctrl+shift+m",
         "mac": "cmd+shift+m"
+      },
+      {
+        "command": "tarot.review.acceptFile",
+        "key": "alt+y",
+        "mac": "alt+y",
+        "when": "tarot.hasPendingReview && editorTextFocus"
+      },
+      {
+        "command": "tarot.review.rejectFile",
+        "key": "alt+n",
+        "mac": "alt+n",
+        "when": "tarot.hasPendingReview && editorTextFocus"
       }
     ],
     "configurationDefaults": {
@@ -1462,6 +1482,16 @@
         "title": "%command.review.nextFile.title%",
         "category": "Tarot IDE",
         "icon": "$(arrow-right)"
+      },
+      {
+        "command": "tarot.review.acceptHunk",
+        "title": "%command.review.acceptHunk.title%",
+        "category": "Tarot IDE"
+      },
+      {
+        "command": "tarot.review.rejectHunk",
+        "title": "%command.review.rejectHunk.title%",
+        "category": "Tarot IDE"
       }
     ],
     "customEditors": [

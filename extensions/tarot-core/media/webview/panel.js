@@ -9,6 +9,9 @@
 	const messagesEl = document.getElementById('messages');
 	const reviewBarEl = document.getElementById('review-bar');
 	const reviewToggleBtn = document.getElementById('btn-review-toggle');
+	const reviewHeaderActionsEl = document.getElementById('review-header-actions');
+	const reviewAcceptAllBtn = document.getElementById('btn-review-accept-all');
+	const reviewRejectAllBtn = document.getElementById('btn-review-reject-all');
 	const reviewRefreshBtn = document.getElementById('btn-review-refresh');
 	const reviewSummaryText = document.getElementById('review-summary-text');
 	const reviewFileListEl = document.getElementById('review-file-list');
@@ -65,11 +68,13 @@
 		sessions: [],
 		attachments: [],
 		changedFiles: [],
+		pendingReviewFiles: [],
 		messages: [],
 		contextPercent: 0,
 	};
 
 	let reviewExpanded = false;
+	let reviewUserToggled = false;
 
 	let liveBubbleEl = null;
 	let liveBodyEl = null;
@@ -818,6 +823,99 @@
 				wrapper.appendChild(gateEl);
 			}
 
+			if (msg.role === 'assistant' && Array.isArray(msg.inlineDiffs) && msg.inlineDiffs.length > 0) {
+				const pendingSet = new Set(state.pendingReviewFiles || []);
+				const diffsWrap = document.createElement('div');
+				diffsWrap.className = 'inline-diffs-wrap';
+
+				for (const card of msg.inlineDiffs) {
+					const details = document.createElement('details');
+					details.className = 'inline-diff-card';
+					details.open = msg.inlineDiffs.length <= 2;
+
+					const summary = document.createElement('summary');
+					summary.className = 'inline-diff-header';
+
+					const fileBtn = document.createElement('button');
+					fileBtn.type = 'button';
+					fileBtn.className = 'inline-diff-file-btn';
+					fileBtn.title = t('openDiff', card.relativePath);
+					fileBtn.textContent = card.relativePath;
+					fileBtn.addEventListener('click', ev => {
+						ev.preventDefault();
+						ev.stopPropagation();
+						const fileStatus = card.status === 'added' ? 'A' : card.status === 'deleted' ? 'D' : 'M';
+						vscode.postMessage({ type: 'openFileDiff', relativePath: card.relativePath, fileStatus });
+					});
+					summary.appendChild(fileBtn);
+
+					const statsWrap = document.createElement('span');
+					statsWrap.className = 'inline-diff-stats';
+					if (card.added > 0) {
+						const addSpan = document.createElement('span');
+						addSpan.className = 'inline-diff-stat-add';
+						addSpan.textContent = `+${card.added}`;
+						statsWrap.appendChild(addSpan);
+					}
+					if (card.removed > 0) {
+						const delSpan = document.createElement('span');
+						delSpan.className = 'inline-diff-stat-del';
+						delSpan.textContent = `-${card.removed}`;
+						statsWrap.appendChild(delSpan);
+					}
+					summary.appendChild(statsWrap);
+
+					if (pendingSet.has(card.relativePath)) {
+						const quickActions = document.createElement('span');
+						quickActions.className = 'inline-diff-actions';
+
+						const rejectBtn = document.createElement('button');
+						rejectBtn.type = 'button';
+						rejectBtn.className = 'review-revert-btn';
+						rejectBtn.title = t('reviewRejectFile', card.relativePath);
+						rejectBtn.textContent = '✕';
+						rejectBtn.addEventListener('click', ev => {
+							ev.preventDefault();
+							ev.stopPropagation();
+							vscode.postMessage({ type: 'rejectReviewFile', relativePath: card.relativePath });
+						});
+
+						const acceptBtn = document.createElement('button');
+						acceptBtn.type = 'button';
+						acceptBtn.className = 'review-accept-btn';
+						acceptBtn.title = t('reviewAcceptFile', card.relativePath);
+						acceptBtn.textContent = '✓';
+						acceptBtn.addEventListener('click', ev => {
+							ev.preventDefault();
+							ev.stopPropagation();
+							vscode.postMessage({ type: 'acceptReviewFile', relativePath: card.relativePath });
+						});
+
+						quickActions.appendChild(rejectBtn);
+						quickActions.appendChild(acceptBtn);
+						summary.appendChild(quickActions);
+					}
+
+					details.appendChild(summary);
+
+					const body = document.createElement('div');
+					body.className = 'inline-diff-body';
+					for (const hunk of card.hunks || []) {
+						for (const line of hunk.lines || []) {
+							const lineEl = document.createElement('div');
+							lineEl.className = `inline-diff-line ${line.kind}`;
+							const prefix = line.kind === 'add' ? '+' : line.kind === 'del' ? '-' : ' ';
+							lineEl.textContent = `${prefix} ${line.text}`;
+							body.appendChild(lineEl);
+						}
+					}
+					details.appendChild(body);
+					diffsWrap.appendChild(details);
+				}
+
+				wrapper.appendChild(diffsWrap);
+			}
+
 			if (msg.role === 'assistant' && msg.fileWriteGate) {
 				const fwGate = msg.fileWriteGate;
 				const fwEl = document.createElement('div');
@@ -919,11 +1017,20 @@
 
 	function renderReviewBar() {
 		const files = state.changedFiles || [];
+		const pendingSet = new Set(state.pendingReviewFiles || []);
+		const hasPending = pendingSet.size > 0;
 		if (files.length === 0) {
 			reviewBarEl.classList.add('hidden');
+			reviewUserToggled = false;
 			return;
 		}
+		if (hasPending && !reviewUserToggled) {
+			reviewExpanded = true;
+		}
 		reviewBarEl.classList.remove('hidden');
+		if (reviewHeaderActionsEl) {
+			reviewHeaderActionsEl.classList.toggle('hidden', !hasPending);
+		}
 		const totalAdded = files.reduce((acc, f) => acc + (f.added || 0), 0);
 		const totalRemoved = files.reduce((acc, f) => acc + (f.removed || 0), 0);
 		const arrow = reviewExpanded ? '▾' : '▸';
@@ -936,6 +1043,7 @@
 		}
 
 		for (const file of files) {
+			const isPending = pendingSet.has(file.relativePath);
 			const row = document.createElement('div');
 			row.className = 'review-file-row';
 
@@ -963,17 +1071,41 @@
 				vscode.postMessage({ type: 'openFileDiff', relativePath: file.relativePath, fileStatus: file.status });
 			});
 
-			const revertBtn = document.createElement('button');
-			revertBtn.type = 'button';
-			revertBtn.className = 'review-revert-btn';
-			revertBtn.title = t('revertFile', file.relativePath);
-			revertBtn.textContent = '↺';
-			revertBtn.addEventListener('click', () => {
-				vscode.postMessage({ type: 'revertFile', relativePath: file.relativePath, fileStatus: file.status });
-			});
-
 			row.appendChild(nameBtn);
-			row.appendChild(revertBtn);
+
+			if (isPending) {
+				const acceptBtn = document.createElement('button');
+				acceptBtn.type = 'button';
+				acceptBtn.className = 'review-accept-btn';
+				acceptBtn.title = t('reviewAcceptFile', file.relativePath);
+				acceptBtn.textContent = '✓';
+				acceptBtn.addEventListener('click', () => {
+					vscode.postMessage({ type: 'acceptReviewFile', relativePath: file.relativePath });
+				});
+
+				const rejectBtn = document.createElement('button');
+				rejectBtn.type = 'button';
+				rejectBtn.className = 'review-revert-btn';
+				rejectBtn.title = t('reviewRejectFile', file.relativePath);
+				rejectBtn.textContent = '✕';
+				rejectBtn.addEventListener('click', () => {
+					vscode.postMessage({ type: 'rejectReviewFile', relativePath: file.relativePath });
+				});
+
+				row.appendChild(acceptBtn);
+				row.appendChild(rejectBtn);
+			} else {
+				const revertBtn = document.createElement('button');
+				revertBtn.type = 'button';
+				revertBtn.className = 'review-revert-btn';
+				revertBtn.title = t('revertFile', file.relativePath);
+				revertBtn.textContent = '↺';
+				revertBtn.addEventListener('click', () => {
+					vscode.postMessage({ type: 'revertFile', relativePath: file.relativePath, fileStatus: file.status });
+				});
+				row.appendChild(revertBtn);
+			}
+
 			reviewFileListEl.appendChild(row);
 		}
 	}
@@ -1071,9 +1203,16 @@
 	attachBtn.addEventListener('click', () => vscode.postMessage({ type: 'attachActiveFile' }));
 	hashBtn.addEventListener('click', () => toggleContextMenu());
 	reviewToggleBtn.addEventListener('click', () => {
+		reviewUserToggled = true;
 		reviewExpanded = !reviewExpanded;
 		renderReviewBar();
 	});
+	if (reviewAcceptAllBtn) {
+		reviewAcceptAllBtn.addEventListener('click', () => vscode.postMessage({ type: 'acceptAllReview' }));
+	}
+	if (reviewRejectAllBtn) {
+		reviewRejectAllBtn.addEventListener('click', () => vscode.postMessage({ type: 'rejectAllReview' }));
+	}
 	reviewRefreshBtn.addEventListener('click', () => vscode.postMessage({ type: 'refreshChangedFiles' }));
 
 	for (const item of contextMenuEl.querySelectorAll('.context-menu-item')) {

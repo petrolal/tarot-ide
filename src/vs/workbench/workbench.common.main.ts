@@ -259,6 +259,9 @@ import './contrib/screenshotTool/browser/screenshotTool.contribution.js';
 // Tarot IDE: Native Spec Stepper banner above line 1 of .tarot/specs/*/*.md
 import './contrib/tarotSpecStepper/browser/tarotSpecStepper.contribution.js';
 
+// Tarot IDE: Native Cursor-style Inline Diff Review (ViewZone + per-hunk pills + floating bottom bar)
+import './contrib/tarotReview/browser/tarotReview.contribution.js';
+
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
 

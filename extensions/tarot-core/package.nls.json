@@ -164,5 +164,7 @@
 	"command.review.rejectFile.title": "Reject File Change",
 	"command.review.acceptAll.title": "Accept All Changes",
 	"command.review.rejectAll.title": "Reject All Changes",
-	"command.review.nextFile.title": "Next Changed File"
+	"command.review.nextFile.title": "Next Changed File",
+	"command.review.acceptHunk.title": "Accept Diff Hunk",
+	"command.review.rejectHunk.title": "Reject Diff Hunk"
 }

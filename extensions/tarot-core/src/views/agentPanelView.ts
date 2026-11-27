@@ -77,6 +77,26 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 
 	setReviewSessionService(service: TarotReviewSessionService): void {
 		this.reviewSessionService = service;
+		this.disposables.push(service.onDidChangeState(() => {
+			void this.handleReviewSessionStateChanged();
+		}));
+	}
+
+	private async handleReviewSessionStateChanged(): Promise<void> {
+		if (!this.reviewSessionService?.hasPendingReview()) {
+			const activeSession = this.sessionStore.getActiveSession(this.runtimeManager.getActiveAgentId(), this.mode, this.autonomy);
+			let dirty = false;
+			for (const msg of activeSession.messages) {
+				if (msg.fileWriteGate && !msg.fileWriteGate.resolution) {
+					msg.fileWriteGate.resolution = 'kept';
+					dirty = true;
+				}
+			}
+			if (dirty) {
+				await this.sessionStore.saveSession(activeSession);
+			}
+		}
+		await this.refreshChangedFiles();
 	}
 
 	constructor(
@@ -276,6 +296,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 	}
 
 	async openChangedFileDiff(relativePath: string): Promise<void> {
+		if (this.reviewSessionService?.hasPendingFile(relativePath)) {
+			await this.reviewSessionService.openFile(relativePath);
+			return;
+		}
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!cwd) {
 			return;
@@ -544,9 +568,27 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		if (!cwd) {
 			this.changedFiles = [];
+			this.postState();
 			return;
 		}
-		this.changedFiles = await this.gitReviewService.getChangedFiles(cwd);
+		const gitFiles = await this.gitReviewService.getChangedFiles(cwd);
+		const pendingStats = this.reviewSessionService?.hasPendingReview()
+			? await this.reviewSessionService.getPendingChangedFileStats()
+			: [];
+		if (pendingStats.length > 0) {
+			const byPath = new Map<string, ChangedFileInfo>();
+			for (const p of pendingStats) {
+				byPath.set(p.relativePath, p);
+			}
+			for (const g of gitFiles) {
+				if (!byPath.has(g.relativePath)) {
+					byPath.set(g.relativePath, g);
+				}
+			}
+			this.changedFiles = Array.from(byPath.values());
+		} else {
+			this.changedFiles = gitFiles;
+		}
 		this.postState();
 	}
 
@@ -1016,6 +1058,10 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				break;
 			case 'revertFile':
 				if (msg.relativePath && msg.fileStatus) {
+					if (this.reviewSessionService?.hasPendingFile(msg.relativePath)) {
+						await this.reviewSessionService.rejectFile(msg.relativePath);
+						break;
+					}
 					const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 					if (cwd) {
 						const reverted = await this.gitReviewService.revertFile(cwd, msg.relativePath, msg.fileStatus);
@@ -1024,6 +1070,25 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 						}
 					}
 				}
+				break;
+			case 'acceptReviewFile':
+				if (msg.relativePath) {
+					await this.reviewSessionService?.acceptFile(msg.relativePath);
+				}
+				break;
+			case 'rejectReviewFile':
+				if (msg.relativePath) {
+					await this.reviewSessionService?.rejectFile(msg.relativePath);
+				}
+				break;
+			case 'acceptAllReview':
+				await this.reviewSessionService?.acceptAll();
+				break;
+			case 'rejectAllReview':
+				await this.reviewSessionService?.rejectAll();
+				break;
+			case 'openReviewDiff':
+				await this.reviewSessionService?.openActiveDiff();
 				break;
 			case 'refreshChangedFiles':
 				await this.refreshChangedFiles();
@@ -1329,6 +1394,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 		gate.resolution = keep ? 'kept' : 'reverted';
 		await this.sessionStore.saveSession(session);
+		await this.reviewSessionService?.markResolvedExternally(gate.files);
 		this.postState();
 	}
 
@@ -1528,8 +1594,11 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				? await this.reviewFileWritesForTurn(cwd, session.id, checkpointId)
 				: undefined;
 			const fileWriteGate = fileWriteReview?.gate;
+			const inlineDiffs = fileWriteReview && fileWriteReview.diffEntries.length > 0 && checkpointId && this.reviewSessionService
+				? await this.reviewSessionService.buildInlineDiffCards(cwd, checkpointId, fileWriteReview.diffEntries).catch(() => undefined)
+				: undefined;
 
-			if (accumulatedText.trim().length > 0 || usedTools.length > 0 || taskProgress || fileWriteGate) {
+			if (accumulatedText.trim().length > 0 || usedTools.length > 0 || taskProgress || fileWriteGate || (inlineDiffs && inlineDiffs.length > 0)) {
 				await this.sessionStore.appendMessage(session, {
 					role: 'assistant',
 					agentId,
@@ -1541,6 +1610,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 					taskProgress,
 					approvalGate: !wasCancelled && !hadError ? options?.nextApprovalGate : undefined,
 					fileWriteGate,
+					inlineDiffs: inlineDiffs && inlineDiffs.length > 0 ? inlineDiffs : undefined,
 					elapsedMs,
 					totalTokens,
 					checkpointId,
@@ -1548,11 +1618,6 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			}
 
 			this.postMessage({ type: 'streamEnd' });
-			await this.refreshChangedFiles();
-			if (this.changedFiles.length === 0 && fileWriteReview && fileWriteReview.changedFiles.length > 0) {
-				this.changedFiles = fileWriteReview.changedFiles;
-			}
-			this.postState();
 
 			// Start Cursor-style Diff Review session (M6.1) for all non-denied edits in this turn.
 			// Auto-opens the Git-style `Before ↔ Agent Edit` diff editor with Accept/Reject controls
@@ -1560,10 +1625,21 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			if (fileWriteReview && fileWriteReview.diffEntries.length > 0 && checkpointId) {
 				const autoOpen = Boolean(fileWriteGate) || this.autonomy !== 'approveForMe';
 				if (this.reviewSessionService) {
-					void this.reviewSessionService.startReview(cwd, session.id, checkpointId, fileWriteReview.diffEntries, autoOpen);
+					try {
+						await this.reviewSessionService.startReview(cwd, session.id, checkpointId, fileWriteReview.diffEntries, autoOpen);
+					} catch (err) {
+						const detail = err instanceof Error ? err.message : String(err);
+						this.outputChannel.appendLine(`[Review] Failed to start diff review session: ${detail}`);
+					}
 				} else if (fileWriteGate && fileWriteGate.files.length > 0) {
 					void this.openEditedFilesForReview(cwd, fileWriteGate.files.slice(0, 3));
 				}
+			}
+
+			await this.refreshChangedFiles();
+			if (this.changedFiles.length === 0 && fileWriteReview && fileWriteReview.changedFiles.length > 0) {
+				this.changedFiles = fileWriteReview.changedFiles;
+				this.postState();
 			}
 
 			if (!wasCancelled && workspaceHooks.length > 0) {
@@ -1895,6 +1971,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			attachments: this.attachments.map(a => ({ kind: a.kind, label: a.label })),
 			manualSteeringCommands: this.manualSteeringCommands,
 			changedFiles: this.changedFiles,
+			pendingReviewFiles: this.reviewSessionService?.getPendingFiles().map(f => f.relativePath) ?? [],
 			messages: activeSession.messages,
 			contextPercent: meter.percent,
 			contextUsedTokens: meter.usedTokens,

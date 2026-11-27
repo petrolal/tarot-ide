@@ -134,6 +134,17 @@ export interface FileWriteApprovalGate {
 	resolution?: 'kept' | 'reverted';
 }
 
+export interface InlineDiffCard {
+	readonly relativePath: string;
+	readonly status: 'added' | 'modified' | 'deleted';
+	readonly added: number;
+	readonly removed: number;
+	readonly hunks: ReadonlyArray<{
+		readonly header: string;
+		readonly lines: ReadonlyArray<{ readonly kind: 'context' | 'add' | 'del'; readonly text: string }>;
+	}>;
+}
+
 export interface SessionMessage {
 	readonly id: string;
 	readonly role: 'user' | 'assistant' | 'system';
@@ -147,6 +158,7 @@ export interface SessionMessage {
 	readonly taskProgress?: TaskProgressCard;
 	readonly approvalGate?: SpecApprovalGate;
 	readonly fileWriteGate?: FileWriteApprovalGate;
+	readonly inlineDiffs?: readonly InlineDiffCard[];
 	readonly elapsedMs?: number;
 	readonly totalTokens?: number;
 	readonly checkpointId?: string;

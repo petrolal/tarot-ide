@@ -245,7 +245,12 @@ export function activate(context: vscode.ExtensionContext): void {
 	const hookVisualEditor = new TarotHookVisualEditorPanel(() => hooksProvider.refresh());
 	const scheduleVisualEditor = new TarotScheduleVisualEditorPanel(scheduleService, () => crewSchedulesProvider.refresh());
 	const mcpVisualEditor = new TarotMcpVisualEditorPanel(mcpConfigService, () => mcpProvider.refresh());
-	const reviewSessionService = new TarotReviewSessionService(checkpointService, () => agentPanelProvider.refreshChangedFiles());
+	const checkpointBeforeProvider = new TarotCheckpointBeforeContentProvider();
+	const reviewSessionService = new TarotReviewSessionService(
+		checkpointService,
+		checkpointBeforeProvider,
+		() => agentPanelProvider.refreshChangedFiles(),
+	);
 	agentPanelProvider.setReviewSessionService(reviewSessionService);
 	const devServerService = new TarotDevServerService();
 	const devServerTerminals = new Map<string, vscode.Terminal>();
@@ -264,10 +269,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		hookVisualEditor,
 		scheduleVisualEditor,
 		mcpVisualEditor,
+		checkpointBeforeProvider,
 		reviewSessionService,
 		vscode.workspace.registerTextDocumentContentProvider(
 			TAROT_CHECKPOINT_BEFORE_SCHEME,
-			new TarotCheckpointBeforeContentProvider(),
+			checkpointBeforeProvider,
 		),
 		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, reviewSessionService),
 		vscode.commands.registerCommand('tarot.review.open', async () => {
@@ -282,6 +288,16 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 		vscode.commands.registerCommand('tarot.review.rejectFile', async (arg?: string | vscode.Uri) => {
 			await reviewSessionService.rejectFile(arg);
+		}),
+		vscode.commands.registerCommand('tarot.review.acceptHunk', async (relativePath?: string, hunkIndex?: number) => {
+			if (typeof relativePath === 'string' && typeof hunkIndex === 'number') {
+				await reviewSessionService.acceptHunk(relativePath, hunkIndex);
+			}
+		}),
+		vscode.commands.registerCommand('tarot.review.rejectHunk', async (relativePath?: string, hunkIndex?: number) => {
+			if (typeof relativePath === 'string' && typeof hunkIndex === 'number') {
+				await reviewSessionService.rejectHunk(relativePath, hunkIndex);
+			}
 		}),
 		vscode.commands.registerCommand('tarot.review.acceptAll', async () => {
 			await reviewSessionService.acceptAll();

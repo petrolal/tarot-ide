@@ -32,6 +32,11 @@ export type WebviewIncomingMessage =
 	| { readonly type: 'toggleFocusMode' }
 	| { readonly type: 'openFileDiff'; readonly relativePath?: string; readonly fileStatus?: ChangedFileInfo['status'] }
 	| { readonly type: 'revertFile'; readonly relativePath?: string; readonly fileStatus?: ChangedFileInfo['status'] }
+	| { readonly type: 'acceptReviewFile'; readonly relativePath?: string }
+	| { readonly type: 'rejectReviewFile'; readonly relativePath?: string }
+	| { readonly type: 'acceptAllReview' }
+	| { readonly type: 'rejectAllReview' }
+	| { readonly type: 'openReviewDiff' }
 	| { readonly type: 'refreshChangedFiles' }
 	| { readonly type: 'runSlashCommand'; readonly slashCommand?: string }
 	| { readonly type: 'saveSteeringRule'; readonly ruleText?: string }

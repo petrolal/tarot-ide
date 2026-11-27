@@ -78,6 +78,10 @@ export function buildAgentPanelHtml(webview: vscode.Webview, extensionUri: vscod
 					<button id="btn-review-toggle" class="review-toggle-btn" type="button">
 						<span id="review-summary-text">0 ${s.filesChanged}</span>
 					</button>
+					<div id="review-header-actions" class="review-header-actions hidden">
+						<button id="btn-review-accept-all" class="review-action-pill review-pill-accept" type="button" title="${s.reviewAcceptAll}">✓ ${s.reviewAcceptAll}</button>
+						<button id="btn-review-reject-all" class="review-action-pill review-pill-reject" type="button" title="${s.reviewRejectAll}">✕ ${s.reviewRejectAll}</button>
+					</div>
 					<button id="btn-review-refresh" class="review-mini-btn" type="button" title="${s.refreshGitDiff}">↻</button>
 				</div>
 				<div id="review-file-list" class="review-file-list hidden"></div>

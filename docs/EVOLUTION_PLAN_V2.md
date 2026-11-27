@@ -22,7 +22,7 @@
 | **M6.4** | **Colar & Arrastar Imagens no Chat e Focus Mode (`Ctrl+V` / Drag & Drop)** | Kiro | P0 | `panel.js`, `focusMode.js` | 📋 Planejado |
 | **M6.5** | **Criação em Linguagem Natural de Agent Hooks & Schedules (*"Ask Tarot to create..."*)** | Kiro | P0 | `visualConfigEditors.ts` | 📋 Planejado |
 | **M6.6** | **Natural Language to Shell no Terminal com Gate de Permissões** | Kiro | P0 | `permissionsService.ts` | 📋 Planejado |
-| **M6.7** | **Inline Code Diffs Coloridos (`+`/`-`) na Conversa + `Keep`/`Revert` por Arquivo** | Kiro + Cursor | P0 | `M6.1`, `panel.js` | 📋 Planejado |
+| **M6.7** | **Inline Code Diffs Coloridos (`+`/`-`) na Conversa + `Keep`/`Revert` por Arquivo** | Kiro + Cursor | P0 | `M6.1`, `panel.js` | ✅ Concluído |
 | **M6.8** | **Comando `/rewind` Interativo por Turno (*Fork* vs *Restore Checkpoint*)** | Kiro | P1 | `M6.2`, `checkpointService.ts` | 📋 Planejado |
 | **M6.9** | **Painéis Redimensionáveis (Drag Handles) + Strip só de Ícones no Focus Mode** | Kiro | P1 | `focusMode.{js,css}` | 📋 Planejado |
 | **M6.10** | **Exportação Portável de Sessão `.zip` + Spec-to-Code Drift Check** | Kiro | P1 | `compactionService.ts`, `specService.ts` | 📋 Planejado |
@@ -35,33 +35,27 @@
 Entregar uma experiência de revisão de código estilo Cursor/Git nativa no VS Code após edições de qualquer agente BYOA (`claude`, `agy`, `codex`): abrir automaticamente o **Diff Editor (`Before ↔ Agent Edit`)** com botões de **`✓ Accept File`**, **`✕ Reject File`**, **`✓ Accept All`**, **`✕ Reject All`** e **`Next File`** no CodeLens, na barra de título do editor e na Status Bar — funcionando **tanto em repositórios Git quanto em pastas sem Git**.
 
 ### Arquivos-Alvo
-- `[NEW]` `extensions/tarot-core/src/review/reviewSessionService.ts`
-- `[MODIFY]` `extensions/tarot-core/src/checkpoints/checkpointService.ts`
-- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`
-- `[MODIFY]` `extensions/tarot-core/src/extension.ts`
-- `[MODIFY]` `extensions/tarot-core/package.json` & `package.nls.json`
-- `[NEW]` `extensions/tarot-core/src/test/reviewSessionService.test.ts`
+- `[NEW]` `src/vs/workbench/contrib/tarotReview/browser/{tarotReview.contribution.ts,tarotReview.css}` & `[MODIFY]` `src/vs/workbench/workbench.common.main.ts` *(contrib Monaco isolado para ViewZone vermelha, ContentWidget de pills por hunk e OverlayWidget flutuante — impossível via Extension API; registrado em `PROJECT_CONTEXT.md` §5 e `MIGRATION_PLAN.md`)*
+- `[NEW]` `extensions/tarot-core/src/review/{reviewSessionService.ts,reviewSessionModel.ts,diffHunkEngine.ts}`
+- `[MODIFY]` `extensions/tarot-core/src/checkpoints/checkpointService.ts` & `src/git/gitReviewService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/{agentPanelView.ts,panelHtml.ts,panelProtocol.ts,panelStrings.ts}` & `media/webview/{panel.js,panel.css}`
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`, `package.json` & `package.nls.json`
+- `[NEW]` `extensions/tarot-core/src/test/{reviewSessionModel.test.ts,diffHunkEngine.test.ts}`
 
 ### Contratos & Especificação
 1. **Snapshot pré-turno universal (Git e Non-Git)**:
-   - Em `checkpointService.ts`, quando o workspace **não** tem `.git`, fazer backup leve dos arquivos de texto existentes (≤ 512 KB, limite seguro de arquivos) no diretório do checkpoint pré-turno para que `getCheckpointDiff` sempre tenha `backupAbsPath` real para diffs `Before ↔ After` e `Reject` reversível.
-2. **Provedor de Diff `tarot-checkpoint-before:`**:
-   - `TextDocumentContentProvider` que serve o conteúdo exato pré-turno do arquivo (`backupAbsPath`, ou vazio para arquivos recém-criados).
-   - Abre `vscode.diff(beforeUri, workingUri, "<file> (Before ↔ Agent Edit)")`.
-3. **Controles Cursor-style no Editor**:
-   - `CodeLensProvider` na linha 0 de qualquer arquivo pendente de revisão: `$(check) Accept File`, `$(discard) Reject File`, `$(check-all) Accept All (N)`, `$(close-all) Reject All`, `$(arrow-right) Next File`.
-   - Botões na barra de título do editor (`editor/title` condicionados a `tarot.hasPendingReview`) + Status Bar pill clicável `$(git-compare) Review: N file(s)`.
-4. **Integração com `agentPanelView.ts`**:
-   - Ao concluir um turno que alterou arquivos: inicia a sessão de revisão em `TarotReviewSessionService`.
-   - Em **`Supervised`** (ou regra `ask` de `permissions.yaml`), abre automaticamente o diff do primeiro arquivo alterado.
-   - Em **`Accept File Changes`**, mantém a sessão de revisão disponível com 1 clique via comando/botão **Review Changes** e barra de arquivos alterados (que agora abre o diff `Before ↔ After` real mesmo sem Git).
+   - Em `checkpointService.ts`, classifica corretamente arquivos Git rastreados modificados/deletados vs novos (`git status --porcelain -uall`) e, quando o workspace **não** tem `.git`, faz backup leve dos arquivos de texto existentes (≤ 512 KB) no checkpoint pré-turno para diffs `Before ↔ After` e `Reject` reversível.
+2. **Inline Diff Review nativo no Editor Único (estilo Cursor)**:
+   - `src/vs/workbench/contrib/tarotReview/` recebe o estado via comando interno `_tarot.inlineReview.setState` e renderiza diretamente no arquivo normal (sem split 2 colunas): linhas removidas em vermelho (`ViewZone`), linhas adicionadas em verde (`decoration`), pills flutuantes **`Accept`** / **`Reject`** por hunk (`ContentWidget`) e barra flutuante no rodapé central **`↑ 1 of N ↓ | File X/Y → | Reject File (Alt+N) | Accept File (Alt+Y)`** (`OverlayWidget`).
+   - Apenas arquivos deletados usam fallback `vscode.diff` com `tarot-checkpoint-before:`.
+3. **Controles na Review Bar do Chat & Sincronização**:
+   - Review Bar expande automaticamente com **`✓ Accept All`**, **`✕ Reject All`**, estatísticas reais `+N -M` e botões **`✓`** / **`✕`** por arquivo, sincronizada com Editor Title, Status Bar, Focus Mode e `fileWriteGate`.
 
 ### Critérios de Aceite (DoD)
-- [x] `TarotReviewSessionService` implementado com `tarot-checkpoint-before:` content provider, `CodeLensProvider`, Status Bar e comandos `tarot.review.{acceptFile,rejectFile,acceptAll,rejectAll,nextFile,open}`.
-- [x] `checkpointService.ts` grava backups leves pré-turno em workspaces sem Git (≤ 512 KB) permitindo diff `Before ↔ After` e `Reject` completo.
-- [x] `Reject File` restaura o arquivo original (ou remove arquivo recém-criado) e avança automaticamente para o próximo arquivo pendente.
-- [x] `Accept File` / `Accept All` limpa o estado pendente, CodeLens e contexto `tarot.hasPendingReview`.
-- [x] Testes unitários passando + `compile-extension:tarot-core` com 0 erros + `esbuild.mts` + 0 ocorrências de `innerHTML`/`shell: true`.
+- [x] `TarotReviewSessionService` + `diffHunkEngine.ts` + contrib nativo `tarotReview` implementados com Accept/Reject por hunk e por arquivo, barra flutuante, Status Bar e atalhos `Alt+Y`/`Alt+N`.
+- [x] `checkpointService.ts` classifica corretamente arquivos Git rastreados (`-uall`) e grava backups leves pré-turno em workspaces sem Git (≤ 512 KB).
+- [x] `Reject Hunk` / `Reject File` restaura exatamente o bloco ou arquivo original; `Accept Hunk` / `Accept File` / `Accept All` limpa o overlay, decorações e estado pendente ao vivo.
+- [x] Testes unitários passando (178/178) + `compile-extension:tarot-core` + `esbuild.mts` + `node build/next/index.ts transpile` + `pnpm run typecheck-client` com 0 erros + 0 ocorrências de `innerHTML`/`shell: true`.
 
 ---
 
@@ -171,8 +165,8 @@ Renderizar hunks coloridos (`+` verde / `-` vermelho) diretamente no card de arq
 - `[MODIFY]` `extensions/tarot-core/media/webview/panel.js`, `panel.css`, `focusMode.js`, `focusMode.css`
 
 ### Critérios de Aceite (DoD)
-- [ ] Diff colapsável por arquivo dentro do chat/Focus Mode com botões `Open Diff`, `Keep`, `Revert`.
-- [ ] Zero `innerHTML`; 100% compatível com Dark e Light themes.
+- [x] Diff colapsável por arquivo dentro do chat com botões `Open Diff`, `✓` (Accept) e `✕` (Reject).
+- [x] Zero `innerHTML`; 100% compatível com Dark e Light themes.
 
 ---
 

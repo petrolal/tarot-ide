@@ -42,7 +42,7 @@ export class TarotGitReviewService {
 			return [];
 		}
 
-		const statusRes = await execSimple(gitBin, ['-C', cwd, 'status', '--porcelain'], 6000);
+		const statusRes = await execSimple(gitBin, ['-C', cwd, 'status', '--porcelain', '-uall'], 6000);
 		if (statusRes.exitCode !== 0 || !statusRes.stdout.trim()) {
 			return [];
 		}

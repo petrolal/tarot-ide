@@ -120,6 +120,11 @@ export interface TarotPanelStrings {
 	readonly copy: string;
 	readonly copied: string;
 	readonly runAgentError: string;
+	readonly reviewAcceptFile: string;
+	readonly reviewRejectFile: string;
+	readonly reviewAcceptAll: string;
+	readonly reviewRejectAll: string;
+	readonly reviewOpenDiff: string;
 }
 
 /** Builds the localized webview string catalog for the current UI language. */
@@ -229,5 +234,10 @@ export function getPanelStrings(): TarotPanelStrings {
 		copy: vscode.l10n.t('Copy'),
 		copied: vscode.l10n.t('Copied!'),
 		runAgentError: vscode.l10n.t('Failed to run the agent.'),
+		reviewAcceptFile: vscode.l10n.t('Accept {0}'),
+		reviewRejectFile: vscode.l10n.t('Reject & revert {0}'),
+		reviewAcceptAll: vscode.l10n.t('Accept All'),
+		reviewRejectAll: vscode.l10n.t('Reject All'),
+		reviewOpenDiff: vscode.l10n.t('Review Diff'),
 	};
 }

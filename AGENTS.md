@@ -50,12 +50,12 @@ O **Tarot IDE** é um fork do `microsoft/vscode` (Code - OSS `1.148.0`, branch d
 | `docs/MIGRATION_PLAN.md` | Registro concluído das Fases 1–5 (`M3.1–M3.10`, Fase 4 `.deb`/CI e Fase 5 Tarot Crew) e **matriz de conflitos de sincronização com o upstream**. |
 | `docs/KIRO_ARCHITECTURE_REFERENCE.md` | Ao tocar Specs, Steering, Hooks, Permissões, Workflows, Sessions ou UX do painel: referência validada da doc oficial do Kiro (Seção 4) e tabela Kiro × Tarot. |
 
-**Status do plano**: **Fases 1–5 100% concluídas** (`MIGRATION_PLAN.md`) · **Fase 6 ativa (`docs/EVOLUTION_PLAN_V2.md`)** — `M6.1` ✅ concluído · próximo marco: **`M6.2` (Sistema Unificado de `/comandos`)**.
+**Status do plano**: **Fases 1–5 100% concluídas** (`MIGRATION_PLAN.md`) · **Fase 6 ativa (`docs/EVOLUTION_PLAN_V2.md`)** — `M6.1` ✅ e `M6.7` ✅ concluídos · próximo marco: **`M6.2` (Sistema Unificado de `/comandos`)**.
 Se este status divergir do `docs/EVOLUTION_PLAN_V2.md`, **o `EVOLUTION_PLAN_V2.md` vence**; atualize este arquivo.
 
 ## 4. Mapa Rápido do Repositório
 
-- `extensions/tarot-core/` — extensão built-in do Tarot (agents, specs, steering, hooks, permissions, workflows, context, checkpoints, git, views, `media/webview`, temas e ícones).
+- `extensions/tarot-core/` — extensão built-in do Tarot (agents, specs, steering, hooks, permissions, workflows, context, checkpoints, review, git, views, `media/webview`, temas e ícones).
 - `.tarot/` (no workspace do usuário) — `specs/`, `steering/`, `hooks/`, `workflows/`, `sessions/`, `checkpoints/`, `settings/mcp.json` + `AGENTS.md` na raiz *(permissões ficam **fora** do repo: `~/.tarot/settings/permissions.yaml` e `~/.tarot-ide/workspace-roots/<hash>/permissions.yaml`)*.
 - `src/vs/**` — núcleo do VS Code, **sob restrição estrita** (ver 2a).
 - `product.json`, `resources/**`, `docs/**` — identidade, assets e documentação do Tarot.
