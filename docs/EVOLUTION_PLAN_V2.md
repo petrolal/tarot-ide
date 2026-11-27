@@ -12,7 +12,7 @@
 
 ---
 
-## Mapa Geral da Fase 6 (`M6.1–M6.23`)
+## Mapa Geral da Fase 6 (`M6.1–M6.34`)
 
 | Marco | Título | Inspiração | Prioridade | Dependências | Status |
 | :--- | :--- | :--- | :---: | :--- | :--- |
@@ -26,13 +26,16 @@
 | **M6.7** | **Inline Code Diffs Coloridos (`+`/`-`) na Conversa + `Keep`/`Revert` por Arquivo** | Kiro + Cursor | P0 | `M6.1`, `panel.js` | ✅ Concluído |
 | **M6.8** | **Comando `/rewind` Interativo por Turno (*Fork* vs *Restore Checkpoint*)** | Kiro | P1 | `M6.2`, `checkpointService.ts` | 📋 Planejado |
 | **M6.9** | **Painéis Redimensionáveis (Drag Handles) + Strip só de Ícones no Focus Mode** | Kiro | P1 | `focusMode.{js,css}` | 📋 Planejado |
-| **M6.10** | **Exportação Portável de Sessão `.zip` + Spec-to-Code Drift Check** | Kiro | P1 | `compactionService.ts`, `specService.ts` | 📋 Planejado |
+| **M6.10** | **Exportação Portável de Sessão `.zip`** | Kiro | P1 | `compactionService.ts` | 📋 Planejado |
+| **M6.10b** | **Spec-to-Code Drift Check (`tarot.specs.checkDrift`)** | Kiro | P1 | `specService.ts` | 📋 Planejado |
 | **M6.11** | **Autocomplete Inline de Arquivos & Símbolos (`@arquivo` / `#arquivo`) no Composer** | Kiro + Cursor | P0 | `M6.1b`, `panel.js`, `focusMode.js` | 📋 Planejado |
 | **M6.12** | **Fila de Mensagens (*Prompt Queue*) enquanto o Agente Executa** | Kiro + Cursor | P0 | `agentPanelView.ts`, `panel.js` | 📋 Planejado |
 | **M6.13** | **Guided Compaction (`/compact <diretriz>`)** | Kiro (Nov/2026) | P0 | `M6.2`, `compactionService.ts` | 📋 Planejado |
-| **M6.14** | **Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`) + Trigger `SubagentStop`** | Kiro (Nov/2026) | P0 | `hookEngine.ts`, `subagentManager.ts` | 📋 Planejado |
+| **M6.14** | **Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`)** | Kiro (Nov/2026) | P0 | `hookEngine.ts` | 📋 Planejado |
+| **M6.14b** | **Trigger `SubagentStop` em Agent Hooks** | Kiro (Nov/2026) | P0 | `hookEngine.ts`, `subagentManager.ts` | 📋 Planejado |
 | **M6.15** | **Live Browser Preview (`localhost`) + Captura de Erros de Console no Chat** | Kiro `browser-harness` | P1 | `M6.4`, `devServerService.ts` | 📋 Planejado |
-| **M6.16** | **Spec Task Waves + Evidence Summary Pré-PR Consolidado** | Kiro Specs + Frontier | P1 | `M6.10`, `specService.ts`, `gitReviewService.ts` | 📋 Planejado |
+| **M6.16** | **Spec Task Waves (Execução por Ondas de Dependência)** | Kiro Specs | P1 | `specService.ts` | 📋 Planejado |
+| **M6.16b** | **Evidence Summary Pré-PR Consolidado** | Frontier | P1 | `M6.10b`, `M6.16`, `specService.ts`, `gitReviewService.ts` | 📋 Planejado |
 | **M6.17** | **Card Clicável de Comandos Pendentes no Chat (`▶ Run & Feed Output`)** | Cursor + Claude Code | P0 | `permissionsService.ts`, `agentPanelView.ts` | 📋 Planejado |
 | **M6.18** | **Auto-Detecção de Diagnósticos Pós-Edição (`✦ Fix N errors` na Review Bar)** | Cursor + Windsurf | P0 | `M6.1`, `reviewSessionService.ts` | 📋 Planejado |
 | **M6.19** | **Quick Fix Direto em Erros do Terminal (`registerTerminalQuickFixProvider`)** | Cursor + VS Code | P0 | `extension.ts`, `agentPanelView.ts` | 📋 Planejado |
@@ -40,6 +43,17 @@
 | **M6.21** | **Execução Paralela Real em Background (Multi-Sessão Concorrente em Worktrees)** | Cursor + Zed | P1 | `agentPanelView.ts`, `worktreeManager.ts` | 📋 Planejado |
 | **M6.22** | **Tab Autocomplete Inline (Ghost-Text FIM Opt-in via Ollama / Endpoint Local)** | Cursor + Zed | P1 | `extension.ts`, `tarotConfig.ts` | 📋 Planejado |
 | **M6.23** | **Telemetria Local de Sessão (Tokens, Custo por Turno e Timeline de Ferramentas)** | Claude Code + Cursor | P1 | `sessionStore.ts`, `compactionService.ts`, `panel.js` | 📋 Planejado |
+| **M6.24** | **Bugbot-Style PR Review Agent (Autofix via Background Agent)** | Cursor | P1 | `M6.1`, `gitReviewService.ts`, `M6.16b` | 📋 Planejado |
+| **M6.25** | **Background Agents via Gatilho Externo (`@tarot` em GitHub/Slack/Linear)** | Cursor | P1 | `M6.21`, `permissionsService.ts` | 📋 Planejado |
+| **M6.26** | **Automations por Evento de Git/PR (`on: push, pull_request`)** | Cursor | P1 | `M6.5`, `hookEngine.ts` | 📋 Planejado |
+| **M6.27** | **MCP Marketplace Interno de Workspace/Time** | Cursor | P2 | `mcpConfigService.ts` | 📋 Planejado |
+| **M6.28** | **Sign-In OAuth Diferido para MCP (Non-Blocking Auth)** | Kiro | P2 | `mcpConfigService.ts` | 📋 Planejado |
+| **M6.29** | **Memória Persistente por Sub-Agente (Formato Steering)** | Kiro | P1 | `subagentManager.ts`, `steeringService.ts` | 📋 Planejado |
+| **M6.30** | **Resumo Automático de Sessão sem Gatilho Manual** | Claude Code | P0 | `M6.13`, `compactionService.ts` | 📋 Planejado |
+| **M6.31** | **Sincronização de Estado de Sessão entre Múltiplas Janelas** | Kiro | P2 | `sessionStore.ts`, `agentPanelView.ts` | 📋 Planejado |
+| **M6.32** | **Output Styles — Personas de Resposta Reutilizáveis** | Claude Code | P1 | `steeringService.ts`, `M6.2` | 📋 Planejado |
+| **M6.33** | **Safe Mode (Boot de Emergência sem AGENTS.md/Hooks/MCP/Skills)** | Claude Code | P1 | `extension.ts`, `permissionsService.ts` | 📋 Planejado |
+| **M6.34** | **Modo Acessibilidade (Plain-Text / Screen Reader) no Painel Agêntico** | Claude Code | P2 | `agentPanelView.ts`, `panel.js` | 📋 Planejado |
 
 ---
 
@@ -70,6 +84,8 @@ Entregar uma experiência de revisão de código estilo Cursor/Git nativa no VS 
 - [x] `checkpointService.ts` classifica corretamente arquivos Git rastreados (`-uall`) e grava backups leves pré-turno em workspaces sem Git (≤ 512 KB).
 - [x] `Reject Hunk` / `Reject File` restaura exatamente o bloco ou arquivo original; `Accept Hunk` / `Accept File` / `Accept All` limpa o overlay, decorações e estado pendente ao vivo.
 - [x] Testes unitários passando (178/178) + `compile-extension:tarot-core` + `esbuild.mts` + `node build/next/index.ts transpile` + `pnpm run typecheck-client` com 0 erros + 0 ocorrências de `innerHTML`/`shell: true`.
+
+> **Risco observado em concorrentes (Kiro):** relatos de usuários apontam o agente editando um snapshot interno em vez do arquivo real, gerando estado inconsistente entre o que é mostrado e o que está em disco. `Accept`/`Reject` em `M6.1` deve sempre operar sobre o arquivo real do workspace, nunca sobre uma cópia em memória desatualizada — já coberto pelo DoD acima, mantido como lembrete de regressão.
 
 ---
 
@@ -210,23 +226,36 @@ Adicionar divisórias arrastáveis (drag handles) entre Sessions, Chat e Inspect
 ### Critérios de Aceite (DoD)
 - [ ] Drag handles suaves sem seleção de texto acidental; larguras persistidas entre sessões.
 - [ ] Toggle para colapsar sidebar esquerda em strip de ícones.
+- [ ] **Risco a evitar (queixa recorrente sobre a "Agents Window" do Cursor):** o Focus Mode redimensionável não pode perder diff view, navegação de arquivos ou funcionalidade de LSP presentes no editor clássico — validar lado a lado antes de concluir o marco.
 
 ---
 
-## M6.10 — Exportação Portável de Sessão `.zip` + Spec-to-Code Drift Check
+## M6.10 — Exportação Portável de Sessão `.zip`
 
 ### Objetivo
-1. Exportar uma sessão completa (transcrição Markdown, JSON da sessão, anexos e diffs) em um único arquivo `.zip` gerado em Node.js puro (sem binários externos).
-2. Comando `tarot.specs.checkDrift` que compara o estado atual do código contra `.tarot/specs/<slug>/{requirements,design}.md` e gera relatório de aderência/drift.
+Exportar uma sessão completa (transcrição Markdown, JSON da sessão, anexos e diffs) em um único arquivo `.zip` gerado em Node.js puro (sem binários externos).
 
 ### Arquivos-Alvo
 - `[NEW]` `extensions/tarot-core/src/sessions/zipExporter.ts`
-- `[MODIFY]` `extensions/tarot-core/src/commands/specCommands.ts`, `extension.ts`, `package.json`
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`, `package.json`
 - `[NEW]` `extensions/tarot-core/src/test/zipExporter.test.ts`
 
 ### Critérios de Aceite (DoD)
 - [ ] `.zip` válido gerado com `zlib.deflateRawSync` + cabeçalhos PKZIP padrão e testado por teste unitário.
-- [ ] `tarot.specs.checkDrift` funcional para qualquer Spec do workspace.
+
+---
+
+## M6.10b — Spec-to-Code Drift Check (`tarot.specs.checkDrift`)
+
+### Objetivo
+Comando `tarot.specs.checkDrift` que compara o estado atual do código contra `.tarot/specs/<slug>/{requirements,design}.md` e gera relatório de aderência/drift.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/commands/specCommands.ts`, `src/specs/specService.ts`
+- `[NEW]` `extensions/tarot-core/src/test/specDriftCheck.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] `tarot.specs.checkDrift` funcional para qualquer Spec do workspace, apontando requisitos/design sem cobertura correspondente no código atual.
 
 ---
 
@@ -276,22 +305,35 @@ Estender `/compact` e `compactionService.ts` para aceitar instruções explícit
 ### Critérios de Aceite (DoD)
 - [ ] `/compact <diretriz>` repassa a diretriz ao resumo estruturado e destaca uma seção `Guided Focus` preservada na compactação.
 - [ ] Testes unitários validam compactação guiada vs padrão.
+- [ ] **Risco a evitar (queixa recorrente em Cursor/Claude Code):** compactação nunca é silenciosa — todo resumo (manual ou automático, ver `M6.30`) exibe no chat o que foi preservado e o que foi condensado antes de seguir.
 
 ---
 
-## M6.14 — Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`) + Trigger `SubagentStop`
+## M6.14 — Output Longo de Hooks Salvo em Arquivo (`> 3.000 chars`)
 
 ### Objetivo
-1. Quando um Agent Hook produzir saída superior a 3.000 caracteres, salvar o log completo em `.tarot/hooks/output/<timestamp>-<hook>.log` e injetar no contexto apenas um resumo + caminho do arquivo, evitando estourar a janela de contexto.
-2. Adicionar o gatilho `SubagentStop` ao `hookEngine.ts` e `subagentManager.ts`, disparado ao término de cada sub-agente para permitir validação ou uma instrução extra antes de retornar o resultado ao agente pai.
+Quando um Agent Hook produzir saída superior a 3.000 caracteres, salvar o log completo em `.tarot/hooks/output/<timestamp>-<hook>.log` e injetar no contexto apenas um resumo + caminho do arquivo, evitando estourar a janela de contexto.
 
 ### Arquivos-Alvo
 - `[MODIFY]` `extensions/tarot-core/src/hooks/{hookTypes.ts,hookEngine.ts,hookRunner.ts}`
-- `[MODIFY]` `extensions/tarot-core/src/agents/subagentManager.ts`
 - `[MODIFY]` `extensions/tarot-core/src/test/hookEngine.test.ts`
 
 ### Critérios de Aceite (DoD)
 - [ ] Saídas de hook `> 3.000` chars gravam arquivo em `.tarot/hooks/output/` e retornam referência + tail truncado ao agente.
+
+---
+
+## M6.14b — Trigger `SubagentStop` em Agent Hooks
+
+### Objetivo
+Adicionar o gatilho `SubagentStop` ao `hookEngine.ts` e `subagentManager.ts`, disparado ao término de cada sub-agente para permitir validação ou uma instrução extra antes de retornar o resultado ao agente pai.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/hooks/{hookTypes.ts,hookEngine.ts}`
+- `[MODIFY]` `extensions/tarot-core/src/agents/subagentManager.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/hookEngine.test.ts`
+
+### Critérios de Aceite (DoD)
 - [ ] Trigger `SubagentStop` suportado no schema `v1`, editor visual de hooks e execução de sub-agentes, respeitando `vscode.workspace.isTrusted`.
 
 ---
@@ -311,10 +353,26 @@ Integrar o `devServerService.ts` com um painel Webview de Preview para apps loca
 
 ---
 
-## M6.16 — Spec Task Waves + Evidence Summary Pré-PR Consolidado
+## M6.16 — Spec Task Waves (Execução por Ondas de Dependência)
 
 ### Objetivo
-Consolidar um **Evidence Summary** automático ao concluir `Run All Tasks` (ondas por dependência) ou ao acionar **Pre-PR Review**, reunindo testes executados, status de lint/build, diff total e checagem de Spec Drift (`M6.10`) em um cartão pronto para revisão humana ou descrição de PR.
+Executar as tarefas de uma Spec (`tasks.md`) em **ondas** calculadas pelo grafo de dependências declarado entre tarefas, em vez de sequencialmente uma a uma — permitindo que tarefas independentes dentro da mesma onda sejam agrupadas (e, quando `M6.21` estiver disponível, executadas em paralelo em worktrees distintos).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/specs/specService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/commands/specCommands.ts`
+- `[NEW]` `extensions/tarot-core/src/test/specTaskWaves.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] `Run All Tasks` calcula ondas a partir do grafo de dependências de `tasks.md`; tarefas sem dependência mútua ficam na mesma onda.
+- [ ] Falha em uma tarefa de uma onda interrompe apenas as tarefas dependentes dela, não as demais ondas já concluídas.
+
+---
+
+## M6.16b — Evidence Summary Pré-PR Consolidado
+
+### Objetivo
+Consolidar um **Evidence Summary** automático ao concluir `Run All Tasks` (ondas de `M6.16`) ou ao acionar **Pre-PR Review**, reunindo testes executados, status de lint/build, diff total e checagem de Spec Drift (`M6.10b`) em um cartão pronto para revisão humana ou descrição de PR.
 
 ### Arquivos-Alvo
 - `[NEW]` `extensions/tarot-core/src/specs/evidenceSummary.ts`
@@ -395,6 +453,7 @@ Substituir o lock global único `runningSessionId` em `agentPanelView.ts` por `M
 
 ### Critérios de Aceite (DoD)
 - [ ] Duas sessões em worktrees distintos rodam simultaneamente sem bloqueio mútuo; cada aba exibe seu próprio estado de execução e botão Stop independente.
+- [ ] **Risco a evitar (issues reportadas em Claude Code com múltiplos agentes):** terminal integrado não pode travar input ou corromper scrollback quando duas ou mais sessões concorrentes escrevem saída simultaneamente — testar explicitamente esse cenário antes de concluir o marco.
 
 ---
 
@@ -425,6 +484,181 @@ Persistir e exibir no painel/inspector do chat o detalhamento local de cada turn
 
 ### Critérios de Aceite (DoD)
 - [ ] Tooltip/popover no anel de contexto exibe breakdown por turno (tokens, custo estimado, latência e arquivos alterados), 100% local.
+
+---
+
+## M6.24 — Bugbot-Style PR Review Agent (Autofix via Background Agent)
+
+### Objetivo
+Revisar automaticamente Pull Requests (locais via `gitReviewService.ts` ou remotos via `gh`) apontando bugs, riscos de segurança e qualidade, com um botão **`✦ Autofix`** que dispara um agente BYOA em background (`M6.21`) para corrigir e atualizar o PR.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/review/prReviewAgent.ts`
+- `[MODIFY]` `extensions/tarot-core/src/git/gitReviewService.ts`, `src/specs/evidenceSummary.ts` (`M6.16b`)
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts` & `media/webview/{panel.js,panel.css}`
+- `[NEW]` `extensions/tarot-core/src/test/prReviewAgent.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Gera relatório estruturado (bug/segurança/qualidade, severidade, arquivo:linha) a partir do diff do PR local ou remoto, reaproveitando `diffHunkEngine.ts` (`M6.1`).
+- [ ] Botão **`✦ Autofix`** abre sessão em background (`M6.21`) com prompt focado no finding e aplica o fix via Diff Review (`M6.1`) antes de atualizar o PR.
+- [ ] Respeita Workspace Trust e nunca executa `gh` ou `git push` sem confirmação explícita do usuário.
+
+---
+
+## M6.25 — Background Agents via Gatilho Externo (`@tarot` em GitHub/Slack/Linear)
+
+### Objetivo
+Permitir disparar uma sessão de agente BYOA em background a partir de uma menção `@tarot` em um comentário de Issue/PR do GitHub (via webhook local ou `gh` polling) ou de integrações equivalentes, executando em worktree isolado (`M6.21`) e devolvendo o resultado como comentário/PR.
+
+### Arquivos-Alvo
+- `[NEW]` `extensions/tarot-core/src/integrations/externalTriggerListener.ts`
+- `[MODIFY]` `extensions/tarot-core/src/agents/sessionConcurrency.ts` (`M6.21`), `src/permissions/permissionsService.ts`
+- `[NEW]` `extensions/tarot-core/src/test/externalTriggerListener.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Gatilho externo só é aceito com Workspace Trust ativo e política de permissões explícita (`deny` por padrão até configuração manual).
+- [ ] Sessão roda em worktree isolado sem bloquear sessões locais ativas; resultado é publicado de volta (comentário/PR) somente após confirmação do usuário, nunca automaticamente em repositórios remotos.
+
+---
+
+## M6.26 — Automations por Evento de Git/PR (`on: push, pull_request`)
+
+### Objetivo
+Estender o motor de Hooks (`M6.5`) para suportar gatilhos declarativos em eventos de Git/PR (`on: push`, `on: pull_request`, `on: pre-commit`), complementando os triggers locais já existentes (`PostFileSave`, `SubagentStop`).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/hooks/{hookTypes.ts,hookEngine.ts,hookRunner.ts}`
+- `[MODIFY]` `extensions/tarot-core/src/git/gitReviewService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/hookEngine.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Novos triggers `on: push` / `on: pull_request` / `on: pre-commit` suportados no schema `v1` e no editor visual de Hooks, disparando apenas em repositórios Git confiáveis (`vscode.workspace.isTrusted`).
+
+---
+
+## M6.27 — MCP Marketplace Interno de Workspace/Time
+
+### Objetivo
+Permitir que um time publique uma lista curada de servidores MCP aprovados em `.tarot/settings/mcp-catalog.json` (versionado no repo), com instalação opt-in por desenvolvedor — sem depender de nenhum marketplace externo (mantendo a invariante de privacidade da Seção 2c do `AGENTS.md`).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/mcp/mcpConfigService.ts`
+- `[NEW]` `extensions/tarot-core/src/mcp/mcpCatalogService.ts`
+- `[NEW]` `extensions/tarot-core/src/test/mcpCatalogService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Catálogo lido apenas de `.tarot/settings/mcp-catalog.json` do próprio workspace (nunca de URL remota de terceiros); instalação sempre opt-in e por servidor individual.
+
+---
+
+## M6.28 — Sign-In OAuth Diferido para MCP (Non-Blocking Auth)
+
+### Objetivo
+Permitir adicionar um servidor MCP que requer OAuth sem bloquear a sessão corrente: o servidor fica listado como **`⏳ Pending Sign-In`** até o fluxo de autenticação completar em background, sem travar o chat nem outros MCPs já conectados.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/mcp/mcpConfigService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/visualConfigEditors.ts`
+- `[NEW]` `extensions/tarot-core/src/test/mcpConfigService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Conectar um MCP com OAuth pendente não bloqueia o uso de outros MCPs/sessões; status visível na sidebar de MCP até a autenticação concluir ou expirar.
+- [ ] Nenhum token OAuth é logado ou persistido em texto puro em `.tarot/` ou OutputChannels (reforça invariante 2d do `AGENTS.md`).
+
+---
+
+## M6.29 — Memória Persistente por Sub-Agente (Formato Steering)
+
+### Objetivo
+Permitir que cada perfil de sub-agente (`subagentManager.ts`) mantenha memória própria entre execuções, persistida no formato de Steering (`.tarot/steering/subagents/<profile>.md`), para reter decisões/aprendizados específicos daquele papel sem poluir a memória geral do projeto.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/agents/subagentManager.ts`
+- `[MODIFY]` `extensions/tarot-core/src/steering/steeringService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/subagentManager.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Sub-agente lê e atualiza seu arquivo de memória em `.tarot/steering/subagents/<profile>.md` entre execuções, respeitando Workspace Trust e o mesmo pipeline de parsing de `steeringService.ts`.
+- [ ] Memória por sub-agente nunca é injetada em sessões de outro perfil sem solicitação explícita.
+
+---
+
+## M6.30 — Resumo Automático de Sessão sem Gatilho Manual
+
+### Objetivo
+Disparar automaticamente um resumo de sessão (reaproveitando `compactionService.ts` e o `Guided Focus` de `M6.13`) quando a janela de contexto se aproximar do limite ou a sessão ficar ociosa por um período configurável, eliminando a dependência exclusiva do `/compact` manual — sempre expondo claramente o que foi resumido/descartado (nunca silenciosamente).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/context/compactionService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`
+- `[MODIFY]` `extensions/tarot-core/src/test/compactionService.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Resumo automático dispara antes do limite de contexto ser atingido, com card explícito **`Auto-Summarized — ver detalhes`** mostrando o que foi preservado e o que foi condensado.
+- [ ] Comportamento configurável (threshold e on/off) e nunca executa silenciosamente sem indicação visual no chat.
+
+---
+
+## M6.31 — Sincronização de Estado de Sessão entre Múltiplas Janelas
+
+### Objetivo
+Sincronizar o estado de sessões ativas (histórico, fila de prompts `M6.12`, status de execução) entre múltiplas janelas do Tarot abertas para o mesmo workspace, evitando divergência quando o usuário alterna entre janelas.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/sessions/sessionStore.ts`
+- `[MODIFY]` `extensions/tarot-core/src/views/agentPanelView.ts`
+- `[NEW]` `extensions/tarot-core/src/test/sessionStoreSync.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Editar/enviar prompt em uma janela reflete em até 1s no estado de qualquer outra janela aberta no mesmo workspace, sem duplicar execução do agente.
+
+---
+
+## M6.32 — Output Styles — Personas de Resposta Reutilizáveis
+
+### Objetivo
+Suportar estilos de saída nomeados e intercambiáveis (ex.: `concise`, `teaching`, `strict-tdd`) definidos em `.tarot/steering/output-styles/*.md`, selecionáveis via `/comando` (`M6.2`) e aplicáveis sem alterar o comportamento central do agente (equivalente ao `keep-coding-instructions` do Claude Code).
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/steering/steeringService.ts`
+- `[MODIFY]` `extensions/tarot-core/src/commands/slashCommandRegistry.ts` (`M6.2`)
+- `[NEW]` `extensions/tarot-core/src/test/outputStyles.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] `/output-style <nome>` troca o estilo ativo da sessão sem precisar reiniciar o chat; estilo persistido por sessão.
+- [ ] Estilos vivem em `.tarot/steering/output-styles/` e seguem o mesmo pipeline de parsing/precedência de `steeringService.ts`.
+
+---
+
+## M6.33 — Safe Mode (Boot de Emergência sem AGENTS.md/Hooks/MCP/Skills)
+
+### Objetivo
+Adicionar um modo de diagnóstico (`tarot.safeMode` via Command Palette ou flag de ambiente) que desliga de uma vez carregamento de `AGENTS.md`/Steering, Hooks, MCP e Skills para isolar problemas de configuração ou suspeita de conteúdo malicioso em `.tarot/`.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/extension.ts`
+- `[MODIFY]` `extensions/tarot-core/src/permissions/permissionsService.ts`
+- `[NEW]` `extensions/tarot-core/src/test/safeMode.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Com Safe Mode ativo, nenhum arquivo de `.tarot/` (hooks, steering, mcp, skills) é lido ou executado; indicador persistente na Status Bar enquanto ativo.
+- [ ] Sair do Safe Mode exige ação explícita do usuário (nunca reativa automaticamente o carregamento sem confirmação).
+
+---
+
+## M6.34 — Modo Acessibilidade (Plain-Text / Screen Reader) no Painel Agêntico
+
+### Objetivo
+Oferecer um modo de renderização opt-in do Painel Agêntico e Focus Mode otimizado para leitores de tela: saída em texto plano estruturado (sem depender de layout visual/CSS para transmitir significado), navegável via teclado e com `aria-live` nas atualizações de streaming.
+
+### Arquivos-Alvo
+- `[MODIFY]` `extensions/tarot-core/src/views/{agentPanelView.ts,focusModeView.ts}`
+- `[MODIFY]` `extensions/tarot-core/media/webview/{panel.js,panel.css,focusMode.js}`
+- `[NEW]` `extensions/tarot-core/src/test/accessibilityMode.test.ts`
+
+### Critérios de Aceite (DoD)
+- [ ] Toggle `tarot.accessibility.plainTextMode` (default `false`) renderiza mensagens/diffs em texto plano com `aria-live="polite"` nas atualizações de streaming.
+- [ ] Navegação completa por teclado (sem mouse) entre mensagens, diffs e ações do chat quando o modo está ativo.
 
 ---
 
