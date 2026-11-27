@@ -87,7 +87,7 @@ export class RecipesTreeProvider implements vscode.TreeDataProvider<RecipeTreeIt
 			return element.children;
 		}
 		const root = vscode.workspace.isTrusted ? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath : undefined;
-		const discovery = await this.recipeLoader.discover(root);
+		const discovery = await this.recipeLoader.discover(root, vscode.workspace.isTrusted);
 		if (discovery.recipes.length === 0) {
 			return [];
 		}

@@ -9,7 +9,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, it } from 'node:test';
 import { parseAcpSessionUpdate } from '../agents/adapters/acpParser';
-import { formatMcpContext, parseMcpConfigJson } from '../mcp/mcpConfigService';
+import { formatMcpContext, parseMcpConfigJson, TarotMcpConfigService } from '../mcp/mcpConfigService';
 import { matchPowersForPrompt, PowerDefinition } from '../powers/powersService';
 import { expandLiveFileReferences, TarotSteeringService } from '../steering/steeringService';
 
@@ -72,6 +72,32 @@ describe('powers, mcpConfigService, acpAdapter & steering M3.8b complements', ()
 			const svc = new TarotSteeringService();
 			const docs = await svc.discover(tmp);
 			assert.ok(docs.some(d => d.fileName === 'packages/api/AGENTS.md' && d.inclusion === 'fileMatch'));
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	it('skips workspace MCP config when trusted is false even if workspaceRoot is provided (TD-16)', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-mcp-trust-'));
+		try {
+			const settingsDir = path.join(tmp, '.tarot', 'settings');
+			await fs.mkdir(settingsDir, { recursive: true });
+			await fs.writeFile(
+				path.join(settingsDir, 'mcp.json'),
+				JSON.stringify({
+					mcpServers: {
+						'ws-trust-test-mcp': { command: 'node', args: ['-v'] },
+					},
+				}),
+				'utf8',
+			);
+
+			const svc = new TarotMcpConfigService();
+			const untrusted = await svc.discover(tmp, false);
+			assert.equal(untrusted.servers.some(s => s.name === 'ws-trust-test-mcp' && s.scope === 'workspace'), false);
+
+			const trusted = await svc.discover(tmp, true);
+			assert.equal(trusted.servers.some(s => s.name === 'ws-trust-test-mcp' && s.scope === 'workspace'), true);
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true });
 		}

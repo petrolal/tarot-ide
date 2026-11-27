@@ -206,10 +206,16 @@ export class TarotHookEngine {
 		return path.join(workspaceRoot, '.tarot', 'hooks');
 	}
 
-	async discoverFiles(workspaceRoot?: string): Promise<DiscoveredHookFile[]> {
+	/**
+	 * `trusted` is mandatory (TD-16, AGENTS.md §2d): every call site must explicitly state its
+	 * Workspace Trust decision instead of relying only on the caller remembering to pass
+	 * `undefined` for `workspaceRoot` — this is checked again here even if a caller mistakenly
+	 * passes a real root while `trusted` is `false`, as defense in depth.
+	 */
+	async discoverFiles(workspaceRoot: string | undefined, trusted: boolean): Promise<DiscoveredHookFile[]> {
 		const files: DiscoveredHookFile[] = [];
 		files.push(...await this.readHooksDirectory(this.getGlobalHooksDir(), 'global'));
-		if (workspaceRoot) {
+		if (workspaceRoot && trusted) {
 			files.push(...await this.readHooksDirectory(this.getWorkspaceHooksDir(workspaceRoot), 'workspace'));
 		}
 		this.reportFileErrors(files);
@@ -241,8 +247,8 @@ export class TarotHookEngine {
 		}
 	}
 
-	async discover(workspaceRoot?: string): Promise<HookDefinition[]> {
-		const files = await this.discoverFiles(workspaceRoot);
+	async discover(workspaceRoot: string | undefined, trusted: boolean): Promise<HookDefinition[]> {
+		const files = await this.discoverFiles(workspaceRoot, trusted);
 		return files.flatMap(f => f.hooks);
 	}
 

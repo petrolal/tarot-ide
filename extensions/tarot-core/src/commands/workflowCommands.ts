@@ -203,7 +203,7 @@ export function registerWorkflowCommands(deps: WorkflowCommandsDeps): {
 		if (!saved) {
 			return undefined;
 		}
-		const discovery = await deps.recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+		const discovery = await deps.recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined, vscode.workspace.isTrusted);
 		const loaded = discovery.recipes.find(r => r.name === saved.recipeName);
 		if (!loaded) {
 			return undefined;
@@ -294,7 +294,7 @@ export function registerWorkflowCommands(deps: WorkflowCommandsDeps): {
 			if (!root) {
 				return;
 			}
-			const discovery = await deps.recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+			const discovery = await deps.recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined, vscode.workspace.isTrusted);
 			if (discovery.recipes.length === 0) {
 				vscode.window.showInformationMessage(vscode.l10n.t('No workflow recipes found.'));
 				return;
@@ -362,7 +362,7 @@ export function registerWorkflowCommands(deps: WorkflowCommandsDeps): {
 			if (!run) {
 				return;
 			}
-			const discovery = await deps.recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined);
+			const discovery = await deps.recipeLoader.discover(vscode.workspace.isTrusted ? root : undefined, vscode.workspace.isTrusted);
 			const loaded = discovery.recipes.find(r => r.name === run.recipeName);
 			await workflowRunEditor.openRun(root, runId, loaded?.recipe, stepId);
 		}),

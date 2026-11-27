@@ -148,19 +148,52 @@ describe('hookEngine.TarotHookEngine load error reporting', () => {
 		});
 
 		try {
-			await engine.discoverFiles(tmp);
-			await engine.discoverFiles(tmp); // unchanged error set -> deduplicated
+			await engine.discoverFiles(tmp, true);
+			await engine.discoverFiles(tmp, true); // unchanged error set -> deduplicated
 			assert.equal(reported.length, 1);
 
 			// Fix the file -> clears tracked error state
 			await fs.writeFile(badFile, JSON.stringify({ version: 'v1', hooks: [] }), 'utf8');
-			await engine.discoverFiles(tmp);
+			await engine.discoverFiles(tmp, true);
 			assert.equal(reported.length, 1);
 
 			// Break again -> reported again
 			await fs.writeFile(badFile, '{ broken again', 'utf8');
-			await engine.discoverFiles(tmp);
+			await engine.discoverFiles(tmp, true);
 			assert.equal(reported.length, 2);
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	it('skips workspace hooks when trusted is false even if workspaceRoot is provided (TD-16)', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-hooks-trust-'));
+		const hooksDir = path.join(tmp, '.tarot', 'hooks');
+		await fs.mkdir(hooksDir, { recursive: true });
+		const hookFile = path.join(hooksDir, 'ws.json');
+		await fs.writeFile(
+			hookFile,
+			JSON.stringify({
+				version: 'v1',
+				hooks: [{
+					name: 'ws-trust-test-hook',
+					enabled: true,
+					trigger: 'PromptSubmit',
+					action: { type: 'agent', prompt: 'hello' },
+				}],
+			}),
+			'utf8',
+		);
+
+		try {
+			const engine = new TarotHookEngine();
+			const untrustedFiles = await engine.discoverFiles(tmp, false);
+			assert.equal(untrustedFiles.some(f => f.scope === 'workspace'), false);
+			const untrustedHooks = await engine.discover(tmp, false);
+			assert.equal(untrustedHooks.some(h => h.name === 'ws-trust-test-hook'), false);
+
+			const trustedHooks = await engine.discover(tmp, true);
+			assert.equal(trustedHooks.some(h => h.name === 'ws-trust-test-hook' && h.scope === 'workspace'), true);
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true });
 		}

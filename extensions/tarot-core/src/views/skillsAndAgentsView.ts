@@ -70,9 +70,9 @@ export class SkillsTreeProvider extends BaseTarotTreeProvider {
 			return element.children;
 		}
 		const root = vscode.workspace.isTrusted ? getWorkspaceRoot() : undefined;
-		const powers = await this.powersService.discover(root);
+		const powers = await this.powersService.discover(root, vscode.workspace.isTrusted);
 		const powerSkills = powers.flatMap(p => p.skills);
-		const skills = await this.skillsService.discover(root, powerSkills);
+		const skills = await this.skillsService.discover(root, vscode.workspace.isTrusted, powerSkills);
 		if (skills.length === 0) {
 			return [];
 		}
@@ -156,7 +156,7 @@ export class CustomAgentsTreeProvider extends BaseTarotTreeProvider {
 			return element.children;
 		}
 		const root = vscode.workspace.isTrusted ? getWorkspaceRoot() : undefined;
-		const profiles = await this.customAgentService.discover(root);
+		const profiles = await this.customAgentService.discover(root, vscode.workspace.isTrusted);
 		if (profiles.length === 0) {
 			return [];
 		}

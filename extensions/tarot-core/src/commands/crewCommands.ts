@@ -149,7 +149,7 @@ export function registerCrewCommands(deps: CrewCommandDeps): vscode.Disposable[]
 				return;
 			}
 
-			const profiles = await deps.customAgentService.discover(vscode.workspace.isTrusted ? root : undefined);
+			const profiles = await deps.customAgentService.discover(vscode.workspace.isTrusted ? root : undefined, vscode.workspace.isTrusted);
 			const profilePick = await vscode.window.showQuickPick(
 				[
 					{ label: vscode.l10n.t('$(dash) None (use active agent)'), id: undefined as string | undefined },

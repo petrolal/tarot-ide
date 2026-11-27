@@ -277,7 +277,7 @@ export function registerPowersAndSkillsCommands(deps: PowersAndSkillsCommandDeps
 			let power = item?.power;
 			if (!power) {
 				const root = vscode.workspace.isTrusted ? getWorkspaceRoot() : undefined;
-				const discovered = await deps.powersService.discover(root);
+				const discovered = await deps.powersService.discover(root, vscode.workspace.isTrusted);
 				if (discovered.length === 0) {
 					vscode.window.showInformationMessage(vscode.l10n.t('No installed Powers found.'));
 					return;
@@ -359,7 +359,7 @@ export function registerPowersAndSkillsCommands(deps: PowersAndSkillsCommandDeps
 			let profile = item?.profile;
 			if (!profile) {
 				const root = vscode.workspace.isTrusted ? getWorkspaceRoot() : undefined;
-				const all = await deps.customAgentService.discover(root);
+				const all = await deps.customAgentService.discover(root, vscode.workspace.isTrusted);
 				const picked = await vscode.window.showQuickPick(
 					all.map(p => ({ label: p.name, description: p.origin, detail: p.description, profile: p })),
 					{ title: vscode.l10n.t('Activate Custom Agent Profile') },

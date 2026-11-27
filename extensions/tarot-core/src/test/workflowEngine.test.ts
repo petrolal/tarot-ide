@@ -19,7 +19,7 @@ describe('workflows.recipeValidator', () => {
 	it('approves all bundled recipes in extensions/tarot-core/recipes/', async () => {
 		const bundledDir = path.resolve(__dirname, '..', '..', 'recipes');
 		const loader = new TarotRecipeLoader(bundledDir);
-		const discovery = await loader.discover();
+		const discovery = await loader.discover(undefined, false);
 		assert.equal(discovery.errors.length, 0, discovery.errors.join('\n'));
 		const names = discovery.recipes.map(r => r.name);
 		assert.ok(names.includes('investigate'));
@@ -118,11 +118,33 @@ describe('workflows.recipeLoader precedence', () => {
 			await fs.writeFile(path.join(wsDir, 'demo.workflow.yaml'), 'name: demo\nsteps: []\n', 'utf8');
 
 			const loader = new TarotRecipeLoader(bundledDir);
-			const res = await loader.discover(path.join(tmp, 'ws'));
+			const res = await loader.discover(path.join(tmp, 'ws'), true);
 			assert.equal(res.recipes.length, 1);
 			assert.equal(res.recipes[0].scope, 'bundled');
 			assert.ok(res.errors.length >= 1);
 			assert.ok(res.warnings.some(w => /JSON.*wins/i.test(w)));
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
+
+	it('skips workspace recipes when trusted is false even if workspaceRoot is provided (TD-16)', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-wf-trust-'));
+		try {
+			const wsDir = path.join(tmp, 'ws', '.tarot', 'workflows');
+			await fs.mkdir(wsDir, { recursive: true });
+			const wsRecipe: WorkflowRecipe = {
+				name: 'ws-trust-test-recipe',
+				steps: [{ type: 'step', id: 's1', agent: 'wf-coder', prompt: 'run' }],
+			};
+			await fs.writeFile(path.join(wsDir, 'ws-trust.workflow.json'), JSON.stringify(wsRecipe), 'utf8');
+
+			const loader = new TarotRecipeLoader();
+			const untrusted = await loader.discover(path.join(tmp, 'ws'), false);
+			assert.equal(untrusted.recipes.some(r => r.name === 'ws-trust-test-recipe' && r.scope === 'workspace'), false);
+
+			const trusted = await loader.discover(path.join(tmp, 'ws'), true);
+			assert.equal(trusted.recipes.some(r => r.name === 'ws-trust-test-recipe' && r.scope === 'workspace'), true);
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true });
 		}

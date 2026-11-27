@@ -79,4 +79,32 @@ describe('schedule.TarotScheduleService (M3.10)', () => {
 			await fs.rm(tmp, { recursive: true, force: true });
 		}
 	});
+
+	it('lists digests most-recent-first across jobs, not grouped by job name (TD-15)', async () => {
+		const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'tarot-schedule-digest-order-'));
+		try {
+			const service = new TarotScheduleService();
+
+			// "zeta-job" ran a month ago; "alpha-job" ran just now. Alphabetically "zeta" sorts
+			// after "alpha", so the old lexicographic-reverse sort happened to put the (older)
+			// zeta digest first — the opposite of true recency, which this test pins down.
+			const { digestPath: zetaDigest } = await service.recordRunAndDigest(tmp, {
+				jobId: 'zeta-job', jobName: 'Zeta Job', startedAt: '2026-10-25T00:00:00Z',
+				finishedAt: '2026-10-25T00:00:01Z', status: 'ok', actionType: 'command', output: 'old run', tokensUsed: 0,
+			});
+			const { digestPath: alphaDigest } = await service.recordRunAndDigest(tmp, {
+				jobId: 'alpha-job', jobName: 'Alpha Job', startedAt: '2026-11-25T00:00:00Z',
+				finishedAt: '2026-11-25T00:00:01Z', status: 'ok', actionType: 'command', output: 'new run', tokensUsed: 0,
+			});
+			const oldDate = new Date('2026-10-25T00:00:01Z');
+			const newDate = new Date('2026-11-25T00:00:01Z');
+			await fs.utimes(zetaDigest, oldDate, oldDate);
+			await fs.utimes(alphaDigest, newDate, newDate);
+
+			const digests = await service.listDigests(tmp);
+			assert.deepEqual(digests, [alphaDigest, zetaDigest], 'the more recent alpha-job digest must come first, regardless of job name order');
+		} finally {
+			await fs.rm(tmp, { recursive: true, force: true });
+		}
+	});
 });

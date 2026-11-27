@@ -256,7 +256,7 @@ export async function resolveContextProvider(kind: ContextProviderKind): Promise
 				vscode.window.showWarningMessage(vscode.l10n.t('Trust this workspace before loading MCP server configurations.'));
 				return undefined;
 			}
-			const { servers } = await mcpConfigService.discover(root);
+			const { servers } = await mcpConfigService.discover(root, vscode.workspace.isTrusted);
 			if (servers.length === 0) {
 				vscode.window.showInformationMessage(vscode.l10n.t('No MCP servers found in .tarot/settings/mcp.json or ~/.tarot/settings/mcp.json.'));
 				return undefined;

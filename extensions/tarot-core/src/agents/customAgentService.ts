@@ -157,7 +157,7 @@ export function parseCustomAgentFile(
 /**
  * Discovers Custom Agents from `~/.tarot/agents/` (`user`) and `.tarot/agents/` (`workspace`),
  * supporting nested folders (`team/planner.md` -> `team/planner`). Workspace wins over user on
- * duplicate IDs. Callers must gate workspace discovery on `vscode.workspace.isTrusted`.
+ * duplicate IDs.
  */
 export class TarotCustomAgentService {
 	getUserAgentsDir(): string {
@@ -168,7 +168,11 @@ export class TarotCustomAgentService {
 		return path.join(workspaceRoot, '.tarot', 'agents');
 	}
 
-	async discover(workspaceRoot?: string): Promise<CustomAgentProfile[]> {
+	/**
+	 * `trusted` is mandatory (TD-16, AGENTS.md §2d): workspace custom agents under `.tarot/agents/`
+	 * are skipped unless `trusted === true`, even if a caller passes a real `workspaceRoot`.
+	 */
+	async discover(workspaceRoot: string | undefined, trusted: boolean): Promise<CustomAgentProfile[]> {
 		const byId = new Map<string, CustomAgentProfile>();
 		for (const b of BUILT_IN_AGENT_PROFILES) {
 			byId.set(b.id.toLowerCase(), b);
@@ -176,7 +180,7 @@ export class TarotCustomAgentService {
 		for (const u of await this.readAgentsDir(this.getUserAgentsDir(), 'user')) {
 			byId.set(u.id.toLowerCase(), u);
 		}
-		if (workspaceRoot) {
+		if (workspaceRoot && trusted) {
 			for (const w of await this.readAgentsDir(this.getWorkspaceAgentsDir(workspaceRoot), 'workspace')) {
 				byId.set(w.id.toLowerCase(), w);
 			}

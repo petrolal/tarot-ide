@@ -52,7 +52,10 @@ describe('customAgentService', () => {
 				'utf8',
 			);
 			const svc = new TarotCustomAgentService();
-			const profiles = await svc.discover(tmp);
+			const untrusted = await svc.discover(tmp, false);
+			assert.equal(untrusted.some(p => p.id === 'team/planner' && p.origin === 'workspace'), false);
+
+			const profiles = await svc.discover(tmp, true);
 			assert.ok(profiles.some(p => p.id === 'default' && p.origin === 'builtIn'));
 			const planner = profiles.find(p => p.id === 'team/planner');
 			assert.ok(planner);

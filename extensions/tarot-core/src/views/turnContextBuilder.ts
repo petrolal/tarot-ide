@@ -93,12 +93,12 @@ export async function assembleTurnSystemContext(
 
 	if (isTrusted) {
 		const powerActivation = activeProfile?.includePowers !== false
-			? matchPowersForPrompt(await deps.powersService.discover(wsRoot), input.prompt)
+			? matchPowersForPrompt(await deps.powersService.discover(wsRoot, isTrusted), input.prompt)
 			: { activePowers: [], skills: [], mcpServers: [] };
 		if (powerActivation.summaryContext) {
 			systemContextSections.push(powerActivation.summaryContext);
 		}
-		const skills = await deps.skillsService.discover(wsRoot, powerActivation.skills);
+		const skills = await deps.skillsService.discover(wsRoot, isTrusted, powerActivation.skills);
 		const profileSkillIds = (activeProfile?.resources ?? [])
 			.filter(r => r.startsWith('skill://'))
 			.map(r => r.slice('skill://'.length).trim())
@@ -114,7 +114,7 @@ export async function assembleTurnSystemContext(
 			systemContextSections.push(skillsResolution.activeContext);
 		}
 		if (activeProfile?.includeMcpJson !== false) {
-			const { servers } = await deps.mcpConfigService.discover(wsRoot, powerActivation.mcpServers);
+			const { servers } = await deps.mcpConfigService.discover(wsRoot, isTrusted, powerActivation.mcpServers);
 			const enabledServers = servers.filter(s => s.enabled);
 			if (enabledServers.length > 0) {
 				systemContextSections.push(`Configured MCP Servers: ${enabledServers.map(s => `${s.name} (${s.transport})`).join(', ')}`);

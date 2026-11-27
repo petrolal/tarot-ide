@@ -169,7 +169,7 @@ export class HooksTreeProvider extends BaseTarotTreeProvider {
 			return [];
 		}
 		const root = getWorkspaceRoot();
-		const files = await this.hookEngine.discoverFiles(root);
+		const files = await this.hookEngine.discoverFiles(root, true);
 		if (files.length === 0) {
 			return [];
 		}
@@ -381,7 +381,7 @@ export class McpServersTreeProvider extends BaseTarotTreeProvider {
 			return [];
 		}
 		const root = getWorkspaceRoot();
-		const { servers } = await this.mcpService.discover(root);
+		const { servers } = await this.mcpService.discover(root, vscode.workspace.isTrusted);
 		if (servers.length === 0) {
 			return [];
 		}

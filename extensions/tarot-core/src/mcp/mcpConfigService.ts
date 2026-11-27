@@ -124,8 +124,7 @@ export function formatMcpContext(servers: readonly McpServerConfig[]): string {
 
 /**
  * Discovers MCP server configurations from `~/.tarot/settings/mcp.json` (global) and
- * `.tarot/settings/mcp.json` (workspace — wins on duplicate names). Callers must gate workspace
- * discovery on `vscode.workspace.isTrusted`.
+ * `.tarot/settings/mcp.json` (workspace — wins on duplicate names).
  */
 export class TarotMcpConfigService {
 	getGlobalMcpConfigPath(): string {
@@ -136,7 +135,15 @@ export class TarotMcpConfigService {
 		return path.join(workspaceRoot, '.tarot', 'settings', 'mcp.json');
 	}
 
-	async discover(workspaceRoot?: string, extraPowerServers?: readonly McpServerConfig[]): Promise<{
+	/**
+	 * `trusted` is mandatory (TD-16, AGENTS.md §2d): workspace `.tarot/settings/mcp.json` is never
+	 * read unless `trusted === true`, even if a caller passes a real `workspaceRoot`.
+	 */
+	async discover(
+		workspaceRoot: string | undefined,
+		trusted: boolean,
+		extraPowerServers?: readonly McpServerConfig[],
+	): Promise<{
 		readonly servers: McpServerConfig[];
 		readonly errors: readonly string[];
 	}> {
@@ -153,7 +160,7 @@ export class TarotMcpConfigService {
 			byName.set(s.name, s);
 		}
 
-		if (workspaceRoot) {
+		if (workspaceRoot && trusted) {
 			const wsRes = await this.readFile(this.getWorkspaceMcpConfigPath(workspaceRoot), 'workspace');
 			errors.push(...wsRes.errors);
 			for (const s of wsRes.servers) {

@@ -85,6 +85,12 @@ describe('Powers management & POWER.md compatibility', () => {
 			assert.ok(loadedLegacy);
 			assert.equal(loadedLegacy.skills.length, 1);
 
+			// TD-16: workspace powers must be skipped when trusted === false even with a real workspaceRoot
+			const untrustedPowers = await powersSvc.discover(tmp, false);
+			assert.equal(untrustedPowers.some(p => p.id === 'legacy-power' && p.scope === 'workspace'), false);
+			const trustedPowers = await powersSvc.discover(tmp, true);
+			assert.equal(trustedPowers.some(p => p.id === 'legacy-power' && p.scope === 'workspace'), true);
+
 			// Uninstall confinement blocks paths outside allowed roots
 			await assert.rejects(
 				() => powersSvc.uninstallPower(tmp, [powersRoot]),

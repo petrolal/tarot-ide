@@ -79,7 +79,10 @@ describe('skillsService', () => {
 			assert.equal(imported.id, 'src-skill');
 			assert.equal(imported.name, 'Local Skill');
 
-			const discovered = await service.discover(wsRoot);
+			const untrusted = await service.discover(wsRoot, false);
+			assert.equal(untrusted.some(s => s.id === 'src-skill' && s.scope === 'workspace'), false);
+
+			const discovered = await service.discover(wsRoot, true);
 			assert.ok(discovered.some(s => s.id === 'src-skill' && s.scope === 'workspace'));
 		} finally {
 			await fs.rm(tmp, { recursive: true, force: true });

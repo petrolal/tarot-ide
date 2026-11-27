@@ -548,7 +548,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		}
 
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-		const hooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath) : [];
+		const hooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, true) : [];
 		if (hooks.length > 0) {
 			const pre = await runHooksForTrigger(hooks, 'PreCompaction', { cwd, session_id: session.id }, { runCommand: this.runGatedHookCommand });
 			this.logHookWarnings(pre.warnings);
@@ -858,7 +858,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 		const spec = await this.specService.loadSpecContext(specDir);
 		const taskKey = computeTaskCheckpointKey(task);
 		const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
-		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(cwd) : [];
+		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(cwd, true) : [];
 
 		if (workspaceHooks.length > 0) {
 			const pre = await runHooksForTrigger(workspaceHooks, 'PreTaskExecution', { cwd, tool_name: taskKey }, { matchInput: taskKey, runCommand: this.runGatedHookCommand });
@@ -1329,7 +1329,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 				}
 				const targetId = cmd.slice(1);
 				const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-				const skills = await this.skillsService.discover(root);
+				const skills = await this.skillsService.discover(root, vscode.workspace.isTrusted);
 				const matchedSkill = skills.find(s => s.id.toLowerCase() === targetId || s.name.toLowerCase() === targetId);
 				if (matchedSkill) {
 					const promptToRun = args || `Aplique a skill "${matchedSkill.name}" (/${matchedSkill.id}).`;
@@ -1548,7 +1548,7 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			await this.compactActiveSession(false);
 		}
 
-		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath) : [];
+		const workspaceHooks = vscode.workspace.isTrusted ? await this.hookEngine.discover(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath, true) : [];
 		let effectivePrompt = prompt;
 		if (workspaceHooks.length > 0) {
 			const promptSubmit = await runHooksForTrigger(
@@ -1895,13 +1895,13 @@ export class TarotAgentPanelProvider implements vscode.WebviewViewProvider, vsco
 			return;
 		}
 		const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-		this.agentProfiles = await this.customAgentService.discover(root);
+		this.agentProfiles = await this.customAgentService.discover(root, vscode.workspace.isTrusted);
 
 		const seen = new Set<string>();
 		const list: Array<{ command: string; id: string; description: string }> = [];
 
 		// Skills invoked via `/<id>` (M3.8b)
-		const skills = await this.skillsService.discover(root);
+		const skills = await this.skillsService.discover(root, vscode.workspace.isTrusted);
 		for (const skill of skills) {
 			const key = skill.id.toLowerCase();
 			if (seen.has(key)) {

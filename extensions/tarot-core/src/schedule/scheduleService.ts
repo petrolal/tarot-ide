@@ -221,15 +221,25 @@ export class TarotScheduleService {
 		return { record: full, logPath, digestPath };
 	}
 
+	/**
+	 * Most-recent-first across every job, not grouped by job name. Filenames are
+	 * `${jobId}-${runId}.md` with the job id first, so a plain lexicographic sort (TD-15) grouped
+	 * results by job name before recency — a job that ran 5 seconds ago could sort after one that
+	 * ran a month ago just because its name comes later alphabetically.
+	 */
 	async listDigests(workspaceRoot: string): Promise<string[]> {
 		const digestsDir = path.join(this.getWorkspaceSchedulesDir(workspaceRoot), 'digests');
 		try {
 			const entries = await fs.readdir(digestsDir, { withFileTypes: true });
-			return entries
-				.filter(e => e.isFile() && e.name.endsWith('.md'))
-				.map(e => path.join(digestsDir, e.name))
-				.sort()
-				.reverse();
+			const files = entries.filter(e => e.isFile() && e.name.endsWith('.md'));
+			const withMtime = await Promise.all(files.map(async e => {
+				const fullPath = path.join(digestsDir, e.name);
+				const stat = await fs.stat(fullPath).catch(() => undefined);
+				return { fullPath, mtimeMs: stat?.mtimeMs ?? 0 };
+			}));
+			return withMtime
+				.sort((a, b) => b.mtimeMs - a.mtimeMs)
+				.map(f => f.fullPath);
 		} catch {
 			return [];
 		}

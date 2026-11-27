@@ -32,8 +32,8 @@
 | **TD-12** | Dois prompts de Spec em inglês, violam regra PT-BR (`AGENTS.md` §2e) | Regra | **P1** | `specs/specService.ts` | ✅ Corrigido |
 | **TD-13** | Parsing de status de worktree não trata renomes (`old -> new`) | Correção | **P1** | `git/worktreeManager.ts` | ✅ Corrigido |
 | **TD-14** | `recipesByRunId` nunca é limpo — memory leak | Recurso | **P1** | `views/workflowRunEditor.ts` | ✅ Corrigido |
-| **TD-15** | Listagem de digests ordena por nome do job, não por recência real | Correção | **P2** | `schedule/scheduleService.ts` | 📋 Pendente |
-| **TD-16** | Workspace Trust garantido só por convenção de comentário, não no código | Arquitetura | **P2** | `hooks/hookEngine.ts`, `skills/skillsService.ts`, `mcp/mcpConfigService.ts`, `agents/customAgentService.ts`, `workflows/recipeLoader.ts`, `powers/powersService.ts` | 📋 Pendente |
+| **TD-15** | Listagem de digests ordena por nome do job, não por recência real | Correção | **P2** | `schedule/scheduleService.ts` | ✅ Corrigido |
+| **TD-16** | Workspace Trust garantido só por convenção de comentário, não no código | Arquitetura | **P2** | `hooks/hookEngine.ts`, `skills/skillsService.ts`, `mcp/mcpConfigService.ts`, `agents/customAgentService.ts`, `workflows/recipeLoader.ts`, `powers/powersService.ts` | ✅ Corrigido |
 | **TD-17** | `agentPanelView.ts` é um god object de ~2.100 linhas | Manutenibilidade | **P2** | `views/agentPanelView.ts` | 📋 Pendente |
 | **TD-18** | Helpers duplicados (`escapeHtml`/nonce/ID/`sanitizeSlug`/`readJsonSafe`) espalhados | Reuso | **P3** | múltiplos arquivos em `views/`, `hooks/`, `commands/` | 📋 Pendente |
 | **TD-19** | Lógica de `detect()` de adapter duplicada em 5 arquivos | Reuso | **P3** | `agents/adapters/*.ts` | 📋 Pendente |

@@ -93,7 +93,7 @@ export class InstalledPowersTreeProvider extends BaseTarotTreeProvider {
 			return element.children;
 		}
 		const root = vscode.workspace.isTrusted ? getWorkspaceRoot() : undefined;
-		const powers = (await this.powersService.discover(root)).filter(p => this.matchesFilter(p));
+		const powers = (await this.powersService.discover(root, vscode.workspace.isTrusted)).filter(p => this.matchesFilter(p));
 		if (powers.length === 0) {
 			return [];
 		}
@@ -145,7 +145,7 @@ export class AvailablePowersTreeProvider implements vscode.TreeDataProvider<Avai
 
 	async getChildren(): Promise<AvailablePowerTreeItem[]> {
 		const root = vscode.workspace.isTrusted ? getWorkspaceRoot() : undefined;
-		const installed = await this.powersService.discover(root);
+		const installed = await this.powersService.discover(root, vscode.workspace.isTrusted);
 		const installedIds = new Set(installed.map(p => p.id.toLowerCase()));
 
 		return this.powersService.getCuratedCatalog()

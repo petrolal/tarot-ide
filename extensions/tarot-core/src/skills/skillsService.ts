@@ -152,7 +152,6 @@ export function resolveSkillsForPrompt(
 /**
  * Discovers, resolves and imports Agent Skills (`SKILL.md` + optional `scripts/`, `references/`)
  * from `.tarot/skills/` (workspace, higher priority) and `~/.tarot/skills/` (global).
- * Callers must gate workspace discovery on `vscode.workspace.isTrusted`.
  */
 export class TarotSkillsService {
 	getGlobalSkillsDir(): string {
@@ -163,7 +162,15 @@ export class TarotSkillsService {
 		return path.join(workspaceRoot, '.tarot', 'skills');
 	}
 
-	async discover(workspaceRoot?: string, extraPowerSkills?: readonly SkillDefinition[]): Promise<SkillDefinition[]> {
+	/**
+	 * `trusted` is mandatory (TD-16, AGENTS.md §2d): workspace skills under `.tarot/skills/` are
+	 * skipped unless `trusted === true`, even if a caller passes a non-undefined `workspaceRoot`.
+	 */
+	async discover(
+		workspaceRoot: string | undefined,
+		trusted: boolean,
+		extraPowerSkills?: readonly SkillDefinition[],
+	): Promise<SkillDefinition[]> {
 		const byId = new Map<string, SkillDefinition>();
 
 		// 1. Global ~/.tarot/skills/<name>/SKILL.md
@@ -175,7 +182,7 @@ export class TarotSkillsService {
 			byId.set(s.id.toLowerCase(), s);
 		}
 		// 3. Workspace .tarot/skills/<name>/SKILL.md (wins over global/power)
-		if (workspaceRoot) {
+		if (workspaceRoot && trusted) {
 			for (const s of await this.readSkillsDir(this.getWorkspaceSkillsDir(workspaceRoot), 'workspace')) {
 				byId.set(s.id.toLowerCase(), s);
 			}

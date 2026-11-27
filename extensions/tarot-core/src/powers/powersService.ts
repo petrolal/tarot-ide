@@ -224,7 +224,7 @@ export function matchPowersForPrompt(powers: readonly PowerDefinition[], prompt:
 /**
  * Discovers, installs, creates and removes Powers (`plugin.json` or `POWER.md` + optional
  * `skills/` + optional `mcp.json`) from `.tarot/powers/` (workspace) and `~/.tarot/powers/`
- * (global). Callers must gate workspace discovery on `vscode.workspace.isTrusted`.
+ * (global).
  */
 export class TarotPowersService {
 	constructor(private readonly skillsService: TarotSkillsService) { }
@@ -241,12 +241,16 @@ export class TarotPowersService {
 		return CURATED_POWERS_CATALOG;
 	}
 
-	async discover(workspaceRoot?: string): Promise<PowerDefinition[]> {
+	/**
+	 * `trusted` is mandatory (TD-16, AGENTS.md §2d): workspace powers under `.tarot/powers/` are
+	 * skipped unless `trusted === true`, even if a caller passes a real `workspaceRoot`.
+	 */
+	async discover(workspaceRoot: string | undefined, trusted: boolean): Promise<PowerDefinition[]> {
 		const byId = new Map<string, PowerDefinition>();
 		for (const p of await this.readPowersDir(this.getGlobalPowersDir(), 'global')) {
 			byId.set(p.id.toLowerCase(), p);
 		}
-		if (workspaceRoot) {
+		if (workspaceRoot && trusted) {
 			for (const p of await this.readPowersDir(this.getWorkspacePowersDir(workspaceRoot), 'workspace')) {
 				byId.set(p.id.toLowerCase(), p);
 			}

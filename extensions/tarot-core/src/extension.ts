@@ -110,7 +110,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (!vscode.workspace.isTrusted) {
 				return [];
 			}
-			const { servers } = await mcpConfigService.discover(cwd);
+			const { servers } = await mcpConfigService.discover(cwd, vscode.workspace.isTrusted);
 			return servers
 				.filter(s => s.enabled && s.transport === 'stdio' && s.command)
 				.map(s => ({
@@ -1052,7 +1052,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		if (relativePath.startsWith('..') || relativePath.startsWith('.tarot/hooks')) {
 			return;
 		}
-		const hooks = await hookEngine.discover(root);
+		const hooks = await hookEngine.discover(root, vscode.workspace.isTrusted);
 		if (hooks.length === 0) {
 			return;
 		}

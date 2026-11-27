@@ -24,7 +24,6 @@ const RECIPE_FILE_RE = /^(.+)\.workflow\.(json|ya?ml)$/i;
  * - An invalid higher-priority recipe reports an error and does NOT shadow a valid lower-priority one.
  * - When both `.workflow.json` and `.workflow.yaml`/`.yml` share a name in the same scope, JSON
  *   wins and a conflict warning is reported (MIGRATION_PLAN.md M3.9a).
- * Callers must gate workspace discovery on `vscode.workspace.isTrusted`.
  */
 export class TarotRecipeLoader {
 	constructor(private readonly bundledRecipesDir?: string) { }
@@ -37,7 +36,11 @@ export class TarotRecipeLoader {
 		return path.join(workspaceRoot, '.tarot', 'workflows');
 	}
 
-	async discover(workspaceRoot?: string): Promise<RecipeDiscoveryResult> {
+	/**
+	 * `trusted` is mandatory (TD-16, AGENTS.md §2d): workspace recipes under `.tarot/workflows/`
+	 * are skipped unless `trusted === true`, even if a caller passes a real `workspaceRoot`.
+	 */
+	async discover(workspaceRoot: string | undefined, trusted: boolean): Promise<RecipeDiscoveryResult> {
 		const byName = new Map<string, LoadedRecipe>();
 		const errors: string[] = [];
 		const warnings: string[] = [];
@@ -49,12 +52,13 @@ export class TarotRecipeLoader {
 			scopes.push({ dir: this.bundledRecipesDir, scope: 'bundled' });
 		}
 		scopes.push({ dir: this.getUserWorkflowsDir(), scope: 'user' });
-		if (workspaceRoot) {
+		if (workspaceRoot && trusted) {
 			scopes.push({ dir: this.getWorkspaceWorkflowsDir(workspaceRoot), scope: 'workspace' });
 		}
 
+		const trustedRoot = trusted ? workspaceRoot : undefined;
 		for (const { dir, scope } of scopes) {
-			const res = await this.readScopeDir(dir, scope, workspaceRoot);
+			const res = await this.readScopeDir(dir, scope, trustedRoot);
 			errors.push(...res.errors);
 			warnings.push(...res.warnings);
 			for (const loaded of res.recipes) {
