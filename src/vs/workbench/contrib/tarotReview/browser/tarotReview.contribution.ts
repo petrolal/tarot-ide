@@ -8,7 +8,7 @@ import { $, addDisposableListener, clearNode } from '../../../../base/browser/do
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../../editor/browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -39,6 +39,8 @@ export interface ITarotInlineFileReview {
 export interface ITarotInlineReviewPayload {
 	readonly files: readonly ITarotInlineFileReview[];
 }
+
+const HUNK_BAR_HEIGHT_PX = 30;
 
 function normalizePath(p: string): string {
 	return p.replace(/\\/g, '/');
@@ -73,11 +75,12 @@ CommandsRegistry.registerCommand('_tarot.inlineReview.setState', (_accessor, pay
 });
 
 /**
- * Native Cursor-style inline diff review overlay for Tarot IDE:
- * - Renders removed lines inline in red via Monaco ViewZones
- * - Highlights added/modified lines in green via decorations
- * - Places floating Accept / Reject pill buttons at the edge of each hunk (ContentWidget)
- * - Displays a floating bottom-center review bar (OverlayWidget) for hunk/file navigation & Accept/Reject File
+ * Native Cursor-style inline diff review overlay themed with Tarot Arcana palette:
+ * - Renders removed lines inline in Tarot Crimson via Monaco ViewZones
+ * - Highlights added/modified lines in Tarot Teal-Jade via decorations
+ * - Reserves a dedicated non-overlapping ViewZone strip below each hunk paired with
+ *   a right-aligned OverlayWidget containing high-contrast Accept / Reject pills
+ * - Displays a floating bottom-right review bar (OverlayWidget) for hunk/file navigation & Accept/Reject File
  */
 class TarotInlineReviewContribution extends Disposable implements IEditorContribution {
 	static readonly ID = 'tarot.contrib.inlineReview';
@@ -88,7 +91,7 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 	private readonly bottomBarWidget: IOverlayWidget;
 	private bottomBarAttached = false;
 	private viewZoneIds: string[] = [];
-	private contentWidgets: IContentWidget[] = [];
+	private hunkOverlayWidgets: IOverlayWidget[] = [];
 	private currentHunkIndex = 0;
 
 	constructor(
@@ -106,7 +109,9 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 		this.bottomBarWidget = {
 			getId: () => 'tarot.inlineReview.bottomBar',
 			getDomNode: () => this.bottomBarDomNode,
-			getPosition: (): IOverlayWidgetPosition | null => null,
+			getPosition: (): IOverlayWidgetPosition => ({
+				preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
+			}),
 		};
 
 		this._register(this.editor.onDidChangeModel(() => {
@@ -152,7 +157,7 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 		const newDecorations: IModelDeltaDecoration[] = [];
 
-		// 1. Added/modified green decorations + inline red ViewZones + per-hunk Accept/Reject pills
+		// 1. Added/modified Tarot Teal decorations + inline Tarot Crimson ViewZones + non-overlapping per-hunk bar
 		this.editor.changeViewZones(accessor => {
 			for (const hunk of review.hunks) {
 				if (hunk.lineCount > 0) {
@@ -166,7 +171,7 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 							className: 'tarot-review-added-line',
 							linesDecorationsClassName: 'tarot-review-added-gutter',
 							overviewRuler: {
-								color: 'rgba(63, 185, 80, 0.85)',
+								color: 'rgba(79, 209, 197, 0.9)',
 								position: OverviewRulerLane.Left,
 							},
 						},
@@ -195,25 +200,33 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 					this.viewZoneIds.push(zoneId);
 				}
 
-				// Floating Accept / Reject pill buttons at the bottom of this hunk
-				const anchorLine = hunk.lineCount > 0
+				// Dedicated non-overlapping action strip right below this hunk (ViewZone + synced OverlayWidget)
+				const anchorAfterLine = hunk.lineCount > 0
 					? Math.max(1, Math.min(hunk.startLine + hunk.lineCount - 1, maxLine))
-					: Math.max(1, Math.min(hunk.startLine, maxLine));
+					: Math.max(0, Math.min(hunk.startLine - 1, maxLine));
 
-				const pillDom = $('.tarot-review-hunk-actions', {
+				const pillDom = $('.tarot-review-hunk-strip', {
 					role: 'group',
 					'aria-label': localize('tarotInlineReview.hunkActionsAria', "Change actions"),
 				});
 
+				const actionsInner = $('.tarot-review-hunk-actions');
+
 				const acceptBtn = $<HTMLButtonElement>('button.tarot-review-pill.tarot-review-pill-accept', {
 					type: 'button',
 					title: localize('tarotInlineReview.acceptHunkTitle', "Accept this change"),
-				}, localize('tarotInlineReview.acceptHunk', "Accept"));
+				},
+					$('span.tarot-review-pill-icon', { 'aria-hidden': 'true' }, '✓'),
+					$('span', undefined, localize('tarotInlineReview.acceptHunk', "Accept")),
+				);
 
 				const rejectBtn = $<HTMLButtonElement>('button.tarot-review-pill.tarot-review-pill-reject', {
 					type: 'button',
 					title: localize('tarotInlineReview.rejectHunkTitle', "Reject and revert this change"),
-				}, localize('tarotInlineReview.rejectHunk', "Reject"));
+				},
+					$('span.tarot-review-pill-icon', { 'aria-hidden': 'true' }, '✕'),
+					$('span', undefined, localize('tarotInlineReview.rejectHunk', "Reject")),
+				);
 
 				this.renderDisposables.add(addDisposableListener(acceptBtn, 'mousedown', e => {
 					e.preventDefault();
@@ -234,33 +247,43 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 					void this.commandService.executeCommand('tarot.review.rejectHunk', review.relativePath, hunk.id);
 				}));
 
-				pillDom.appendChild(acceptBtn);
-				pillDom.appendChild(rejectBtn);
+				actionsInner.appendChild(acceptBtn);
+				actionsInner.appendChild(rejectBtn);
+				pillDom.appendChild(actionsInner);
 
 				const widgetId = `tarot.inlineReview.hunk.${hunk.id}`;
-				const anchorCol = model.getLineMaxColumn(anchorLine);
-				const contentWidget: IContentWidget = {
-					allowEditorOverflow: true,
-					suppressMouseDown: true,
+				const overlayWidget: IOverlayWidget = {
 					getId: () => widgetId,
 					getDomNode: () => pillDom,
-					getPosition: (): IContentWidgetPosition => ({
-						position: { lineNumber: anchorLine, column: anchorCol },
-						preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE],
-					}),
+					getPosition: (): IOverlayWidgetPosition | null => null,
 				};
-				this.editor.addContentWidget(contentWidget);
-				this.contentWidgets.push(contentWidget);
+				this.editor.addOverlayWidget(overlayWidget);
+				this.hunkOverlayWidgets.push(overlayWidget);
+
+				const spacerZoneId = accessor.addZone({
+					afterLineNumber: anchorAfterLine,
+					heightInPx: HUNK_BAR_HEIGHT_PX,
+					domNode: $('.tarot-review-hunk-spacer'),
+					onDomNodeTop: top => {
+						pillDom.style.top = `${top}px`;
+					},
+					onComputedHeight: height => {
+						pillDom.style.height = `${height}px`;
+					},
+				});
+				this.viewZoneIds.push(spacerZoneId);
 			}
 		});
 
 		this.decorations.set(newDecorations);
 
-		// 2. Floating bottom-center action bar (Cursor-style: ↑ 1 of N ↓ | Reject File | Accept File)
+		// 2. Floating bottom-right action bar (Cursor-style: ↑ 1 of N ↓ | File X/Y | Reject File | Accept File)
 		this.renderBottomBar(review);
 		if (!this.bottomBarAttached) {
 			this.editor.addOverlayWidget(this.bottomBarWidget);
 			this.bottomBarAttached = true;
+		} else {
+			this.editor.layoutOverlayWidget(this.bottomBarWidget);
 		}
 	}
 
@@ -371,11 +394,11 @@ class TarotInlineReviewContribution extends Disposable implements IEditorContrib
 				}
 			});
 		}
-		if (this.contentWidgets.length > 0) {
-			const widgets = this.contentWidgets;
-			this.contentWidgets = [];
+		if (this.hunkOverlayWidgets.length > 0) {
+			const widgets = this.hunkOverlayWidgets;
+			this.hunkOverlayWidgets = [];
 			for (const w of widgets) {
-				this.editor.removeContentWidget(w);
+				this.editor.removeOverlayWidget(w);
 			}
 		}
 	}

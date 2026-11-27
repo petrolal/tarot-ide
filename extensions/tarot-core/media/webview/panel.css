@@ -1179,11 +1179,11 @@ body.vscode-light .transcript-link:hover {
 }
 
 .inline-diff-stat-add {
-	color: #4ADE80;
+	color: #4FD1C5;
 }
 
 .inline-diff-stat-del {
-	color: #F87171;
+	color: #F43F5E;
 }
 
 .inline-diff-actions {
@@ -1209,13 +1209,15 @@ body.vscode-light .transcript-link:hover {
 }
 
 .inline-diff-line.add {
-	background: rgba(46, 160, 67, 0.22);
-	color: #D2F8DC;
+	background: rgba(79, 209, 197, 0.16);
+	border-left: 2px solid #4FD1C5;
+	color: #CCFBF1;
 }
 
 .inline-diff-line.del {
-	background: rgba(248, 81, 73, 0.20);
-	color: #FFD2CF;
+	background: rgba(244, 63, 94, 0.16);
+	border-left: 2px solid #F43F5E;
+	color: #FDA4AF;
 }
 
 .inline-diff-line.context {
@@ -1279,31 +1281,31 @@ body.vscode-light .inline-diff-stat-del {
 }
 
 .review-pill-accept {
-	color: #4ADE80;
-	border-color: rgba(74, 222, 128, 0.35);
-	background: rgba(74, 222, 128, 0.10);
+	color: #5EEAD4;
+	border-color: rgba(79, 209, 197, 0.42);
+	background: rgba(13, 148, 136, 0.22);
 }
 
 .review-pill-accept:hover {
-	background: rgba(74, 222, 128, 0.22);
-	border-color: #4ADE80;
+	background: rgba(20, 184, 166, 0.34);
+	border-color: #4FD1C5;
 }
 
 .review-pill-reject {
-	color: #F87171;
-	border-color: rgba(248, 113, 113, 0.35);
-	background: rgba(248, 113, 113, 0.10);
+	color: #FDA4AF;
+	border-color: rgba(244, 63, 94, 0.42);
+	background: rgba(190, 18, 60, 0.22);
 }
 
 .review-pill-reject:hover {
-	background: rgba(248, 113, 113, 0.22);
-	border-color: #F87171;
+	background: rgba(225, 29, 72, 0.34);
+	border-color: #F43F5E;
 }
 
 .review-accept-btn {
 	background: transparent;
 	border: 1px solid transparent;
-	color: #4ADE80;
+	color: #4FD1C5;
 	border-radius: 4px;
 	cursor: pointer;
 	font-size: 11px;
@@ -1312,8 +1314,8 @@ body.vscode-light .inline-diff-stat-del {
 }
 
 .review-accept-btn:hover {
-	border-color: #4ADE80;
-	background: rgba(74, 222, 128, 0.14);
+	border-color: #4FD1C5;
+	background: rgba(79, 209, 197, 0.16);
 }
 
 .review-revert-btn {

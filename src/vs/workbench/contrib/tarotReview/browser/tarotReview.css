@@ -3,20 +3,25 @@
  *  Licensed under the GNU General Public License v3.0 (GPL-3.0). See LICENSE and NOTICE.md.
  *--------------------------------------------------------------------------------------------*/
 
-/* Inline green added/modified lines */
+/* ============================================================================
+ * Tarot Arcana Inline Diff Review Palette
+ * Triad: Teal/Jade (#4FD1C5 / #86D9A5) · Amethyst (#7C3AED / #C4A5F7) · Gold (#F5E08E) · Crimson (#F43F5E)
+ * ============================================================================ */
+
+/* Inline added/modified lines — Tarot Arcana Teal-Jade */
 .monaco-editor .tarot-review-added-line {
-	background-color: rgba(46, 160, 67, 0.18);
+	background-color: rgba(79, 209, 197, 0.13);
 }
 
 .monaco-editor .tarot-review-added-gutter {
-	border-left: 3px solid #3fb950;
+	border-left: 3px solid #4FD1C5;
 	margin-left: 2px;
 }
 
-/* Inline red removed lines ViewZone */
+/* Inline removed lines ViewZone — Tarot Arcana Crimson */
 .monaco-editor .tarot-review-removed-zone {
-	background-color: rgba(248, 81, 73, 0.17);
-	border-left: 3px solid #f85149;
+	background-color: rgba(244, 63, 94, 0.15);
+	border-left: 3px solid #F43F5E;
 	box-sizing: border-box;
 	width: 100%;
 	overflow: hidden;
@@ -26,80 +31,109 @@
 .monaco-editor .tarot-review-removed-line {
 	white-space: pre;
 	padding-left: 6px;
-	color: rgba(255, 200, 200, 0.85);
+	color: rgba(253, 164, 175, 0.88);
 	text-decoration: line-through;
-	text-decoration-color: rgba(248, 81, 73, 0.45);
+	text-decoration-color: rgba(244, 63, 94, 0.50);
 }
 
-/* Per-hunk floating Accept / Reject pill buttons (Cursor-style) */
+/* Non-overlapping spacer ViewZone below each hunk */
+.monaco-editor .tarot-review-hunk-spacer {
+	width: 100%;
+	pointer-events: none;
+}
+
+/* Right-aligned overlay strip synced to each hunk's spacer ViewZone (zero overlap with code!) */
+.monaco-editor .tarot-review-hunk-strip {
+	position: absolute;
+	left: 0;
+	right: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	pointer-events: none;
+	z-index: 20;
+}
+
+/* Per-hunk floating Accept / Reject pill container (Tarot Arcana obsidian + amethyst border) */
 .monaco-editor .tarot-review-hunk-actions {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	padding: 2px 3px;
-	border-radius: 6px;
-	background: var(--vscode-editorWidget-background, #181226);
-	border: 1px solid var(--vscode-editorWidget-border, rgba(255, 255, 255, 0.14));
-	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
-	z-index: 20;
+	gap: 6px;
+	padding: 3px 5px;
+	border-radius: 7px;
+	background: #161029;
+	border: 1px solid #432C75;
+	box-shadow: 0 3px 12px rgba(10, 6, 20, 0.55), 0 0 0 1px rgba(196, 165, 247, 0.08);
 	pointer-events: auto;
 }
 
 .monaco-editor .tarot-review-pill {
-	border: none;
-	border-radius: 4px;
-	padding: 2px 8px;
-	font-size: 11px;
-	font-weight: 600;
-	line-height: 16px;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	border: 1px solid transparent;
+	border-radius: 5px;
+	padding: 3px 10px;
+	font-size: 11.5px;
+	font-weight: 700;
+	line-height: 15px;
+	letter-spacing: 0.01em;
 	cursor: pointer;
 	font-family: var(--vscode-font-family);
-	transition: filter 100ms ease, transform 80ms ease;
+	transition: filter 110ms ease, background-color 110ms ease, border-color 110ms ease;
+}
+
+.monaco-editor .tarot-review-pill-icon {
+	font-size: 11px;
+	line-height: 1;
 }
 
 .monaco-editor .tarot-review-pill:focus-visible,
 .monaco-editor .tarot-review-bar-btn:focus-visible,
 .monaco-editor .tarot-review-bar-icon-btn:focus-visible,
 .monaco-editor .tarot-review-bar-file-btn:focus-visible {
-	outline: 1.5px solid var(--vscode-focusBorder);
+	outline: 1.5px solid #F5E08E;
 	outline-offset: 1px;
 }
 
+/* Accept pill — Tarot Teal-Jade high contrast */
 .monaco-editor .tarot-review-pill-accept {
-	background: #238636;
-	color: #ffffff;
+	background: #0D9488;
+	border-color: #2DD4BF;
+	color: #F0FDFA;
 }
 
 .monaco-editor .tarot-review-pill-accept:hover {
-	filter: brightness(1.14);
+	background: #14B8A6;
+	border-color: #5EEAD4;
 }
 
+/* Reject pill — Tarot Crimson high contrast */
 .monaco-editor .tarot-review-pill-reject {
-	background: #b62324;
-	color: #ffffff;
+	background: #BE123C;
+	border-color: #FB7185;
+	color: #FFF1F2;
 }
 
 .monaco-editor .tarot-review-pill-reject:hover {
-	filter: brightness(1.14);
+	background: #E11D48;
+	border-color: #FDA4AF;
 }
 
-/* Floating bottom-center review bar (Cursor-style) */
+/* Floating bottom-right review bar (Tarot Arcana obsidian + amethyst + gold) */
 .monaco-editor .tarot-review-floating-bar {
-	position: absolute;
-	bottom: 16px;
-	left: 50%;
-	transform: translateX(-50%);
+	margin: 0 22px 14px 0;
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	padding: 5px 8px;
-	border-radius: 9px;
-	background: var(--vscode-editorWidget-background, #181226);
-	border: 1px solid var(--vscode-editorWidget-border, rgba(255, 255, 255, 0.16));
-	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+	padding: 6px 10px;
+	border-radius: 10px;
+	background: #161029;
+	border: 1px solid #4C3385;
+	box-shadow: 0 8px 28px rgba(8, 4, 18, 0.62), 0 0 0 1px rgba(245, 224, 142, 0.10);
 	font-family: var(--vscode-font-family);
 	font-size: 12px;
-	color: var(--vscode-editorWidget-foreground, #e8e6f0);
+	color: #E8E6F0;
 	z-index: 30;
 	pointer-events: auto;
 	user-select: none;
@@ -115,104 +149,169 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
+	width: 24px;
+	height: 24px;
 	border: none;
 	border-radius: 5px;
 	background: transparent;
-	color: inherit;
+	color: #C4A5F7;
 	cursor: pointer;
 }
 
 .monaco-editor .tarot-review-bar-icon-btn:hover {
-	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1));
+	background: rgba(196, 165, 247, 0.14);
+	color: #F5E08E;
 }
 
 .monaco-editor .tarot-review-bar-counter {
 	font-size: 11.5px;
+	font-weight: 600;
 	font-variant-numeric: tabular-nums;
-	padding: 0 4px;
-	opacity: 0.9;
+	padding: 0 5px;
+	color: #F5E08E;
 }
 
 .monaco-editor .tarot-review-bar-file-btn {
-	border: 1px solid var(--vscode-editorWidget-border, rgba(255, 255, 255, 0.14));
-	background: transparent;
-	color: inherit;
-	border-radius: 5px;
-	padding: 2px 7px;
+	border: 1px solid #3F2A6B;
+	background: rgba(124, 58, 237, 0.14);
+	color: #D8C7FA;
+	border-radius: 6px;
+	padding: 3px 8px;
 	font-size: 11px;
+	font-weight: 600;
 	cursor: pointer;
 }
 
 .monaco-editor .tarot-review-bar-file-btn:hover {
-	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1));
+	background: rgba(124, 58, 237, 0.28);
+	border-color: #9D7CD8;
+	color: #F5E08E;
 }
 
 .monaco-editor .tarot-review-bar-sep {
 	width: 1px;
-	height: 16px;
-	background: var(--vscode-editorWidget-border, rgba(255, 255, 255, 0.14));
+	height: 18px;
+	background: #3B2667;
 	margin: 0 2px;
 }
 
 .monaco-editor .tarot-review-bar-btn {
 	display: inline-flex;
 	align-items: center;
-	gap: 5px;
-	border: none;
+	gap: 6px;
+	border: 1px solid transparent;
 	border-radius: 6px;
-	padding: 4px 10px;
+	padding: 4px 11px;
 	font-size: 11.5px;
-	font-weight: 600;
+	font-weight: 700;
 	cursor: pointer;
 	font-family: var(--vscode-font-family);
+	transition: background-color 110ms ease, border-color 110ms ease;
 }
 
 .monaco-editor .tarot-review-bar-reject {
-	background: transparent;
-	color: var(--vscode-editorWidget-foreground, #e8e6f0);
+	background: rgba(244, 63, 94, 0.14);
+	border-color: rgba(251, 113, 133, 0.35);
+	color: #FDA4AF;
 }
 
 .monaco-editor .tarot-review-bar-reject:hover {
-	background: rgba(248, 81, 73, 0.22);
-	color: #ff9c97;
+	background: #BE123C;
+	border-color: #FB7185;
+	color: #FFF1F2;
 }
 
 .monaco-editor .tarot-review-bar-accept {
-	background: var(--vscode-button-background, #7c3aed);
-	color: var(--vscode-button-foreground, #ffffff);
+	background: #6D28D9;
+	border-color: #A78BFA;
+	color: #FFFFFF;
 }
 
 .monaco-editor .tarot-review-bar-accept:hover {
-	background: var(--vscode-button-hoverBackground, #6d28d9);
+	background: #7C3AED;
+	border-color: #C4B5FD;
 }
 
 .monaco-editor .tarot-review-bar-kbd {
 	font-size: 10px;
-	opacity: 0.78;
+	opacity: 0.82;
 	font-weight: 500;
 }
 
-/* Light theme overrides */
+/* ============================================================================
+ * Tarot Arcana Light Theme Overrides
+ * ============================================================================ */
 .vs .monaco-editor .tarot-review-added-line {
-	background-color: rgba(46, 160, 67, 0.14);
+	background-color: rgba(13, 115, 119, 0.12);
+}
+
+.vs .monaco-editor .tarot-review-added-gutter {
+	border-left-color: #0D7377;
 }
 
 .vs .monaco-editor .tarot-review-removed-zone {
-	background-color: rgba(248, 81, 73, 0.13);
+	background-color: rgba(185, 28, 28, 0.10);
+	border-left-color: #B91C1C;
 }
 
 .vs .monaco-editor .tarot-review-removed-line {
-	color: #82071e;
+	color: #991B1B;
+	text-decoration-color: rgba(185, 28, 28, 0.45);
 }
 
-.vs .monaco-editor .tarot-review-bar-reject:hover {
-	background: rgba(207, 34, 46, 0.14);
-	color: #a40e26;
+.vs .monaco-editor .tarot-review-hunk-actions,
+.vs .monaco-editor .tarot-review-floating-bar {
+	background: #FAF8FF;
+	border-color: #C8B6E8;
+	color: #1D1135;
+	box-shadow: 0 4px 16px rgba(45, 20, 90, 0.14);
 }
 
-/* High contrast themes */
+.vs .monaco-editor .tarot-review-bar-icon-btn {
+	color: #4B0082;
+}
+
+.vs .monaco-editor .tarot-review-bar-counter {
+	color: #8A6112;
+}
+
+.vs .monaco-editor .tarot-review-bar-file-btn {
+	border-color: #D1C2EB;
+	background: #F1EBFB;
+	color: #4B0082;
+}
+
+.vs .monaco-editor .tarot-review-bar-sep {
+	background: #D8CBEF;
+}
+
+.vs .monaco-editor .tarot-review-pill-accept {
+	background: #0D7377;
+	border-color: #0F766E;
+	color: #FFFFFF;
+}
+
+.vs .monaco-editor .tarot-review-pill-reject {
+	background: #B91C1C;
+	border-color: #DC2626;
+	color: #FFFFFF;
+}
+
+.vs .monaco-editor .tarot-review-bar-reject {
+	background: rgba(185, 28, 28, 0.08);
+	border-color: rgba(185, 28, 28, 0.30);
+	color: #991B1B;
+}
+
+.vs .monaco-editor .tarot-review-bar-accept {
+	background: #4B0082;
+	border-color: #6D28D9;
+	color: #FFFFFF;
+}
+
+/* ============================================================================
+ * High Contrast Themes
+ * ============================================================================ */
 .hc-black .monaco-editor .tarot-review-added-line,
 .hc-light .monaco-editor .tarot-review-added-line {
 	outline: 1px dashed var(--vscode-contrastBorder);
